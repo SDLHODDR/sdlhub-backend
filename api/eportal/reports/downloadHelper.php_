@@ -1,0 +1,355 @@
+<?php
+
+require_once __DIR__ . "/../config/utils.php";
+
+/*
+=====================================================
+VALIDATE DOWNLOAD REQUEST
+=====================================================
+*/
+function validateDownloadRequest(
+    string $category,
+    string $type,
+    string $financialYear,
+    string $empCode = ""
+): void {
+
+    $allowedCategories = [
+        "documents",
+        "declaration"
+    ];
+
+    $allowedTypes = [
+        "single",
+        "all"
+    ];
+
+    if (!in_array($category, $allowedCategories, true)) {
+    responseError("Invalid download category");
+	}
+
+	if (!in_array($type, $allowedTypes, true)) {
+		responseError("Invalid download type");
+	}
+
+	if (empty($financialYear)) {
+		responseError("Financial year is required");
+	}
+
+	if ($type === "single" && empty(trim($empCode))) {
+		responseError("Employee code is required");
+	}
+}
+
+/*
+=====================================================
+CREATE ZIP FILE
+=====================================================
+*/
+function createZipFile(
+    string $category,
+    string $type,
+    string $financialYear,
+    string $empCode = ""
+): array {
+
+    // Create temp directory if required
+    if (!is_dir(TEMP_ZIP_PATH)) {
+
+        if (!mkdir(TEMP_ZIP_PATH, 0775, true)) {
+            apiResponse(false, "Failed to create temporary ZIP directory.");
+            exit;
+        }
+    }
+
+    // File prefix
+    $filePrefix = ($category === "declaration")
+        ? "itr_declaration"
+        : "itr_documents";
+
+    // Target
+    $targetName = ($type === "single")
+        ? $empCode
+        : "ALL";
+
+    // Generate filename
+    $zipFileName =
+        $filePrefix . "_"
+        . $financialYear . "_"
+        . $targetName . "_"
+        . date("Ymd_His") . "_"
+        . mt_rand(1000, 9999)
+        . ".zip";
+
+    $zipFilePath = rtrim(TEMP_ZIP_PATH, "/") . "/" . $zipFileName;
+
+    // Create ZIP
+    $zip = new ZipArchive();
+
+    if (
+        $zip->open(
+            $zipFilePath,
+            ZipArchive::CREATE | ZipArchive::OVERWRITE
+        ) !== TRUE
+    ) {
+        apiResponse(false, "Unable to create ZIP file.");
+        exit;
+    }
+
+    return [
+        "zip"       => $zip,
+        "file_name" => $zipFileName,
+        "file_path" => $zipFilePath
+    ];
+}
+
+/*
+=====================================================
+PROCESS DOCUMENT DOWNLOAD
+=====================================================
+*/
+function processDocumentDownload(
+    ZipArchive $zip,
+    string $financialYear,
+    string $type,
+    string $empCode = ""
+): void {
+	
+	$baseDir = INCOME_TAX_PATH;
+    /*
+    =====================================================
+    SINGLE EMPLOYEE
+    =====================================================
+    */
+    if ($type === "single") {
+
+        $empFolder = $baseDir . "/" . $financialYear . "/" . $empCode;
+
+        if (!is_dir($empFolder)) {           
+            responseError("Employee folder not found.");
+        }
+
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator(
+                $empFolder,
+                RecursiveDirectoryIterator::SKIP_DOTS
+            ),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+
+        foreach ($files as $file) {
+
+            if ($file->isDir()) {
+                continue;
+            }
+
+            $filePath = $file->getRealPath();
+
+            if (!$filePath || !file_exists($filePath)) {
+                continue;
+            }
+
+            $zip->addFile(
+                $filePath,
+                $empCode . "/" . basename($filePath)
+            );
+        }
+
+        return;
+    }
+
+    /*
+    =====================================================
+    ALL EMPLOYEES
+    =====================================================
+    */
+
+    $fyFolder = $baseDir . "/" . $financialYear;
+
+    if (!is_dir($fyFolder)) {
+        apiResponse(false, "Financial year folder not found.");
+        exit;
+    }
+
+    $files = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator(
+            $fyFolder,
+            RecursiveDirectoryIterator::SKIP_DOTS
+        ),
+        RecursiveIteratorIterator::LEAVES_ONLY
+    );
+
+    foreach ($files as $file) {
+
+        if ($file->isDir()) {
+            continue;
+        }
+
+        $filePath = $file->getRealPath();
+
+        if (!$filePath || !file_exists($filePath)) {
+            continue;
+        }
+
+        $relativePath = substr(
+            $filePath,
+            strlen($fyFolder) + 1
+        );
+
+        $zip->addFile(
+            $filePath,
+            $relativePath
+        );
+    }
+}
+
+/*
+=====================================================
+PROCESS DECLARATION DOWNLOAD
+=====================================================
+*/
+function processDeclarationDownload(
+    $con,
+    ZipArchive $zip,
+    string $financialYear,
+    string $type,
+    string $empCode,
+    string $requestedBy
+): void {
+
+    /*
+    =====================================================
+    SINGLE EMPLOYEE
+    =====================================================
+    */
+    if ($type === "single") {
+
+        ensureDirectoryExists(TEMP_DECLARATION_PATH);
+
+        $pdfFile =
+            TEMP_DECLARATION_PATH .
+            "/Investment_Declaration_" .
+            $empCode .
+            ".pdf";
+
+        generateDeclarationPdf(
+            $empCode,
+            $financialYear,
+            $pdfFile
+        );
+
+        if (!file_exists($pdfFile)) {
+            apiResponse(false, "Declaration PDF generation failed.");
+            exit;
+        }
+
+        $zip->addFile(
+            $pdfFile,
+            $empCode . "/Investment_Declaration.pdf"
+        );
+
+        $zip->close();
+
+        if (file_exists($pdfFile)) {
+            unlink($pdfFile);
+        }
+
+        return;
+    }
+
+    /*
+    =====================================================
+    ALL EMPLOYEES
+    =====================================================
+    */
+
+    $sql = "
+        INSERT INTO EPT_ITR_DOWNLOAD_JOBS
+        (
+            JOB_TYPE,
+            FINANCIAL_YEAR,
+            REQUESTED_BY,
+            STATUS,
+            CREATED_AT
+        )
+        VALUES
+        (
+            'DECLARATION',
+            :financial_year,
+            :requested_by,
+            'PENDING',
+            SYSDATE
+        )
+        RETURNING ID INTO :job_id
+    ";
+
+    $stmt = oci_parse($con, $sql);
+
+    $jobId = 0;
+
+    oci_bind_by_name($stmt, ":financial_year", $financialYear);
+    oci_bind_by_name($stmt, ":requested_by", $requestedBy);
+    oci_bind_by_name($stmt, ":job_id", $jobId, 32);
+
+    if (!oci_execute($stmt)) {
+
+        $e = oci_error($stmt);
+
+        apiResponse(
+            false,
+            "Failed to create download job : " . $e["message"]
+        );
+
+        exit;
+    }
+
+    oci_commit($con);
+
+    /*
+    =====================================================
+    START BACKGROUND WORKER
+    =====================================================
+    */
+
+    $workerFile =
+        __DIR__ . "/../jobs/processDeclarationDownload.php";
+
+    if (!file_exists($workerFile)) {
+
+        apiResponse(
+            false,
+            "Worker file not found."
+        );
+
+        exit;
+    }
+
+    ensureDirectoryExists(ITR_JOB_LOG_PATH);
+
+    $workerLog =
+        ITR_JOB_LOG_PATH . "/worker.log";
+
+    $command =
+        "php "
+        . escapeshellarg($workerFile)
+        . " "
+        . escapeshellarg($jobId)
+        . " "
+        . escapeshellarg($financialYear)
+        . " >> "
+        . escapeshellarg($workerLog)
+        . " 2>&1 &";
+
+    exec($command);
+
+    apiResponse(
+        true,
+        "Your request has been submitted successfully. A download link will be emailed once processing is completed."
+    );
+
+    exit;
+}
+
+
+
+?>
