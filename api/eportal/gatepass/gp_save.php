@@ -1,0 +1,264 @@
+<?php
+//  ini_set('display_errors', 1);
+//  error_reporting(E_ALL);
+require_once "gp_head.php";
+
+if($data['saveGpData']==true)
+{
+    startQry();
+    if($data['ID'] != "") {
+        $gpass= singRec("select * from EPT_EMPLOYEE_GPASS where  id = '".$data['ID']."'");
+        $name = singRec("SELECT hr_get_emp_mgr('".$gpass['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
+        $name1 = findParentOrgEmp($gpass['EMP_CODE']);        
+        $Manager = $name['EMP_CODE'] ? $name['EMP_CODE'] : $name1;
+    } else {
+        $isAllowed = true;
+        // ===============================
+        // Fetch existing entries for same date
+        // ===============================
+        $gpass = multiRec("
+            select OUT_TYPE 
+            from EPT_EMPLOYEE_GPASS 
+            where EMP_CODE = '".$data['EMP_CODE']."' 
+            and GPASS_DATE = '".$data['GPASS_DATE']."'
+        ");
+
+        $existingTypes = array_column($gpass, 'OUT_TYPE');
+        $newType = $data['OUT_TYPE'];
+
+        // ===============================
+        // RULE 1: OD / FW / TO (strict single)
+        // ===============================
+        if (in_array($newType, ["OD", "FW", "TO"])) {
+            if (count($existingTypes) > 0) {
+                $isAllowed = false;
+                echo json_encode([
+                    "status" => false,
+                    "message" => "Only one ".$newType." entry allowed for this date"
+                ]);
+                //rollbackQry();
+                exit;
+            }
+        }
+        
+        // ===============================
+        // RULE 2: If OD/FW/TO already exists → block all
+        // ===============================
+        foreach ($existingTypes as $type) {
+            if (in_array($type, ["OD", "FW", "TO"])) {
+                $isAllowed = false;
+                echo json_encode([
+                    "status" => false,
+                    "message" => "Full-day/Field/Tour entry already exists for this date"
+                ]);
+                //rollbackQry();
+                exit;
+            }
+        }
+
+        // ===============================
+        // RULE 3: FO / SO (single per type)
+        // ===============================
+        if ($newType === "FO" && in_array("FO", $existingTypes)) {
+            $isAllowed = false;    
+            echo json_encode([
+                "status" => false,
+                "message" => "First Half already exists for this date"
+            ]);
+            //rollbackQry();
+            exit;
+        }
+
+        if ($newType === "SO" && in_array("SO", $existingTypes)) {
+            $isAllowed = false;
+            echo json_encode([
+                "status" => false,
+                "message" => "Second Half already exists for this date"
+            ]);
+            //rollbackQry();
+            exit;
+        }
+
+        // ===============================
+        // RULE 4: FO + SO combination (ALLOW or BLOCK based on requirement)
+        // ===============================
+
+        // If you want to BLOCK FO + SO together → keep this
+        /*
+        if ($newType === "FO" && in_array("SO", $existingTypes)) {
+            echo json_encode([
+                "status" => false,
+                "message" => "Cannot combine First Half and Second Half"
+            ]);
+            rollbackQry();
+            exit;
+        }
+        if ($newType === "SO" && in_array("FO", $existingTypes)) {
+            echo json_encode([
+                "status" => false,
+                "message" => "Cannot combine First Half and Second Half"
+            ]);
+            rollbackQry();
+            exit;
+        }
+        */
+
+        // If you want to ALLOW FO + SO → keep it commented (recommended based on your latest message)
+
+        // ===============================
+        // RULE 5: OI → always allowed
+        // ===============================
+        // No restriction needed
+        if($isAllowed)
+        {
+            $name = singRec("SELECT hr_get_emp_mgr('".$data['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
+            $name1 = findParentOrgEmp($data['EMP_CODE']);        
+            $Manager = $name['EMP_CODE'] ? $name['EMP_CODE'] : $name1;
+            $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from epplive.bcs_employee WHERE 
+                emp_code = '".$Manager."'");
+
+            $insert_id=executeQry("INSERT INTO EPT_EMPLOYEE_GPASS (ID, GPASS_NO, GPASS_DATE, EMP_CODE, OUT_TYPE,  REMARKS ,STATUS, CHG_ON, CHG_BY , auth_by)
+                values( 													
+                    null, 
+                    'null', 
+                    '".$data['GPASS_DATE']."', 
+                    '".$data['EMP_CODE']."', 
+                    '".$data['OUT_TYPE']."', 
+                    '". str_replace("'", "''", $data['REMARKS']) ."', 
+                    'N', 
+                    sysdate, 
+                    '".$empCode."', 
+                    null) returning ID into :newId",'newId');
+
+            $eppSiteCode = $_SESSION['eppSiteCode'] ?? null;
+            $eppEmpCode = $_SESSION['eppEmpCode'] ?? null;
+
+            $tasklog_id = executeQry("insert into ept_user_tasks_log  
+                            (ID, USER_TASKID, TASK_ID, TRAN_CODE, STATUS, REMARKS, SITE_CODE, EMP_CODE_FOR, IP_ADDR, CHG_ON, CHG_BY) values 
+                            ( null, '', '2', '".$insert_id."', 'O', '".str_replace("'", "''", $data['REMARKS'])."',  '".$eppSiteCode."', '".$Manager."', '', sysdate, '".$eppEmpCode."' ) returning ID into :taskId", 'taskId');            
+            
+            if($insert_id) {
+                if($data['withAuth']==true){    
+                    $gpass = singRec("select * from EPT_EMPLOYEE_GPASS where  id = '".$insert_id."'");
+                    $name = singRec("SELECT hr_get_emp_mgr('".$gpass['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
+                    $name1 = findParentOrgEmp($gpass['EMP_CODE']);        
+                    $Manager = $name['EMP_CODE'] ? $name['EMP_CODE'] : $name1;
+                    
+                    $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from epplive.bcs_employee 
+                                        WHERE emp_code = '".$Manager."'");
+
+                    $task_id = executeQry("insert into EPT_USER_TASKS (
+                    ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, AUTH_BY, AUTH_ON, REMARKS, TRAN_CODE, REF_TASK_ID, TASK_TYPE, UDF_1, TRAN_DESC, SITE_CODE, EMP_CODE_FOR, CHG_ON, UDF_2, TASK_GRP_DESC, IP_ADDR) values (
+                    null, '349', sysdate,'".$empCode."' , (sysdate+2), 'O', null, null, null, '".$insert_id."', null, 'A', null, concat('Outdoor DATED ', '".$gpass['GPASS_DATE']."' ), '".$_SESSION['eptSiteCode']."', '".$Manager."', sysdate, '', '".getEmpInfoByCode($gpass['EMP_CODE'])."', '') returning ID into :taskId" ,'taskId');
+
+                    executeQry("update ept_employee_gpass 
+                      set status='T',
+                      chg_by ='".$empCode."',
+                      chg_on = SYSDATE where id='".$insert_id."' ");
+                    
+                    $mailBody='Hi
+                    <br><br> The Following Outdoor Duty Request has been Raised.
+                    <br>
+                    <br><br>
+                    <b>  Employee  :</b> '.(getEmpInfoByCode($gpass['EMP_CODE'])).'<br><br>
+                    <b>  Outdoor Date :</b> '.$gpass['GPASS_DATE'].'<br><br>
+                    <b>  Out Type : </b> '.$decodeOT[$gpass['OUT_TYPE']].' <br><br>
+                    <b>  Remarks : </b> '.$gpass['REMARKS'].' <br><br>
+                    <b>  Status :</b> <b>Pending Approval</b> <br><br>
+                    <br><br> Regards<br> Admin';
+
+                    if($manageremail['COM_EMAIL']!='rap@sdlindia.com') {
+                        $maild = executeQry("INSERT INTO bcs_mailbox_epp(ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS, CHG_ON,CHG_BY,MAIL_DESCR) values(null,'  Outdoor Duty Request Of ".getEmpInfoByCode($gpass['EMP_CODE'])." dated ".$gpass['GPASS_DATE']."', '".trim($mailBody)."',null,'N',SYSDATE,
+                        '".$empCode."','Outdoor Duty')  returning ID into :mid",'mid');
+
+                        executeQry("INSERT INTO bcs_mailbox_epp_details(ID,MAIL_ID,EMAIL_TO,EMAIL_CC,EMAIL_BCC)
+                                    values(null,'".$maild."', '".strtolower($manageremail['COM_EMAIL'])." ','attendance@sdlindia.com',null)");			
+                        endQry();
+                    }
+                    
+                    echo json_encode([
+                        "status" => true,
+                        "task_id" => $task_id,
+                        "gpass_id" => $insert_id,
+                        "status_code" => 200,
+                        "message" => "Gatepass generated and send for Authorization successfully"
+                    ]);
+                } else {
+                    
+                    echo json_encode([
+                        "status" => true,
+                        "task_id" => $insert_id,
+                        "status_code" => 200,
+                        "message" => "Gatepass generated successfully"
+                    ]);
+                }
+
+                
+            } else {
+                echo json_encode([
+                    "status" => false,
+                    "status_code" => 500,
+                    "message" => "Some Error occured"
+                ]);
+            }
+        }
+        
+        endQry();
+    }
+} 
+else if($data['editGpData']==true)
+{
+    startQry();
+    if($data["ID"]) {
+
+        $updateFields = "
+            OUT_TYPE = '".$data['OUT_TYPE']."',
+            REMARKS = '" . str_replace("'", "''", $data['REMARKS']) . "'
+        ";
+
+        //Add POST_REMARKS only if present
+        if (isset($data['POST_REMARKS']) && $data['POST_REMARKS'] !== "") {
+            $updateFields .= ",
+            POST_REMARKS = '" . str_replace("'", "''", $data['POST_REMARKS']) . "'";
+        }
+
+        executeQry("UPDATE ept_employee_gpass
+            SET $updateFields
+            WHERE ID IN (".$data['ID'].")");
+
+    }
+    echo json_encode([
+        "status" => true,
+        "status_code" => 200,
+        "message" => "Gatepass updated successfully"
+    ]);
+    endQry();
+}
+else if($data['deleteOD']==true)
+{
+    startQry();
+    if($data["delteId"]) {
+        executeQry("DELETE FROM ept_employee_gpass WHERE ID in (".$data['delteId'].")");
+    }
+    echo json_encode([
+        "status" => true,
+        "status_code" => 200,
+        "message" => "Gatepass deleted successfully"
+    ]);
+    endQry();
+}else if($data['closeTicket']==true)
+{
+    startQry();
+    if($data["ID"]) {
+        executeQry("update ept_employee_gpass set status='X' where ID='".$data['ID']."' ") ;
+	    executeQry("update EPT_USER_TASKS set status='C', Remarks='Auto Closed due to Cancellation' where task_id='349' and tran_code='".$data['ID']."'");
+	}
+    echo json_encode([
+        "status" => true,
+        "status_code" => 200,
+        "message" => "Gatepass deleted successfully"
+    ]);
+    endQry();
+}
+
+ob_end_flush();
