@@ -96,6 +96,8 @@ try {
 
             TO_CHAR(TO_DATE(HEI.DOJ), 'dd-Mon-rrrr') DOJ,
             TO_CHAR(TO_DATE(be.DATE_CONF), 'dd-Mon-rrrr') DATE_CONF,
+            TRUNC(MONTHS_BETWEEN(SYSDATE, HEI.DOJ) / 12) || ' Years ' ||
+            MOD(TRUNC(MONTHS_BETWEEN(SYSDATE, HEI.DOJ)), 12) || ' Months' AS EXPERIENCE,
 
             bas.shft_label,
 
