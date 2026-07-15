@@ -84,6 +84,17 @@ $statusColorMap = [
     'X' => 'danger'
 ];
 
+$statusAuthColorMap = [
+    'O' => 'warning',
+    'C' => 'success',
+    'X' => 'danger',
+];
+
+$statusAuthTextMap = [
+    'O' => 'Open',
+    'C' => 'Close',
+    'X' => 'Cancel',
+];
 
 function printDetails($arr) {
     echo '<pre>';

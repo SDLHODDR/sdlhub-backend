@@ -21,11 +21,6 @@ $base_query = "
                         INNER JOIN EPT_PROFILE_TASK ept ON eut.TASK_ID = ept.TASK_ID
                         WHERE profile_id IN (SELECT profile_id FROM ept_emp_profile WHERE emp_code = '" . $empCode . "') 
                         AND emp_code_for IS NULL AND eut.STATUS = 'O'
-                        UNION ALL
-                    SELECT eut.*
-                        FROM EPT_USER_TASKS eut
-                        INNER JOIN EPT_PROFILE_TASK ept ON eut.TASK_ID = ept.TASK_ID
-                        WHERE eut.STATUS = 'O' and '" . $empCode . "' = '00575'
                 ) tasks";
 
                 //ORDER BY task_id, 3, 13
@@ -102,6 +97,8 @@ foreach($myTasksData as $res)
         'CREATED_ON'   => $res['CREATED_ON'],
         'SITE_CODE'    => $res['SITE_CODE'],
         'STATUS'       => $res['STATUS'],
+        "statusColor" => $statusAuthColorMap[$res['STATUS']] ?? "secondary",
+        "statusText" => $statusAuthTextMap[$res['STATUS']] ?? "Open",
         'REQUEST_FOR'  => $res['TASK_GRP_DESC'],
         // Attach details here
         'DETAILS'      => $details
@@ -110,5 +107,6 @@ foreach($myTasksData as $res)
 
 echo json_encode([
     "status" => true,
+    "success" => true,
     "tasks"   => $authTasksData
 ]);

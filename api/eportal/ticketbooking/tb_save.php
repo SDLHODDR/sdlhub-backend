@@ -3,7 +3,7 @@
 require_once "tb_head.php";
 
 
-if($data['saveTbData']==true)
+if($data['saveTbrData']==true)
 {
     startQry();
    
@@ -221,9 +221,9 @@ if($data['saveTbData']==true)
                 <b>  Cancelled By :</b>'.(getEmpInfoByCode($tickdets['REQ_BY'])).'<br><br>
         <br><br> Regards<br> Admin';
         
-        $maild = executeQry("INSERT INTO bcs_mailbox_epp(ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS, CHG_ON,CHG_BY,MAIL_DESCR) values(null,'  Ticket Cancellation : ".getEmpInfoByCode($tickdets['EMP_CODE'])." dated ".$tickdets['TRVL_DATE']."', '".trim($mailBody)."',null,'N',SYSDATE, '".$_SESSION['ept']['eptEmpCode']."','Ticket Booking')  returning ID into :mid",'mid',1);
+        $maild = executeQry("INSERT INTO EPT_BCS_MAILBOX_EPP(ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS, CHG_ON,CHG_BY,MAIL_DESCR) values(null,'  Ticket Cancellation : ".getEmpInfoByCode($tickdets['EMP_CODE'])." dated ".$tickdets['TRVL_DATE']."', '".trim($mailBody)."',null,'N',SYSDATE, '".$_SESSION['ept']['eptEmpCode']."','Ticket Booking')  returning ID into :mid",'mid',1);
 
-        executeQry("INSERT INTO bcs_mailbox_epp_details(ID,MAIL_ID,EMAIL_TO,EMAIL_CC,EMAIL_BCC) values(null,'".$maild."', '".strtolower($empemail['EMPEMAIL'])." ','attendance@sdlindia.com,".$manageremail['COM_EMAIL']."',null)");
+        executeQry("INSERT INTO EPT_BCS_MAILBOX_EPP_DETAILS(ID,MAIL_ID,EMAIL_TO,EMAIL_CC,EMAIL_BCC) values(null,'".$maild."', '".strtolower($empemail['EMPEMAIL'])." ','attendance@sdlindia.com,".$manageremail['COM_EMAIL']."',null)");
 
         echo json_encode([
             "status" => true,
