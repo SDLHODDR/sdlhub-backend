@@ -48,7 +48,7 @@ if (!empty($empDocs)) {
             "docType" => $doc['DOCTYP_CODE'],
             "docDesc" => $doc['DOCTYP_DESC'],
             "docDate" => $doc['CHG_ON'],
-            "previewUrl" => $_ENV["PUBLIC_PATH"] . $doc['DOC_PATH'],
+            "previewUrl" => $_ENV["PUBLIC_PATH"] ."/". $doc['DOC_PATH'],
         ];
     }
 }

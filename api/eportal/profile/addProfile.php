@@ -2,10 +2,10 @@
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
+require_once __DIR__ . "/../../config/utils.php";
 
 $sql___func___con = db_eportal();
 require_once __DIR__ . "/../../config/functions.php";
-require_once __DIR__ . "/../../config/utils.php";
 
 $empCode = $_SESSION['emp_code'] ?? '';
 
@@ -17,14 +17,20 @@ header('Content-Type: application/json');
 
 $data = json_decode(file_get_contents("php://input"), true);
 
-$name = $data['profile_name'];
+$name = $data['profileName'];
 $desc = $data['description'];
 
-
-executeQuery("INSERT INTO EPT_PROFILES
-              (PROFILE_DESC, DESCRIPTION, STATUS)
-              VALUES
-              ('$name','$desc','A')");
+startQry();
+$newId=executeQry("INSERT INTO EPT_PROFILES(PROFILE_ID,PROFILE_DESC,PROFILE_DETAIL,STATUS,CHG_ON,CHG_BY)
+                    VALUES(
+                            null,
+                            '".$name."',
+                            '".$desc."',
+                            'A',
+                            SYSDATE,
+                            '".$empCode."'
+                        )returning  PROFILE_ID into :newId ",'newId');
+endQry("Updated Successfully");
 
 echo json_encode(["status"=>"success"]);
 ?>

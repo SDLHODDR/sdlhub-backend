@@ -18,7 +18,7 @@ header('Content-Type: application/json');
 try {
 
 	$empCode = $_SESSION['emp_code'] ?? null;
-	if (!$empCode) {   
+	if (!$empCode) {
 		apiResponse(false,"Unauthorized Access",null,401);
 	}
 
@@ -26,11 +26,11 @@ try {
        CACHE (2 MIN)
     ============================== */
     $cacheFile = sys_get_temp_dir() . "/att10_" . $empCode . ".json";
-
+	/*
     if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 120) {
         echo file_get_contents($cacheFile);
         exit;
-    }
+    }*/
 
     /* RELEASE SESSION LOCK */
     session_write_close();
@@ -102,11 +102,18 @@ try {
     oci_bind_by_name($stid, ":empCode", $empCode);
     oci_execute($stid);
 
-    while ($row = oci_fetch_assoc($stid)) {
-        $dateMap[$row['ASON_DATE']]['onDesk'] = $row['ONDESK'];
-        $dateMap[$row['ASON_DATE']]['offDesk'] = $row['OFFDESK'];
-        $dateMap[$row['ASON_DATE']]['terrace'] = $row['TERRACE'];
-    }
+	while ($row = oci_fetch_assoc($stid)) {
+
+		$key = date('d-M-Y', strtotime($row['ASON_DATE']));
+
+		if (!isset($dateMap[$key])) {
+			continue;
+		}
+
+		$dateMap[$key]['onDesk']   = $row['ONDESK']  ?? '00:00';
+		$dateMap[$key]['offDesk']  = $row['OFFDESK'] ?? '00:00';
+		$dateMap[$key]['terrace']  = $row['TERRACE'] ?? '00:00';
+	}
 
     /* =============================
        2. PUNCH DATA (BULK)
@@ -122,14 +129,16 @@ try {
     ");
     
     foreach ($punchRows as $r) {
-        $d = $r['attd_date'];
 
-        $dateMap[$d]['in'] = $r['IN_TIM'] ?? '--:--';
-        $dateMap[$d]['out'] = $r['OUT_TIM'] ?? '--:--';
+		$d = date('d-M-Y', strtotime($r['ATTD_DATE'] ?? $r['attd_date']));
 
-        $dateMap[$d]['workingHrs'] = $r['WORK_HOUR']
-            ? $r['WORK_HOUR'] . " HRS"
-            : "Day Off";
+		if (isset($dateMap[$d])) {
+			$dateMap[$d]['in'] = $r['IN_TIM'] ?? '--:--';
+			$dateMap[$d]['out'] = $r['OUT_TIM'] ?? '--:--';
+			$dateMap[$d]['workingHrs'] = !empty($r['WORK_HOUR'])
+				? $r['WORK_HOUR'] . " HRS"
+				: "Day Off";
+		}
     }
 
     /* =============================
@@ -166,9 +175,11 @@ try {
     ");
 
     foreach ($holidayRows as $h) {
-        if ($dateMap[$h['HOL_DATE']]['leaveType'] === '--') {
-            $dateMap[$h['HOL_DATE']]['leaveType'] = $h['DESCR'];
-        }
+		$d = date('d-M-Y', strtotime($h['HOL_DATE']));
+
+		if (isset($dateMap[$d]) && $dateMap[$d]['leaveType'] === '--') {
+			$dateMap[$d]['leaveType'] = $h['DESCR'];
+		}
     }
 
     /* =============================
