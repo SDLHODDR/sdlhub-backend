@@ -66,6 +66,7 @@ $sql = "
     INNER JOIN EPT_BCS_EMPLOYEE e
         ON p.EMP_CODE = e.EMP_CODE   
     WHERE p.PROFILE_ID = '$profileId'
+        AND e.STATUS = 'A'
     ORDER BY e.EMP_CODE ASC
 ";
 

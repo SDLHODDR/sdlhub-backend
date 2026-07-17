@@ -87,7 +87,7 @@ WHERE STATUS = 'A'
    /* Start date should be started */
     AND TRUNC(START_DATE) <= TRUNC(SYSDATE)
 
-    /* End date should be today or future 
+    /* End date should be today or future */
     AND (
         END_DATE IS NULL
         OR TRUNC(END_DATE) >= TRUNC(SYSDATE)
