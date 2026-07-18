@@ -9,67 +9,79 @@ $sql___func___con = db_eportal();
 require_once __DIR__ . "/../../config/emp_func.php";
 require_once __DIR__ . "/../../config/functions.php";
 
-header('Content-Type: application/json');
+header("Content-Type: application/json");
 
 try {
 
     $data = json_decode(file_get_contents("php://input"), true);
 
-    $comp = $data['company'] ?? '';
-    $div  = $data['division'] ?? '';
-    $dept = $data['department'] ?? '';
+    $comp = trim($data["company"] ?? "");
+    $div  = trim($data["division"] ?? "");
+    $dept = trim($data["department"] ?? "");
+    $emp  = trim($data["employee"] ?? "");
 
-    if (!$comp || !$div) {
-        throw new Exception("Company and Division are required");
+    if (empty($comp)) {
+       throw new Exception("Please select Company");
     }
 
-    /* ------------------ PROFILES ------------------ */
+    /* ---------------- PROFILES ---------------- */
 
     $profiles = multiRec("
         SELECT PROFILE_ID, PROFILE_DESC
         FROM EPT_PROFILES
-        WHERE STATUS = 'A'
+        WHERE STATUS='A'
         ORDER BY PROFILE_DESC
     ");
 
-    /* ------------------ EMPLOYEES ------------------ */
+    /* ---------------- BUILD EMPLOYEE FILTER ---------------- */
+
+    $officeWhere = "
+        b.STATUS='A'
+        AND COMP_ID='$comp'
+    ";
+
+    if (!empty($div)) {
+        $officeWhere .= " AND DIVSN_ID='$div'";
+    }
+
+    if (!empty($dept)) {
+        $officeWhere .= " AND DEPT_ID='$dept'";
+    }
+
+    if (!empty($emp)) {
+        $officeWhere .= " AND b.EMP_CODE='$emp'";
+    }
+
+    $officeWhere .= "
+        AND SYSDATE BETWEEN a.EFFEC_FROM
+        AND NVL(a.EFFEC_TO, TO_DATE('01-JAN-3000','DD-MON-YYYY'))
+    ";
+
+    /* ---------------- EMPLOYEES ---------------- */
 
     if (!empty($dept)) {
 
-        /*
-        ==========================================
-        OLD LOGIC (Department selected)
-        ==========================================
-        */
+        // Department selected -> show all employees
 
         $employees = multiRec("
-            SELECT 
+            SELECT
                 e.EMP_CODE,
                 e.PROC_GROUP
             FROM EPT_BCS_EMPLOYEE e
-            WHERE e.EMP_CODE IN (
+            WHERE e.EMP_CODE IN
+            (
                 SELECT b.EMP_CODE
-                FROM ept_hr_emp_office_det a
-                INNER JOIN ept_hr_employee_info b
-                    ON a.emp_code = b.emp_code
-                WHERE b.status = 'A'
-                  AND COMP_ID = '$comp'
-                  AND DIVSN_ID = '$div'
-                  AND DEPT_ID = '$dept'
-                  AND SYSDATE BETWEEN A.EFFEC_FROM
-                  AND NVL(a.EFFEC_TO, TO_DATE('01-JAN-3000','DD-MON-YYYY'))
+                FROM EPT_HR_EMP_OFFICE_DET a
+                INNER JOIN EPT_HR_EMPLOYEE_INFO b
+                    ON a.EMP_CODE=b.EMP_CODE
+                WHERE $officeWhere
             )
-            ORDER BY e.PROC_GROUP, e.EMP_CODE
+            ORDER BY e.PROC_GROUP,e.EMP_CODE
         ");
 
     } else {
 
-        /*
-        ==========================================
-        NEW LOGIC (No Department selected)
-        Show only employees who already have access
-        ==========================================
-        */
+        // No department -> show employees having profile access
 
         $employees = multiRec("
             SELECT DISTINCT
@@ -77,61 +89,58 @@ try {
                 e.PROC_GROUP
             FROM EPT_BCS_EMPLOYEE e
             INNER JOIN EPT_EMP_PROFILE ep
-                ON e.EMP_CODE = ep.EMP_CODE
-            WHERE e.EMP_CODE IN (
+                ON ep.EMP_CODE=e.EMP_CODE
+            WHERE e.EMP_CODE IN
+            (
                 SELECT b.EMP_CODE
-                FROM ept_hr_emp_office_det a
-                INNER JOIN ept_hr_employee_info b
-                    ON a.emp_code = b.emp_code
-                WHERE b.status = 'A'
-                  AND COMP_ID = '$comp'
-                  AND DIVSN_ID = '$div'
-                  AND SYSDATE BETWEEN A.EFFEC_FROM
-                  AND NVL(a.EFFEC_TO, TO_DATE('01-JAN-3000','DD-MON-YYYY'))
+                FROM EPT_HR_EMP_OFFICE_DET a
+                INNER JOIN EPT_HR_EMPLOYEE_INFO b
+                    ON a.EMP_CODE=b.EMP_CODE
+                WHERE $officeWhere
             )
-            ORDER BY e.PROC_GROUP, e.EMP_CODE
+            ORDER BY e.PROC_GROUP,e.EMP_CODE
         ");
     }
 
-    /* ------------------ GROUPS ------------------ */
+    /* ---------------- GROUP DATA ---------------- */
 
     $groupMap = [];
 
-    foreach ($employees as $emp) {
+    foreach ($employees as $employee) {
 
-        $empCode = $emp['EMP_CODE'];
-        $grp     = $emp['PROC_GROUP'];
+        $empCode = $employee["EMP_CODE"];
+        $group   = $employee["PROC_GROUP"];
 
         $empProfiles = multiRec("
             SELECT PROFILE_ID
             FROM EPT_EMP_PROFILE
-            WHERE EMP_CODE = '$empCode'
+            WHERE EMP_CODE='$empCode'
         ");
 
         $profileIds = [];
 
-        foreach ($empProfiles as $p) {
-            $profileIds[] = $p['PROFILE_ID'];
+        foreach ($empProfiles as $profile) {
+            $profileIds[] = $profile["PROFILE_ID"];
         }
 
-        if (!isset($groupMap[$grp])) {
+        if (!isset($groupMap[$group])) {
 
-            $grpInfo = singRec("
+            $groupInfo = singRec("
                 SELECT PGRP_DESC
                 FROM EPT_BCS_PAYROLL_GROUPS
-                WHERE PGRP_CODE = '$grp'
+                WHERE PGRP_CODE='$group'
             ");
 
-            $groupMap[$grp] = [
-                "groupCode" => $grp,
-                "groupName" => $grpInfo['PGRP_DESC'] ?? $grp,
+            $groupMap[$group] = [
+                "groupCode" => $group,
+                "groupName" => $groupInfo["PGRP_DESC"] ?? $group,
                 "employees" => []
             ];
         }
 
-        $groupMap[$grp]['employees'][] = [
-            "empName" => getEmpInfoByCode($empCode),
+        $groupMap[$group]["employees"][] = [
             "empCode" => $empCode,
+            "empName" => getEmpInfoByCode($empCode),
             "profiles" => $profileIds
         ];
     }

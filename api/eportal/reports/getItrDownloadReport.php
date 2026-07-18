@@ -140,7 +140,7 @@ try {
             REMARKS,
             TO_CHAR(
                 DOWNLOAD_TIME,
-                'DD-MON-YYYY HH24:MI:SS'
+                'dd-MON-yyyy HH24:MI:SS'
             ) DOWNLOAD_TIME
 
         FROM EPT_ITR_DOWNLOAD_LOG

@@ -63,7 +63,7 @@ try {
     /* ------------------ DEPARTMENT ------------------ */
 
     $deptData = multiRec("
-        SELECT 
+        SELECT
             DEPT_ID,
             DEPT_ID || ' - ' || DEPT_DESC AS DEPT_NAME
         FROM EPT_HR_DEPARTMENT
@@ -79,12 +79,33 @@ try {
         ];
     }
 
+    /* ------------------ EMPLOYEE ------------------ */
+
+    $employeeData =  multiRec("
+        SELECT
+            EMP_CODE,
+            (EMP_CODE || ' - ' || EMP_FNAME || ' ' || EMP_LNAME) as EMP_NAME
+        FROM EPT_bcs_employee
+        WHERE status='A'
+        ORDER BY 2
+    ");
+
+    $employees = [];
+
+    foreach($employeeData as $row){
+        $employees[] = [
+            "value" => $row['EMP_CODE'],
+            "label" => $row['EMP_NAME']
+        ];
+    }
+
     /* RESPONSE */
     echo json_encode([
         "status" => true,
         "companies" => $companies,
         "divisions" => $divisions,
-        "departments" => $departments
+        "departments" => $departments,
+        "employees" => $employees
     ]);
 
 } catch (Throwable $e) {
