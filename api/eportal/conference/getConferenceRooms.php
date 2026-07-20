@@ -57,9 +57,7 @@ try {
     ";
 
     $countRes = singRec($countSql);
-
     $totalRecords = $countRes['TOTAL'] ?? 0;
-
 
     /* ================= PAGINATED DATA ================= */
 
@@ -76,7 +74,7 @@ try {
             c.book_by_emp,
             c.NOOF_ATTD,
             c.REMARKS,
-            c.chg_on,
+            to_char(c.chg_on,'dd-Mon-yyyy') chg_on,
             c.ROOM_FACL1,
             c.ROOM_FACL2,
             c.ROOM_FACL3,

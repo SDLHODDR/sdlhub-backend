@@ -65,7 +65,7 @@ if (empty($isDeclared)) {
         "type" => "danger",
         "message" => "You have not completed IT Declaration for current financial year.",
         "actionText" => "Click here to proceed",
-        "actionUrl" => "/it-declaration"
+        "actionUrl" => "/eportal/it-return"
     ];
 }
 
