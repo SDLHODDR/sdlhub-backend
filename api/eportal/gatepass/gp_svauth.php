@@ -79,7 +79,9 @@ if($data['authForm']==true)
         taskUpdate('C', $data["AUTH_REMARKS"], $data['TASK_ID']);
         $gpass_no = singRec("SELECT EPORTAL.EPT_EMPLOYEE_GPASS_SEQ.NEXTVAL AS GPNO FROM dual"); 
         
-        executeQry("update ept_employee_gpass set STATUS='X', auth_by='".$empCode."', auth_on=sysdate, gpass_no='".$gpass_no['GPNO']."' where ID='".$data['ID']."' ");	
+        //executeQry("update ept_employee_gpass set STATUS='X', auth_by='".$empCode."', auth_on=sysdate, gpass_no='".$gpass_no['GPNO']."' where ID='".$data['ID']."' ");	
+
+        executeQry("update ept_employee_gpass set STATUS='A', auth_by='".$empCode."', auth_on=sysdate, gpass_no='".$gpass_no['GPNO']."' where ID='".$data['ID']."' ");	
         
         $mailBody='Hi
 		<br><br> The Following Outdoor Duty Request has been APPROVED

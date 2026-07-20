@@ -34,7 +34,7 @@ if (!isset($_SESSION['emp_code'])) {
 
 $conn = db_eportal();
 $empCode   = $_SESSION['emp_code'];
-$empCode   = "00575";
+//$empCode   = "00575";
 
 /* -------------------------------------------------
    2. READ JSON INPUT

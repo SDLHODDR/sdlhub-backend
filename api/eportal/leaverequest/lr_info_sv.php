@@ -2,7 +2,6 @@
 
 require_once "lr_head.php";
 
-//$data['directurl']=1;
 if($data['getLrdata']==true)
 {
     $idd = $data['id'] ?? "";
@@ -15,25 +14,13 @@ if($data['getLrdata']==true)
     $pl_count = singRec("select epplive.get_leave_apply_cnt('".$empCode."', 'PL') CNT from dual");
     //printDetails($pl_count);
 
-    // $arr = getOptionsCustom("
-    //             select LVE_CODE, (LVE_CODE||' - '||LVE_DESC) as lved
-    //                 from epplive.bcs_leaves
-    //                 where trim(lve_code) in(select lve_code from epplive.bcs_leave_balance where emp_code='" . $empCode . "' and status='A'  AND to_date('".$data['start_date']."','YYYY-MM-DD') BETWEEN EFF_DATE AND UPTO_DATE+1) AND trim(lve_code) not in (select trim(lve_code) from epplive.bcs_emp_leaves_temp where emp_code='" . $empCode . "' and lve_code='PL' and status='T' ) UNION
-    //             SELECT 'LWP' , 'LWP' || ' - '||  'LEAVE WITHOUT PAY' FROM DUAL");
-    // var_dump($arr);
-    // exit;
-
-    //$trvl_mod = Array('F'=> 'Flight' ,'T'=>'Train' , 'B'=>'Bus' );
     $totalBalLeaves = multiRec("select lve_code,AVAIL_DAYS,BAL_DAYS from epplive.bcs_leave_balance where emp_code='" . $empCode . "' and to_date('".$data['start_date']."','YYYY-MM-DD') between EFF_DATE and UPTO_DATE");
-    //printDetails($totalBalLeaves);
 
     $totalBalLeaves_unapproved = multiRec("select emp_code , sum(total_days)td  , trim(lve_code)lve_code , 1 as T from epplive.bcs_emp_leaves_temp where emp_code='" . $empCode . "' and status= 'T' group by emp_code , lve_code");
 
     $lve_from_to = singRec("select * from epplive.bcs_leave_balance where emp_code='" . $empCode . "' and status='A' and lve_code!='LWP' AND to_date('".$data['start_date']."','YYYY-MM-DD') BETWEEN EFF_DATE AND UPTO_DATE");
-    //printDetails($lve_from_to);
 
     $leave_res = singRec("select epplive.GET_EMP_NAME(emp_code) emp_name , belt.*  from epplive.bcs_emp_leaves_temp belt where id='" . $idd . "'");
-    //printDetails($leave_res);
 
     $leave_bal_array  = array();
     foreach ($totalBalLeaves as $temp) {
@@ -44,20 +31,9 @@ if($data['getLrdata']==true)
         $leave_bal_array[$temp2['LVE_CODE']][2] = $temp2['TD'];
     }
 
-    // $leave_bal_array['LWP'][0] = 0;
-    // $leave_bal_array['LWP'][1] = 0;
-    
-    
     $returnArr = [];
     $res = [];
 
-    //printDetails($leave_bal_array);
-    // if($data['id'])
-    // {
-    //    $fetchRes = singRec("SELECT * from epplive.BCS_EMP_LEAVES_TEMP where id = '" . $data['id'] . "' ");
-    // }
-    
-    //$res = singRec("SELECT * FROM epplive.BCS_EMP_LEAVES_TEMP WHERE id='".$data['id']."'");
     /* ---------------------------------
         COMMON CLASS DEFINITIONS
     ----------------------------------*/
@@ -78,17 +54,101 @@ if($data['getLrdata']==true)
         ]
     ];
 
+    // $fromDateToCheck = $data["modal_date"];
+    // $toDateToCheck = $data["modal_date"];
+
+    $lveDate = $data["modal_date"]; // e.g. '2026-07-14T18:30:00.000Z'
+
+
+    //$empCode = preg_replace('/[^A-Za-z0-9]/', '', $data["emp_code"]); // sanitize, alphanumeric only
+
+    // $sqlCheckLeave = "SELECT SUM(leaveCnt) AS LeaveCnt
+    //     FROM (
+    //         SELECT COUNT(*) AS leaveCnt 
+    //         FROM epplive.BCS_EMP_LEAVES 
+    //         WHERE emp_code = '".$empCode."'
+    //         AND lve_date_fr <= TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
+    //         AND lve_date_to  >= TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
+
+    //         UNION ALL
+
+    //         SELECT COUNT(*) AS leaveCnt 
+    //         FROM epplive.BCS_EMP_LEAVES_TEMP 
+    //         WHERE EMP_CODE = '".$empCode."'
+    //         AND TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
+    //             BETWEEN lve_date_fr AND lve_date_to 
+    //         AND STATUS NOT IN ('R','X')
+
+    //         UNION ALL
+
+    //         SELECT COUNT(*) AS leaveCnt 
+    //         FROM epplive.BCS_EMP_LEAVES_TEMP 
+    //         WHERE EMP_CODE = '".$empCode."'
+    //         AND TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
+    //             BETWEEN lve_date_fr AND lve_date_to 
+    //         AND STATUS IS NULL 
+
+    //         UNION ALL
+
+    //         SELECT COUNT(*) AS leaveCnt 
+    //         FROM epplive.BCS_ATTD_REGULARIZE
+    //         WHERE EMP_CODE = '".$empCode."'
+    //         AND REG_TYPE = 'T'
+    //         AND STATUS = 'A'
+    //         AND TIME_FR <= TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
+    //         AND TIME_TO >= TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
+    //     ) t";
+
+    $sqlCheckLeave = "SELECT empcode, lveFrm, lveTO 
+        FROM (
+            SELECT EMP_CODE as empcode, lve_date_fr as lveFrm, lve_date_to as lveTO 
+            FROM epplive.BCS_EMP_LEAVES 
+            WHERE emp_code = '".$empCode."'
+            AND lve_date_fr = TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
+
+            UNION ALL
+
+            SELECT EMP_CODE as empcode, lve_date_fr as lveFrm, lve_date_to as lveTO  
+            FROM epplive.BCS_EMP_LEAVES_TEMP 
+            WHERE EMP_CODE = '".$empCode."'
+            AND lve_date_fr = TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS') 
+            AND STATUS NOT IN ('R','X')
+
+            UNION ALL
+
+            SELECT EMP_CODE as empcode, lve_date_fr as lveFrm, lve_date_to as lveTO  
+            FROM epplive.BCS_EMP_LEAVES_TEMP 
+            WHERE EMP_CODE = '".$empCode."'
+            AND lve_date_fr = TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS') 
+            AND STATUS IS NULL 
+
+            UNION ALL
+
+            SELECT EMP_CODE as empcode, TIME_FR as lveFrm,TIME_TO as lveTO  
+            FROM epplive.BCS_ATTD_REGULARIZE
+            WHERE EMP_CODE = '".$empCode."'
+            AND REG_TYPE = 'T'
+            AND STATUS = 'A'
+            AND TIME_FR = TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
+        ) t";
+
+    $persHolidOff = singRec($sqlCheckLeave);
+
+    if (count($persHolidOff) != 0) {
+        $flag = 'No';
+    } else {
+        $flag = 'Yes';
+    }
 
   /* ---------------------------------
         Status
     ----------------------------------*/
-    //$status = $res['STATUS'] ?? null;
 
     /* ---------------------------------
         FIELD DEFINITIONS - INFO-DIV
     ----------------------------------*/
     $returnArr["var"]["type"]["DIVINFO"] = [];
-    //$cntFor = 0;
+
     foreach ($leave_bal_array as $key => $leave) {
       if($key !== "LWP"){
         $type = $key; //$leave['type']; // CL, PL, SL, OL
@@ -107,74 +167,13 @@ if($data['getLrdata']==true)
             2 => $leave[2] 
         ];
       }
-      
-      //$cntFor++;
     }
 
-    //printDetails($returnArr);
-
-    //$returnArr["LEAVEBALARR"] = [];
     /* ---------------------------------
         FIELD DEFINITIONS - TEXT
     ----------------------------------*/
     $returnArr["var"]["type"]["TEXT"] = [
-    //     "BAL" => [
-    //         "type" => "TEXT",
-    //         "label" => "Alloted ",
-    //         "labelClassName" => $className["Labels"]["general"],
-    //         "name" => "BAL",
-    //         "id" => "BAL",
-    //         "value" => $leave_res['BAL'] ?? '',
-    //         "rowPlacement" => "row-1|col-2",
-    //         "family" => [],
-    //         "dependsOn" => "",
-    //         "onChangeFunc" => null,
-    //         "divClassName" => $className["Divs"]["small"],
-    //         "fieldClassName" => $className["Fields"]["TEXT"],
-    //         "disabled" => "Yes",
-    //         "PleaseSelect" => "No",
-    //         "PlaceHolder" => "",
-    //         "onBlurFunc" => "",
-    //         "isRequired" => "No",
-    //     ],
-    //     "UNAUTH_BAL" => [
-    //         "type" => "TEXT",
-    //         "label" => "Unapproved",
-    //         "labelClassName" => $className["Labels"]["general"],
-    //         "name" => "UNAUTH_BAL",
-    //         "id" => "UNAUTH_BAL",
-    //         "value" => $leave_res['UNAUTH_BAL'] ?? '',
-    //         "rowPlacement" => "row-1|col-3",
-    //         "family" => [],
-    //         "dependsOn" => "",
-    //         "onChangeFunc" => null,
-    //         "divClassName" => $className["Divs"]["small"],
-    //         "fieldClassName" => $className["Fields"]["TEXT"],
-    //         "disabled" => "Yes",
-    //         "PleaseSelect" => "No",
-    //         "PlaceHolder" => "",
-    //         "onBlurFunc" => "",
-    //         "isRequired" => "No"
-    //     ],
-    //     "NET_BAL" => [
-    //         "type" => "TEXT",
-    //         "label" => "Net Balance",
-    //         "labelClassName" => $className["Labels"]["general"],
-    //         "name" => "NET_BAL",
-    //         "id" => "NET_BAL",
-    //         "value" => $leave_res['NET_BAL'] ?? '',
-    //         "rowPlacement" => "row-1|col-3",
-    //         "family" => [],
-    //         "dependsOn" => "",
-    //         "onChangeFunc" => null,
-    //         "divClassName" => $className["Divs"]["small"],
-    //         "fieldClassName" => $className["Fields"]["TEXT"],
-    //         "disabled" => "Yes",
-    //         "PleaseSelect" => "No",
-    //         "PlaceHolder" => "",
-    //         "onBlurFunc" => "",
-    //         "isRequired" => "No"
-    //     ],
+    
         "LVE_DATE_FR" => [
             "type" => "TEXT",
             "label" => "Leave From Date",
@@ -379,11 +378,68 @@ if($data['getLrdata']==true)
         ]
     ];
 
+    $returnArr["flag"] = $flag;
+    //$returnArr["leavesDT"] = $persHolidOff;
+    //$returnArr['leavesDTCnt'] = count($persHolidOff);
+
     echo json_encode([
         "status" => true,
         "pass"   => $returnArr
     ]);
 
+} else {
+
+    $lveDate = $data["modal_date"]; // e.g. '2026-07-14T18:30:00.000Z'
+
+    $sqlCheckLeave = "SELECT empcode, lveFrm, lveTO 
+        FROM (
+            SELECT EMP_CODE as empcode, lve_date_fr as lveFrm, lve_date_to as lveTO 
+            FROM epplive.BCS_EMP_LEAVES 
+            WHERE emp_code = '".$empCode."'
+            AND lve_date_fr = TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
+
+            UNION ALL
+
+            SELECT EMP_CODE as empcode, lve_date_fr as lveFrm, lve_date_to as lveTO  
+            FROM epplive.BCS_EMP_LEAVES_TEMP 
+            WHERE EMP_CODE = '".$empCode."'
+            AND lve_date_fr = TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS') 
+            AND STATUS NOT IN ('R','X')
+
+            UNION ALL
+
+            SELECT EMP_CODE as empcode, lve_date_fr as lveFrm, lve_date_to as lveTO  
+            FROM epplive.BCS_EMP_LEAVES_TEMP 
+            WHERE EMP_CODE = '".$empCode."'
+            AND lve_date_fr = TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS') 
+            AND STATUS IS NULL 
+
+            UNION ALL
+
+            SELECT EMP_CODE as empcode, TIME_FR as lveFrm,TIME_TO as lveTO  
+            FROM epplive.BCS_ATTD_REGULARIZE
+            WHERE EMP_CODE = '".$empCode."'
+            AND REG_TYPE = 'T'
+            AND STATUS = 'A'
+            AND TIME_FR = TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
+        ) t";
+
+    $persHolidOff = singRec($sqlCheckLeave);
+
+    if (count($persHolidOff) != 0) {
+        $flag = 'No';
+    } else {
+        $flag = 'Yes';
+    }
+
+    $returnArr["flag"] = $flag;
+    //$returnArr["leavesDT"] = $persHolidOff;
+    //$returnArr['leavesDTCnt'] = count($persHolidOff);
+
+    echo json_encode([
+        "status" => true,
+        "pass"   => $returnArr
+    ]);
 }
 
 ob_end_flush();
