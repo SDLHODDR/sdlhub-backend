@@ -59,6 +59,7 @@ $cnt = 1;
 $tourDetail_unapproved = multiRec("
   SELECT * FROM epplive.BCS_EMP_LEAVES_TEMP 
   WHERE EMP_CODE = '".$empCode."'
+  AND STATUS IN ('T','R') 
   AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
   AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')
   ORDER BY LVE_DATE_FR DESC, ID DESC
@@ -93,6 +94,7 @@ if (!empty($tourDetail_unapproved)) {
 $tourDetail_approved = multiRec("
   SELECT * FROM epplive.BCS_EMP_LEAVES
   WHERE EMP_CODE = '".$empCode."'
+  AND STATUS IN('A', 'N')
   AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
   AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')
   ORDER BY ID DESC, LVE_DATE_FR DESC

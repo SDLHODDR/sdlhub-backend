@@ -47,6 +47,17 @@ if($data['sendAuth']==true)
         }
         endQry();
     }
+}else if($data['resendAuth']==true)
+{
+    if($data['ID'] != "") {
+        executeQry("UPDATE EPT_USER_TASKS SET 
+					  STATUS='O',
+					  AUTH_ON=SYSDATE
+				  WHERE task_id='346' AND tran_code='" . $data['ID'] . "'"); 
+                  
+        executeQry("update epplive.BCS_TRVLTKT_REQUEST set status='T' where id='".$data['ID']."'");
+        endQry();
+    } 
 }
 
 ob_end_flush();

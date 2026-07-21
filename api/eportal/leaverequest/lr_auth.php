@@ -7,10 +7,21 @@ require_once "lr_head.php";
 
 if($data['authForm']==true)
 {
+    // $tran_code = $data['TRAN_CODE'];
+    // $task_id = $data['TASK_ID'];
+    // $flag = $data['flag'];
+    // $tran_code = $data['TRAN_CODE'];    
+    // $auto_remarks = isset($data["AUTH_REMARKS"]) && $data["AUTH_REMARKS"] !== '' ? $data["AUTH_REMARKS"] : null;
+    // $user = $data['EMP_CODE'];
+    // $retval = 0;
+    // $retstr = "";
+
+    // $auth_process_status = ept_authtran.leave_auth($tran_code, $task_id, $flag, $auto_remarks, $user, $retval, $retstr);
+
+    // print_r($auth_process_status);
+    // exit;
+
     startQry();
-    
-    //$data['ID'] = 8228;
-    //$data['TASK_ID'] = 0;
 
     $get_temp_leave = singRec("SELECT * from epplive.BCS_EMP_LEAVES_TEMP where id= " . $data["ID"] . " ");
     
@@ -18,10 +29,10 @@ if($data['authForm']==true)
 
     $empmail_self = singRec("select com_email from ept_hr_employee_info where emp_code='" . $get_temp_leave['EMP_CODE'] . "' ");
 
-    // $data["AUTH_REMARKS"] = isset($data["AUTH_REMARKS"]) && $data["AUTH_REMARKS"] !== ''
-    //         ? $data["AUTH_REMARKS"]
-    //         : null;
-    $data["AUTH_REMARKS"] = null;
+    $data["AUTH_REMARKS"] = isset($data["AUTH_REMARKS"]) && $data["AUTH_REMARKS"] !== ''
+            ? $data["AUTH_REMARKS"]
+            : null;
+    //$data["AUTH_REMARKS"] = null;
 
     if($data['flag']=='R')
 	{
