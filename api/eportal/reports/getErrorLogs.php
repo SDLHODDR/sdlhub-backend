@@ -22,15 +22,7 @@ try {
     ========================================================== */
 
     if (!isset($_SESSION["emp_code"])) {
-
-        http_response_code(401);
-
-        echo json_encode([
-            "status" => false,
-            "message" => "Unauthorized Access"
-        ]);
-
-        exit;
+       apiResponse(false,"Unauthorized Access",null,401);
     }
 
     /* ==========================================================
@@ -52,9 +44,9 @@ try {
     $selectedDate = $input["logDate"] ?? date("Y-m-d");
     
    /* echo json_encode([
-    "receivedDate" => $selectedDate
-]);
-exit; */
+        "receivedDate" => $selectedDate
+    ]);
+    exit; */
 
     $dt = DateTime::createFromFormat("Y-m-d", $selectedDate);
 
@@ -64,6 +56,9 @@ exit; */
 
     $oracleDate = $dt->format("d-m-Y"); 
 
+    echo "selectedDate: ".$selectedDate;
+     echo "oracleDate: ".$oracleDate; exit;
+
     $displayDate = $dt->format("d-M-Y");
 
     /* ==========================================================
@@ -71,56 +66,59 @@ exit; */
     ========================================================== */
 
     $stmt = oci_parse($conn, "
-
         BEGIN
-
             DBMS_OUTPUT.ENABLE(NULL);
-
         END;
-
     ");
 
     if (!oci_execute($stmt)) {
-
         $e = oci_error($stmt);
-
         throw new Exception($e["message"]);
-
     }
 
     oci_free_statement($stmt);
 
     /* ==========================================================
-       EXECUTE PROCEDURE
+        EXECUTE PROCEDURE
     ========================================================== */
 
     $stmt = oci_parse($conn, "
-
         BEGIN
-
             error_log.read(
-                TO_DATE(:pDate,'DD-MM-YYYY')
+                TO_DATE(:pDate,'DD-MM-YYYY'),
+                :retVal,
+                :retStr
             );
-
         END;
-
     ");
 
-    oci_bind_by_name(
-        $stmt,
-        ":pDate",
-        $oracleDate
-    );
+    $retVal = 0;
+    $retStr = "";
+
+    oci_bind_by_name($stmt, ":pDate", $oracleDate);
+    oci_bind_by_name($stmt, ":retVal", $retVal, -1, SQLT_INT);
+    oci_bind_by_name($stmt, ":retStr", $retStr, 4000);
 
     if (!oci_execute($stmt)) {
 
         $e = oci_error($stmt);
-
         throw new Exception($e["message"]);
-
     }
 
     oci_free_statement($stmt);
+
+    /* ==========================================================
+    PROCEDURE STATUS
+    ========================================================== */
+
+    if ($retVal != 0) {
+
+        throw new Exception(
+            !empty(trim($retStr))
+                ? trim($retStr)
+                : "Unable to read log file."
+        );
+    }
 
     /* ==========================================================
        PREPARE DBMS_OUTPUT.GET_LINE
@@ -210,31 +208,22 @@ exit; */
                 }
 
                 preg_match('/ORA-\d+/', $current["message"], $err);
-
                 $current["errorCode"] = $err[0] ?? "";
-
                 $current["id"] = $id++;
-
                 $logs[] = $current;
             }
 
             $current = [];
-
             preg_match('/Error at\s*:\s*(.*)/', $text, $m);
-
             $current["time"] = trim($m[1] ?? "");
-
             continue;
         }
 
         /* ---------- Login User ---------- */
 
         if (strpos($text, "Login User") === 0) {
-
             preg_match('/Login User\s*:\s*(.*)/', $text, $m);
-
             $current["user"] = trim($m[1] ?? "");
-
             continue;
         }
 
@@ -252,14 +241,26 @@ exit; */
 
                 $current["line"] = trim($m[1]);
 
-                $current["message"] = trim($m[2]);
+                $message = trim($m[2]);
+                $current["message"] = $message;
+
+                $current["file"] = "";
+                $current["sql"] = "";
+
+                if (preg_match('/\|\s*File\s*:\s*(.*?)\s*\|\s*SQL\s*:\s*(.*)$/is', $message, $parts)) {
+
+                    $current["file"] = trim($parts[1]);
+
+                    $current["sql"] = trim($parts[2]);
+
+                    $current["message"] = trim(
+                        preg_replace('/\|\s*File\s*:.*$/is', '', $message)
+                    );
+                }
 
             } else {
-
                 preg_match('/Line No\s*:\s*(.*)/', $text, $m);
-
                 $current["line"] = trim($m[1] ?? "");
-
             }
 
             continue;
@@ -268,40 +269,55 @@ exit; */
         /* ---------- Message on Next Line ---------- */
 
         if (strpos($text, "Message") === 0) {
-
             preg_match('/Message\s*:\s*(.*)/', $text, $m);
-
             $current["message"] = trim($m[1] ?? "");
-
             continue;
         }
 
-        /* ---------- Separator ---------- */
+        /* ---------- Help/File/SQL ---------- */
 
-        if (strpos($text, "-----") === 0) {
+            if (strpos($text, "Help:") === 0) {
 
-            if (!empty($current)) {
+                if (preg_match('/Help:\s*(.*?)\s*\|\s*File\s*:\s*(.*?)\s*\|\s*SQL\s*:\s*(.*)$/', $text, $m)) {
 
-                if (!isset($current["line"])) {
-                    $current["line"] = "";
+                    $current["help"] = trim($m[1]);
+                    $current["file"] = trim($m[2]);
+                    $current["sql"] = trim($m[3]);
+                    $current["readingSql"] = true;
+                }
+                continue;
+            }
+        
+            /* ---------- SQL CONTINUATION ---------- */
+
+            if (!empty($current["readingSql"])) {
+
+                if (strpos($text, "-----") === 0) {
+
+                    unset($current["readingSql"]);
+                    continue;
                 }
 
-                if (!isset($current["message"])) {
-                    $current["message"] = "";
+                if ($current["sql"] === "") {
+                    $current["sql"] = $text;
+                } else {
+                    $current["sql"] .= PHP_EOL . $text;
                 }
 
-                preg_match('/ORA-\d+/', $current["message"], $err);
-
-                $current["errorCode"] = $err[0] ?? "";
-
-                $current["id"] = $id++;
-
-                $logs[] = $current;
+                continue;
             }
 
-            $current = [];
+        /* ---------- Separator ---------- */
 
-        }
+            if (strpos($text, "| SQL :") !== false) {
+
+                $parts = explode("| SQL :", $text, 2);
+
+                $current["sql"] = trim($parts[1]);
+                $current["readingSql"] = true;
+
+                continue;
+            }
 
     }
 
@@ -318,11 +334,8 @@ exit; */
         }
 
         preg_match('/ORA-\d+/', $current["message"], $err);
-
         $current["errorCode"] = $err[0] ?? "";
-
         $current["id"] = $id++;
-
         $logs[] = $current;
     }
 
@@ -331,17 +344,11 @@ exit; */
     ========================================================== */
 
     $response = [
-
         "status" => true,
-
         "logDate" => $displayDate,
-
         "total" => count($logs),
-
         "logs" => array_reverse($logs),
-
         "message" => ""
-
     ];
 
 }
@@ -353,15 +360,10 @@ catch (Exception $e) {
     http_response_code(500);
 
     $response = [
-
         "status" => false,
-
         "logs" => [],
-
         "logDate" => "",
-
         "message" => $e->getMessage()
-
     ];
 
 }

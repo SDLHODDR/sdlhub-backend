@@ -1,4 +1,23 @@
 <?php
+require_once "logger.php";
+
+function logOracleError($oracleError, $sql = "")
+{
+    $fileName = basename($_SERVER['SCRIPT_NAME']);
+
+    $message =
+        "Oracle Error : " . $oracleError['message'];
+
+    if (!empty($fileName)) {
+        $message .= " | File : " . $fileName;
+    }
+
+    if (!empty($sql)) {
+        $message .= " | SQL : " . $sql;
+    }
+
+    writeErrorLog($message);
+}
 
 function singRec($sqlVal,$echo='')
 {	
@@ -6,19 +25,18 @@ function singRec($sqlVal,$echo='')
 	GLOBAL $sql___func___con;
 	$record=array();
 	$sql=oci_parse($sql___func___con,$sqlVal);
-	if(!oci_execute($sql,OCI_DEFAULT))	
-	{
+
+	if (!oci_execute($sql, OCI_DEFAULT)) {
+
 		$e = oci_error($sql);
-		showError($e);
-		$qry_____result=1;
-		//print_r($e) ; exit;
-		if($_SESSION['DEBUG']=='Y')write_log($sqlVal);
-		if($_SESSION['DEBUG']=='Y')write_log('Error On Above Query');
+		logOracleError($e, $sqlVal);
+		oci_free_statement($sql);
+		return [];
 	}
 	else
 	{
 		$record=oci_fetch_array($sql);
-		if(!is_array($record))$record=array();	
+		if(!is_array($record))$record=array();
 		foreach($record as $key=>$value)
 		{
 			//$record[$key]=htmlentities($value,ENT_QUOTES);
@@ -42,8 +60,8 @@ function singRecEPP($sqlVal,$echo='')
 		showError($e);
 		$qry_____result=1;
 		//print_r($e) ; exit;
-		if($_SESSION['DEBUG']=='Y')write_log($sqlVal);
-		if($_SESSION['DEBUG']=='Y')write_log('Error On Above Query');
+		if($_SESSION['DEBUG']=='Y')writeErrorLog($sqlVal);
+		if($_SESSION['DEBUG']=='Y')writeErrorLog('Error On Above Query');
 	}
 	else
 	{
@@ -61,7 +79,7 @@ function singRecEPP($sqlVal,$echo='')
 
 function multiRec($sqlVal, $options = [])
 {
-    GLOBAL $sql___func___con;
+    global $sql___func___con;
 
     // Default options
     $defaults = [
@@ -77,30 +95,46 @@ function multiRec($sqlVal, $options = [])
 
     $record = [];
 
+    /* ==========================
+       PARSE QUERY
+    ========================== */
+
     $stmt = oci_parse($sql___func___con, $sqlVal);
 
-    if (!oci_execute($stmt, OCI_DEFAULT)) {
+    if (!$stmt) {
 
-        $e = oci_error($stmt);
-        showError($e);
+        $e = oci_error($sql___func___con);
 
-        if (!empty($_SESSION['DEBUG']) && $_SESSION['DEBUG'] == 'Y') {
-            write_log($sqlVal);
-            write_log('Error On Above Query');
-        }
+        logOracleError($e, $sqlVal);
 
         return [];
     }
 
-    // Fetch associative only (IMPORTANT: removes duplicate numeric keys)
+    /* ==========================
+       EXECUTE QUERY
+    ========================== */
+
+    if (!oci_execute($stmt, OCI_DEFAULT)) {
+
+        $e = oci_error($stmt);
+
+        logOracleError($e, $sqlVal);
+
+        oci_free_statement($stmt);
+
+        return [];
+    }
+
+    /* ==========================
+       FETCH RECORDS
+    ========================== */
+
     while ($row = oci_fetch_array($stmt, OCI_ASSOC + OCI_RETURN_NULLS)) {
 
         foreach ($row as $key => $value) {
 
-            // Normalize NULL to empty string
             $cleanValue = ($value === null) ? '' : $value;
 
-            // Encode only if required
             if ($options['encodeHtml']) {
                 $cleanValue = htmlspecialchars(
                     (string)$cleanValue,
@@ -114,6 +148,8 @@ function multiRec($sqlVal, $options = [])
 
         $record[] = $row;
     }
+
+    oci_free_statement($stmt);
 
     return $record;
 }
@@ -387,118 +423,219 @@ function startQry()
 	$qry_____result=0;
 }
 
-function execQry($paramArr=array())
+function execQry($paramArr = [])
 {
-	if($paramArr['type']=='insert')
-	{
-		$strVal=null;
-		foreach(check_array($paramArr['data']) as $data)
-		{
-			//if(stristrarray(array('TO_DATE','SYSDATE'),strtoupper($data))) {
-			if(stristrarray(array('TO_DATE','SYSDATE'), strtoupper((string)($data ?? '')))){
+    $sqlVal = "";
 
-				$strVal .= ",".$data ;
-			}
-			else {
-				$strVal .= ",'".$data."'" ;
-			}
-		}
-		$strVal=substr($strVal,1);	
-		$sqlVal=null;
-		$sqlVal='insert into '.$paramArr['table'].' ('.implode(", ",array_keys($paramArr['data'])).') values ('.$strVal.') ';
-		//print_r($sqlVal);exit;
-	}
-	else if($paramArr['type']=='update')
-	{
-		$strVal=null;
-		foreach(check_array($paramArr['data']) as $field => $data)
-		{
-			if(stristrarray(array('TO_DATE','SYSDATE'),strtoupper($data))) {
-				$strVal .= ",".$field."=".$data ;
-			}
-			else {
-				$strVal .= ",".$field."='".$data."'" ;
-			}
-			//~ if(stristrarray(array('TO_DATE','SYSDATE'),strtoupper($data))) {
-				//~ $strVal .= ",".$data ;
-			//~ }
-			//~ else {
-				//~ $strVal .= ",'".$data."'" ;
-			//~ }
-		}
-		$strVal=substr($strVal,1);	
-		$strWhere=null;
-		foreach(check_array($paramArr['where']) as $field => $data)
-		{
-			if(stristrarray(array('TO_DATE','SYSDATE'),strtoupper($data))) {
-				$strWhere .= "and ".$field."=".$data." " ;
-			}
-			else {
-				$strWhere .= "and ".$field."='".$data."' " ;
-			}
-		}
-		$strWhere=substr($strWhere,3);	
-		$sqlVal='update '.$paramArr['table'].' set '.$strVal.'  where '.$strWhere;
-	}
-	$returnVal=null;
-	if(!empty($paramArr['return']))
-	{
-		$sqlVal.=' returning '.$paramArr['return'].' into :returnVal';
-		$returnVal='returnVal';
-	}
+    /* ==========================
+       BUILD INSERT QUERY
+    ========================== */
 
-	$print = $paramArr['print'] ?? 0;
+    if ($paramArr['type'] == 'insert') {
 
-	if ($print == 1) {
-		echo '<p>'.$sqlVal.'</p>';
-	}
-	elseif ($print == 2) {
-		arr($paramArr);
-		echo '<p>'.$sqlVal.'</p>';
-	}
-	elseif ($print == 3) {
-		arr($paramArr);
-	}
-	return executeQry($sqlVal,$returnVal);
+        $strVal = "";
+
+        foreach (check_array($paramArr['data']) as $data) {
+
+            if (stristrarray(
+                    ['TO_DATE', 'SYSDATE'],
+                    strtoupper((string)($data ?? ''))
+                )) {
+
+                $strVal .= "," . $data;
+
+            } else {
+
+                $strVal .= ",'" . $data . "'";
+            }
+        }
+
+        $strVal = ltrim($strVal, ',');
+
+        $sqlVal =
+            "INSERT INTO " . $paramArr['table'] .
+            " (" . implode(", ", array_keys($paramArr['data'])) . ")" .
+            " VALUES (" . $strVal . ")";
+    }
+
+    /* ==========================
+       BUILD UPDATE QUERY
+    ========================== */
+
+    else if ($paramArr['type'] == 'update') {
+
+        $strVal = "";
+
+        foreach (check_array($paramArr['data']) as $field => $data) {
+
+            if (stristrarray(
+                    ['TO_DATE', 'SYSDATE'],
+                    strtoupper((string)($data ?? ''))
+                )) {
+
+                $strVal .= "," . $field . "=" . $data;
+
+            } else {
+
+                $strVal .= "," . $field . "='" . $data . "'";
+            }
+        }
+
+        $strVal = ltrim($strVal, ',');
+
+        $strWhere = "";
+
+        foreach (check_array($paramArr['where']) as $field => $data) {
+
+            if (stristrarray(
+                    ['TO_DATE', 'SYSDATE'],
+                    strtoupper((string)($data ?? ''))
+                )) {
+
+                $strWhere .= " AND " . $field . "=" . $data;
+
+            } else {
+
+                $strWhere .= " AND " . $field . "='" . $data . "'";
+            }
+        }
+
+        $strWhere = preg_replace('/^ AND /', '', $strWhere);
+
+        $sqlVal =
+            "UPDATE " . $paramArr['table'] .
+            " SET " . $strVal .
+            " WHERE " . $strWhere;
+    }
+
+    /* ==========================
+       RETURNING CLAUSE
+    ========================== */
+
+    $returnVal = null;
+
+    if (!empty($paramArr['return'])) {
+
+        $sqlVal .=
+            " RETURNING " .
+            $paramArr['return'] .
+            " INTO :returnVal";
+
+        $returnVal = "returnVal";
+    }
+
+    /* ==========================
+       DEBUG PRINT
+    ========================== */
+
+    $print = $paramArr['print'] ?? 0;
+
+    switch ($print) {
+
+        case 1:
+            echo "<p>{$sqlVal}</p>";
+            break;
+
+        case 2:
+            arr($paramArr);
+            echo "<p>{$sqlVal}</p>";
+            break;
+
+        case 3:
+            arr($paramArr);
+            break;
+    }
+
+    /* ==========================
+       EXECUTE QUERY
+    ========================== */
+
+    return executeQry($sqlVal, $returnVal);
 }
 
-function executeQry($sqlVal,$returnId='',$echo='')
+function executeQry($sqlVal, $returnId = '', $echo = '')
 {
-	if(!empty($echo) or !empty($_SESSION['echo'])) echo $sqlVal.'<hr style="border:2px solid #000000; " />';
-	GLOBAL $sql___func___con,$qry_____result;
-	$sql=oci_parse($sql___func___con,$sqlVal);
-	if(!empty($_SESSION['DEBUG']) && $_SESSION['DEBUG']=='Y') {
-		write_log($sqlVal);
-	}
+    if (!empty($echo) || !empty($_SESSION['echo'])) {
+        echo $sqlVal . '<hr style="border:2px solid #000000;" />';
+    }
 
-	if($returnId!='')
-	{		
-		//ocibindbyname($sql,':'.$returnId,$newId,10);
-		oci_bind_by_name($sql, ':' . $returnId, $newId, 10);
-		if(!oci_execute($sql,OCI_DEFAULT))
-		{
-			$e = oci_error($sql);
-			showError($e);
-			$qry_____result=1;
-		}
-		else		
-		{
-			return $newId;
-		}
-	}
-	else
-	{
-		if(!oci_execute($sql,OCI_DEFAULT))	
-		{
-			$e = oci_error($sql);
-			showError($e);
-			$qry_____result=1;			
-			if(!empty($_SESSION['DEBUG']) && $_SESSION['DEBUG']=='Y') {
-				write_log('Error On Above Query');
-			}
+    global $sql___func___con, $qry_____result;
 
-		}
-	}	
+    $qry_____result = 0;
+
+    /* ==========================
+       PARSE QUERY
+    ========================== */
+
+    $sql = oci_parse($sql___func___con, $sqlVal);
+
+    if (!$sql) {
+
+        $e = oci_error($sql___func___con);
+
+        logOracleError($e, $sqlVal);
+
+        $qry_____result = 1;
+
+        return false;
+    }
+
+    /* ==========================
+       DEBUG LOG
+    ========================== */
+
+    if (!empty($_SESSION['DEBUG']) && $_SESSION['DEBUG'] == 'Y') {
+        write_log($sqlVal);
+    }
+
+    /* ==========================
+       RETURNING CLAUSE
+    ========================== */
+
+    if ($returnId != '') {
+
+        $newId = null;
+
+        oci_bind_by_name($sql, ':' . $returnId, $newId, 100);
+
+        if (!oci_execute($sql, OCI_DEFAULT)) {
+
+            $e = oci_error($sql);
+
+            logOracleError($e, $sqlVal);
+
+            $qry_____result = 1;
+
+            oci_free_statement($sql);
+
+            return false;
+        }
+
+        oci_free_statement($sql);
+
+        return $newId;
+    }
+
+    /* ==========================
+       NORMAL EXECUTION
+    ========================== */
+
+    if (!oci_execute($sql, OCI_DEFAULT)) {
+
+        $e = oci_error($sql);
+
+        logOracleError($e, $sqlVal);
+
+        $qry_____result = 1;
+
+        oci_free_statement($sql);
+
+        return false;
+    }
+
+    oci_free_statement($sql);
+
+    return true;
 }
 
 function executeProc($sqlVal,$bindVal=array(),$echo='')

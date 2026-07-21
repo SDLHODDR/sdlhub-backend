@@ -1,4 +1,5 @@
 <?php
+require_once "logger.php";
 
 /* ---------------------------
    PASSWORD ENCODER
@@ -32,8 +33,44 @@ function stristrarray($array, $str)
 	return $ex;
 }
 
+/*
 function apiResponse($status = true, $message = "", $data = null, $httpCode = 200, $errors = [])
 {
+    http_response_code($httpCode);
+
+    header("Content-Type: application/json; charset=UTF-8");
+
+    $response = [
+        "status" => $status,
+        "message" => $message,
+        "data" => $data
+    ];
+
+    if (!empty($errors)) {
+        $response["errors"] = $errors;
+    }
+
+    echo json_encode($response, JSON_UNESCAPED_UNICODE);
+    exit;
+}*/
+
+function apiResponse($status = true, $message = "", $data = null, $httpCode = 200, $errors = [])
+{
+    // Log only server errors
+    if (!$status && $httpCode >= 500) {
+
+        $logMessage =
+        "API: " . basename($_SERVER['PHP_SELF']) .
+        " | User: " . ($_SESSION['emp_code'] ?? 'SYSTEM') .
+        " | Message: " . $message .
+        " | URL: " . ($_SERVER['REQUEST_URI'] ?? '');
+
+        if (!empty($errors)) {
+            $logMessage .= " | Errors : " . json_encode($errors);
+        }
+        writeErrorLog($logMessage);
+    }
+
     http_response_code($httpCode);
 
     header("Content-Type: application/json; charset=UTF-8");

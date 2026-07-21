@@ -248,8 +248,5 @@ try {
     ]);
 
 } catch (Exception $e) {
-    echo json_encode([
-        "status" => false,
-        "error" => $e->getMessage()
-    ]);
+    apiResponse(false, "Internal Server Error: ".$e->getMessage(), null, 500);
 }

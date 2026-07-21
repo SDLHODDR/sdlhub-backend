@@ -9,6 +9,7 @@ require_once __DIR__ . "/../../config/db.php";
 $sql___func___con = db_eportal();
 require_once __DIR__ . "/../../config/functions.php";
 require_once __DIR__ . "/../../config/utils.php";
+require_once __DIR__ . "/../../config/env.php";
 
 header('Content-Type: application/json');
 
@@ -66,7 +67,7 @@ foreach ($months as $row) {
             . urlencode($remoteUrl); */
 
         $fileName = $year. "-" . $month . "-Payslip.pdf";
-        $proxyUrl = "http://localhost/sdlhub/backend/api/eportal/payslips/Payslip.pdf.php/".$fileName."?"
+        $proxyUrl = $_ENV["API_ROOT_PATH"]."/eportal/payslips/Payslip.pdf.php/".$fileName."?"
         . "url=" . urlencode($remoteUrl)
         . "&filename=" . urlencode($fileName);
 
