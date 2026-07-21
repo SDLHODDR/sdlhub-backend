@@ -22,7 +22,8 @@ if($data['authForm']==true)
     
     if($data['flag']=='R')
 	{
-        $userTask = singRec("select * from ept_user_tasks where task_id='346' and id = " . $data["TID"] . "");
+        //$userTask = singRec("select * from ept_user_tasks where task_id='346' and id = " . $data["TID"] . "");
+        $userTask = singRec("select * from ept_user_tasks where task_id='346' and id = " . $data["TASK_ID"] . "");
         
         taskUpdate('C', $data["AUTH_REMARKS"], $userTask['ID']); 
 
@@ -36,7 +37,8 @@ if($data['authForm']==true)
 
 		endQry('Task Rejected');
     } else if($data['flag']=='A') {
-        $userTask = singRec("select * from ept_user_tasks where task_id='346' and id = " . $data["TID"] . "");
+        //$userTask = singRec("select * from ept_user_tasks where task_id='346' and id = " . $data["TID"] . "");
+        $userTask = singRec("select * from ept_user_tasks where task_id='346' and id = " . $data["TASK_ID"] . "");
         
         taskUpdate('C', $data["AUTH_REMARKS"], $userTask['ID']); 
 

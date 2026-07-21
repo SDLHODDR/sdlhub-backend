@@ -42,7 +42,18 @@ foreach($myTasksData as $res)
 
         //346 → Ticket Booking
         if ($taskId == 346) {
-            $details = singRec("
+            // $details = singRec("
+            //     SELECT REQ_DATE, ID, SITE_CODE, TRVL_CLASS, TRVL_EMP, EMP_CODE, PERSON_NAME,
+            //         decode(TRVL_MODE , 'F' , 'Flight' , 'T' , 'Train' , 'B' , 'Bus') AS TRVL_MODE,
+            //         TRVL_DATE, TRVL_FROM_LOC, TRVL_TO_LOC, TRVL_FT_NAME, TRVL_FT_NO, EVENT_ID, 
+            //         to_char(TTNT_DEPR_TIME , 'hh24:mi') AS TTNT_DEPR_TIME,
+            //         to_char(TTNT_ARVL_TIME , 'hh24:mi') AS TTNT_ARVL_TIME,
+            //         REMARKS, STATUS, TRVL_TKT_ID
+            //     FROM epplive.BCS_TRVLTKT_REQUEST
+            //         WHERE REQ_BY = '".$empCode."'
+            //         AND ID = '".$res['TRAN_CODE']."'
+            // ");
+             $details = singRec("
                 SELECT REQ_DATE, ID, SITE_CODE, TRVL_CLASS, TRVL_EMP, EMP_CODE, PERSON_NAME,
                     decode(TRVL_MODE , 'F' , 'Flight' , 'T' , 'Train' , 'B' , 'Bus') AS TRVL_MODE,
                     TRVL_DATE, TRVL_FROM_LOC, TRVL_TO_LOC, TRVL_FT_NAME, TRVL_FT_NO, EVENT_ID, 
@@ -50,8 +61,7 @@ foreach($myTasksData as $res)
                     to_char(TTNT_ARVL_TIME , 'hh24:mi') AS TTNT_ARVL_TIME,
                     REMARKS, STATUS, TRVL_TKT_ID
                 FROM epplive.BCS_TRVLTKT_REQUEST
-                    WHERE REQ_BY = '".$empCode."'
-                    AND ID = '".$res['TRAN_CODE']."'
+                    WHERE ID = '".$res['TRAN_CODE']."'
             ");
         }
 
@@ -66,11 +76,16 @@ foreach($myTasksData as $res)
 
         // //109 → Leave
         else if ($taskId == 109) {
+            // $details = singRec("
+            //     SELECT * 
+            //         FROM epplive.BCS_EMP_LEAVES_TEMP
+            //             WHERE EMP_CODE = '".$empCode."'
+            //                 AND ID = '".$res['TRAN_CODE']."'
+            // ");
             $details = singRec("
                 SELECT * 
                     FROM epplive.BCS_EMP_LEAVES_TEMP
-                        WHERE EMP_CODE = '".$empCode."'
-                            AND ID = '".$res['TRAN_CODE']."'
+                        WHERE ID = '".$res['TRAN_CODE']."'
             ");
         }
 
@@ -88,6 +103,14 @@ foreach($myTasksData as $res)
         }
     }
 
+    $requestFor = "";
+    if(($details || !empty($details) || count($details) > 0 || isset($details['EMP_CODE'])) && $taskId == 109){
+       $requestFor = ucwords(getEmpInfoByCode($details['EMP_CODE'])); 
+    } else {
+       $requestFor = $res['TASK_GRP_DESC'];
+    }
+    //echo $res['TASK_GRP_DESC'] . "====" . $requestFor; exit;
+
      $authTasksData[] = [
         'ID'           => $res['ID'],
         'TASK_DESC'    => $res['TASK_DESC'],
@@ -99,7 +122,7 @@ foreach($myTasksData as $res)
         'STATUS'       => $res['STATUS'],
         "statusColor" => $statusAuthColorMap[$res['STATUS']] ?? "secondary",
         "statusText" => $statusAuthTextMap[$res['STATUS']] ?? "Open",
-        'REQUEST_FOR'  => $res['TASK_GRP_DESC'],
+        'REQUEST_FOR'  => $requestFor,
         // Attach details here
         'DETAILS'      => $details
     ];
