@@ -14,19 +14,21 @@ if($data['saveTbrData']==true)
         $pn['PN'] = $data['PERSON_NAME'];
         $data['EMP_CODE'] = null;
     }
-    if($data['TTNT_ARVL_TIME'] < $data['TTNT_DEPR_TIME']){
-        $arr_date= date('d-M-Y', strtotime($data['TRVL_DATE']. ' + 1 days'));
-        echo json_encode([
-            "status" => false,
-            "task_id" => null,
-            "status_code" => 200,
-            "data" => $arr_date,
-            "message" => "Arrival Date"
-        ]);
-    }
-    else {
-        $arr_date=$data['TRVL_DATE'];
-    }    
+    // if($data['TTNT_ARVL_TIME'] < $data['TTNT_DEPR_TIME']){
+    //     $arr_date= date('d-M-Y', strtotime($data['TRVL_DATE']. ' + 1 days'));
+    //     echo json_encode([
+    //         "status" => false,
+    //         "task_id" => null,
+    //         "status_code" => 200,
+    //         "data" => $arr_date,
+    //         "message" => "Arrival Date"
+    //     ]);
+    // }
+    // else {
+    //     $arr_date=$data['TRVL_DATE'];
+    // }    
+    $arr_date=$data['TRVL_DATE'];
+    
     $insert_id=executeQry("INSERT INTO epplive.BCS_TRVLTKT_REQUEST
     (ID, REQ_DATE, REQ_BY, SITE_CODE, TRVL_EMP, EMP_CODE, PERSON_NAME, TRVL_MODE, TRVL_CLASS , TRVL_DATE, TRVL_FROM_LOC, TRVL_TO_LOC, TRVL_FT_NAME, TRVL_FT_NO ,EVENT_ID, TTNT_DEPR_TIME, TTNT_ARVL_TIME, REMARKS, STATUS, CHG_ON, CHG_BY)
         values( 													
