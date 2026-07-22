@@ -8,7 +8,7 @@ if($data['saveTbrData']==true)
     startQry();
    
     if($data['TRVL_EMP']=='E'){
-        $pn = singRec("select epplive.get_emp_name('".$data['EMP_CODE']."')pn from dual");
+        $pn = singRec("select EPT_GET_EMP_NAME('".$data['EMP_CODE']."')pn from dual");
     }
     else {
         $pn['PN'] = $data['PERSON_NAME'];
@@ -27,7 +27,7 @@ if($data['saveTbrData']==true)
     else {
         $arr_date=$data['TRVL_DATE'];
     }    
-    $insert_id=executeQry("INSERT INTO epplive.BCS_TRVLTKT_REQUEST
+    $insert_id=executeQry("INSERT INTO EPT_BCS_TRVLTKT_REQUEST
     (ID, REQ_DATE, REQ_BY, SITE_CODE, TRVL_EMP, EMP_CODE, PERSON_NAME, TRVL_MODE, TRVL_CLASS , TRVL_DATE, TRVL_FROM_LOC, TRVL_TO_LOC, TRVL_FT_NAME, TRVL_FT_NO ,EVENT_ID, TTNT_DEPR_TIME, TTNT_ARVL_TIME, REMARKS, STATUS, CHG_ON, CHG_BY)
         values( 													
             null, 
@@ -55,18 +55,18 @@ if($data['saveTbrData']==true)
     
     if($insert_id) {
         if($data['withAuth']==true){
-            $person = singRec("select * from epplive.bcs_trvltkt_request where id='".$insert_id."'");
+            $person = singRec("select * from EPT_BCS_TRVLTKT_REQUEST where id='".$insert_id."'");
             if($person['TRVL_EMP']=='E'){
-                $pn = singRec("select epplive.get_emp_name('".$person['EMP_CODE']."')pn from dual");
-                $name = singRec("SELECT epplive.hr_get_emp_mgr('".$person['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
+                $pn = singRec("select EPT_GET_EMP_NAME('".$person['EMP_CODE']."')pn from dual");
+                $name = singRec("SELECT HR_GET_EMP_MGR('".$person['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
                 $name1 = findParentOrgEmp($person['EMP_CODE']);        
                 $Manager = $name['EMP_CODE'] ? $name['EMP_CODE'] : $name1;
                 
-                $sitecode = singRec("select pay_site from epplive.bcs_employee where emp_code='".$person['EMP_CODE']."'");
+                $sitecode = singRec("select pay_site from EPT_BCS_EMPLOYEE where emp_code='".$person['EMP_CODE']."'");
             } else {
                 $pn['PN'] = $person['PERSON_NAME'];
                 $sitecode = $_SESSION['eptSiteCode'];
-                $name = singRec("SELECT epplive.hr_get_emp_mgr('".$_SESSION['eptSiteCode']."',SYSDATE)EMP_CODE FROM DUAL");
+                $name = singRec("SELECT HR_GET_EMP_MGR('".$_SESSION['eptSiteCode']."',SYSDATE)EMP_CODE FROM DUAL");
                 $name1 = findParentOrgEmp($_SESSION['eptSiteCode']);        
                 $Manager = $name['EMP_CODE'] ? $name['EMP_CODE'] : $name1;
             }
@@ -74,7 +74,7 @@ if($data['saveTbrData']==true)
             $task_id=executeQry("insert into EPT_USER_TASKS (
                 ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, AUTH_BY, AUTH_ON, REMARKS, TRAN_CODE, REF_TASK_ID, TASK_TYPE, UDF_1, TRAN_DESC, SITE_CODE, EMP_CODE_FOR, CHG_ON, UDF_2, TASK_GRP_DESC, IP_ADDR) values (null, '346', sysdate,'".$empCode."' , (sysdate+2), 'O', null, null, null, '".$insert_id."', null, 'A', null, 'Ticket Request From ".$person['TRVL_FROM_LOC']." To ".$person['TRVL_TO_LOC']." Dated ".$person['TRVL_DATE']."', '".$sitecode['PAY_SITE']."', '', sysdate, '', '".$person['PERSON_NAME']."', '') returning ID into :taskId" ,'taskId');
 
-            executeQry("update epplive.BCS_TRVLTKT_REQUEST set status='T' where id='".$insert_id."'") ;
+            executeQry("update EPT_BCS_TRVLTKT_REQUEST set status='T' where id='".$insert_id."'") ;
             
             if($task_id){
                 echo json_encode([
@@ -116,7 +116,8 @@ if($data['saveTbrData']==true)
     startQry();
     
     if($data['TRVL_EMP']=='E'){
-        $pn = singRec("select epplive.get_emp_name('".$data['EMP_CODE']."') PN from dual");
+        //$pn = singRec("select epplive.get_emp_name('".$data['EMP_CODE']."') PN from dual");
+        $pn = singRec("select EPT_GET_EMP_NAME('".$data['EMP_CODE']."') PN from dual");
     }
     else {
         $pn['PN'] = $data['PERSON_NAME'];
@@ -136,7 +137,7 @@ if($data['saveTbrData']==true)
         $arr_date=$data['TRVL_DATE'];
     }
 
-    $qry = "update epplive.bcs_trvltkt_request
+    $qry = "update ept_bcs_trvltkt_request
     set 													
     SITE_CODE='".$_SESSION['eptSiteCode']."', 
     TRVL_EMP='".$data['TRVL_EMP']."', 
@@ -157,18 +158,11 @@ if($data['saveTbrData']==true)
 
     try {
         $ok = executeQry($qry); 
-        echo json_encode([
-            "status" => true,
-            "status_code" => 200,
-            "message" => "Ticking booking updated successfully"
-        ]);
+        apiResponse(true,"Ticking booking updated successfully");
+        
     } catch(Exception $e){
-
-        echo json_encode([
-            "status" => false,
-            "status_code" => 500,
-            "message" => "Failed to update ticket booking " . $e->getMessage()
-        ]);
+        apiResponse(false,"Failed to update ticket booking",null,500,$e->getMessage());
+        
 
     }
     
