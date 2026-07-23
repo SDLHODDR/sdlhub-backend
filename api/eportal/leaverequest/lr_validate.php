@@ -85,19 +85,17 @@ if($data['ClValidate']==true)
 	// }
 
 } else if($data['OlValidate']==true) {
-    //$holVal = singRec("select * from EPT_bcs_holidays where hol_type = 'O' and hol_date = '" . $data['attd_date'] . "' and hol_grp in (select hol_tblno from EPT_bcs_employee where emp_code='" . $data['EMP_CODE'] . "')");
-
     $holVal = singRec("select * from EPT_bcs_holidays where hol_type = 'O' and hol_date = to_date('".$data['attd_date']."','YYYY-MM-DD') and hol_grp in (select hol_tblno from EPT_bcs_employee where emp_code='" . $data['EMP_CODE'] . "')");
 	
-	if (($holVal['HOL_GRP']!='')) {
+	if (($holVal['HOL_GRP'] !='')) {
 		echo json_encode([
             "status" => true,
-            "data"   => 0,
+            "data"   => 1,
         ]);
 	} else {
 		echo json_encode([
             "status" => true,
-            "data"   => 1,
+            "data"   => 0,
         ]);
 	}
 }
