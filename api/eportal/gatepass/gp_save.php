@@ -234,8 +234,9 @@ else if($data['editGpData']==true)
     //     "status_code" => 200,
     //     "message" => "Gatepass updated successfully"
     // ]);
-    apiResponse(true,"Gatepass updated successfully");
     endQry();
+    apiResponse(true,"Gatepass updated successfully");
+    
 }
 else if($data['deleteOD']==true)
 {
@@ -248,8 +249,9 @@ else if($data['deleteOD']==true)
     //     "status_code" => 200,
     //     "message" => "Gatepass deleted successfully"
     // ]);
+     endQry();
     apiResponse(true,"Gatepass deleted successfully");
-    endQry();
+   
 }else if($data['closeTicket']==true)
 {
     startQry();
@@ -262,8 +264,9 @@ else if($data['deleteOD']==true)
     //     "status_code" => 200,
     //     "message" => "Gatepass deleted successfully"
     // ]);
+     endQry();
     apiResponse(true,"Gatepass deleted successfully");
-    endQry();
+   
 }
 
 ob_end_flush();

@@ -67,6 +67,7 @@ if($data['saveLrData']==true)
 		$task_id = generateTask('leave_application', $insert_id, getEmpInfoByCode($data['EMP_CODE']) . " (" . trim(strtoupper($data['LVE_DATE_FR'])) . " TO " . trim(strtoupper($data['LVE_DATE_TO'])) . ")", '', '', '', '', $Manager);
         
 		$msg = 'Leave Added Successfully !!';
+		endQry();
 		echo json_encode([
             "status" => true,
             "status_code" => 200,
@@ -108,7 +109,7 @@ if($data['saveLrData']==true)
         //     ]);
 	    // }
 		
-		endQry();
+		
 	} else {
         echo json_encode([
                 "status" => false,

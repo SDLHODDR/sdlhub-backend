@@ -64,6 +64,8 @@ if($data['authForm']==true)
 
         $chk = singRec("select * from EPT_USER_TASKS where id='" . $data['TASK_ID'] . "'");
 
+        endQry('Task Rejected');
+        
         echo json_encode([
             "status" => true,
             "status_code" => 200,
@@ -73,7 +75,7 @@ if($data['authForm']==true)
 
         
 
-		endQry('Task Rejected');
+		
     } else if($data['flag']=='A') {
         
         taskUpdate('C', $data["AUTH_REMARKS"], $data['TASK_ID']);

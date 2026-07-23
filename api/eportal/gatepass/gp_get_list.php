@@ -66,7 +66,7 @@ foreach ($GpDetails as $gp) {
 
     // minimal date formatting
     $formattedDate = $gpassDate 
-        ? date('d M Y', strtotime($gpassDate)) 
+        ? date('d-M-Y', strtotime($gpassDate)) 
         : '';
 
     $diff = strtotime($gpassDate) - strtotime($currentDate);

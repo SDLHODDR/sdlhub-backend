@@ -34,9 +34,10 @@ if($data['authForm']==true)
         //     "status_code" => 200,
         //     "message" => "Record Rejected successfully"
         // ]);
+        endQry('Task Rejected');
         apiResponse(true,"Record Rejected successfully");
 
-		endQry('Task Rejected');
+		
     } else if($data['flag']=='A') {
         //$userTask = singRec("select * from ept_user_tasks where task_id='346' and id = " . $data["TID"] . "");
         $userTask = singRec("select * from ept_user_tasks where task_id='346' and id = " . $data["TASK_ID"] . "");

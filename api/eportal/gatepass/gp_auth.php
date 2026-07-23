@@ -46,12 +46,12 @@ if($data['sendAuth']==true)
         //     "status" => true,
         //     "message" => "Authorization sent successfully"
         // ]);
-
+        endQry();
         apiResponse(true,"Authorization sent successfully");
 
        
 
-        endQry();
+       
     }
 } else if($data['resendAuth']==true)
 {

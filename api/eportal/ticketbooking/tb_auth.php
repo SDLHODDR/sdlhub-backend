@@ -36,8 +36,9 @@ if($data['sendAuth']==true)
             //     "status_code" => 200,
             //     "message" => "Request sent for Authorization"
             // ]);
+             endQry("Sent for Authorization!");
             apiResponse(true,"Request sent for Authorization successfully");
-            endQry("Sent for Authorization!");
+           
         }
         else{
             // echo json_encode([
@@ -45,9 +46,10 @@ if($data['sendAuth']==true)
             //     "status_code" => 500,
             //     "message" => "Some Error occured"
             // ]);
+            endQry();
             apiResponse(false,"Some Error occured",null,500,$e->getMessage());
         }
-        endQry();
+        
     }
 }else if($data['resendAuth']==true)
 {

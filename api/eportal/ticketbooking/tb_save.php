@@ -79,6 +79,7 @@ if($data['saveTbrData']==true)
             executeQry("update EPT_BCS_TRVLTKT_REQUEST set status='T' where id='".$insert_id."'") ;
             
             if($task_id){
+                 endQry("Sent for Authorization!");
                 echo json_encode([
                     "status" => true,
                     "status_code" => 200,
@@ -86,7 +87,7 @@ if($data['saveTbrData']==true)
                     "task_id" => $task_id,
                     "message" => "Request sent for Authorization"
                 ]);
-                endQry("Sent for Authorization!");
+               
             }
             else{
                 //echo json_encode([
@@ -97,6 +98,7 @@ if($data['saveTbrData']==true)
                 apiResponse(false,"Some Error occured",null,500,$e->getMessage());
             }
         } else {
+             endQry();
             echo json_encode([
                 "status" => true,
                 "task_id" => $insert_id,
@@ -160,17 +162,21 @@ if($data['saveTbrData']==true)
     STATUS='N'
     where ID='".$data['ID']."'";
 
+    //echo $qry;
+
     try {
-        $ok = executeQry($qry); 
-        apiResponse(true,"Ticking booking updated successfully");
-        
+        $ok = executeQry($qry);
+        endQry(); 
+        if($ok) {
+            apiResponse(true,"Ticking booking updated successfully");
+        }
     } catch(Exception $e){
         apiResponse(false,"Failed to update ticket booking",null,500,$e->getMessage());
         
 
     }
     
-    endQry();
+    //endQry();
 } else if($data['deleteTB']==true)
 {
     startQry();
@@ -182,8 +188,9 @@ if($data['saveTbrData']==true)
     //     "status_code" => 200,
     //     "message" => "Ticket deleted successfully"
     // ]);
-    apiResponse(true,"Ticket deleted successfully");
     endQry();
+    apiResponse(true,"Ticket deleted successfully");
+    
 } else if($data['closeTicket']==true)
 {
   startQry();
@@ -235,10 +242,11 @@ if($data['saveTbrData']==true)
     //     "status_code" => 200,
     //     "message" => "Ticket cancelled successfully"
     // ]);
+    endQry("Ticket has been cancelled!");
     apiResponse(true,"Ticket cancelled successfully");
 
 
-    endQry("Ticket has been cancelled!");
+    
 
   }
 }
