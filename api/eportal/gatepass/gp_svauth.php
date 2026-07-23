@@ -21,7 +21,7 @@ if($data['authForm']==true)
     
     $gpass = singRec("select * from ept_employee_gpass where id='".$data['ID']."'");
     //$GtASKiD = singRec("select * from EPT_USER_TASKS where id='".$data['TASK_ID']."'");
-    $empmail = singRec("select short_name ,email_id_off from epplive.bcs_employee where emp_code='".$gpass['EMP_CODE']."'");
+    $empmail = singRec("select short_name ,email_id_off from EPT_bcs_employee where emp_code='".$gpass['EMP_CODE']."'");
     $data["AUTH_REMARKS"] = isset($data["AUTH_REMARKS"]) && $data["AUTH_REMARKS"] !== ''
             ? $data["AUTH_REMARKS"]
             : null;
@@ -47,7 +47,7 @@ if($data['authForm']==true)
 
             $mailBody = addslashes($mailBody);
 
-			$insert_id=executeQry("INSERT INTO epplive.bcs_mailbox_epp (ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS,CHG_ON,CHG_BY,MAIL_DESCR)
+			$insert_id=executeQry("INSERT INTO EPT_bcs_mailbox_epp (ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS,CHG_ON,CHG_BY,MAIL_DESCR)
             values( 													
               null,
            ' Rejected Outdoor Duty Of ".getEmpInfoByCode($gpass['EMP_CODE'])." dated ".$gpass['GPASS_DATE']."',
@@ -59,7 +59,7 @@ if($data['authForm']==true)
               'Outdoor Duty') 
               returning ID into :newId",'newId');
 
-		    executeQry("INSERT INTO epplive.bcs_mailbox_epp_details(ID,MAIL_ID,EMAIL_TO,EMAIL_CC,EMAIL_BCC) values(null,'".$insert_id."', '".strtolower($empmail['EMAIL_ID_OFF'])." ','attendance@sdlindia.com',null)");
+		    executeQry("INSERT INTO EPT_bcs_mailbox_epp_details(ID,MAIL_ID,EMAIL_TO,EMAIL_CC,EMAIL_BCC) values(null,'".$insert_id."', '".strtolower($empmail['EMAIL_ID_OFF'])." ','attendance@sdlindia.com',null)");
 		}
 
         $chk = singRec("select * from EPT_USER_TASKS where id='" . $data['TASK_ID'] . "'");
@@ -95,7 +95,7 @@ if($data['authForm']==true)
 	    <br><br> Regards<br> Admin';
         $mailBody = addslashes($mailBody);
 
-		$insert_id=executeQry("INSERT INTO epplive.bcs_mailbox_epp
+		$insert_id=executeQry("INSERT INTO EPT_bcs_mailbox_epp
         (ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS,CHG_ON,CHG_BY,MAIL_DESCR)
         values( 													
            null,
@@ -108,14 +108,15 @@ if($data['authForm']==true)
             'Outdoor Duty') 
             returning ID into :newId",'newId');
 
-		executeQry("INSERT INTO epplive.bcs_mailbox_epp_details(ID,MAIL_ID,EMAIL_TO,EMAIL_CC,EMAIL_BCC) values(null,'".$insert_id."', '".strtolower($empmail['EMAIL_ID_OFF'])." ','attendance@sdlindia.com',null)");
+		executeQry("INSERT INTO EPT_bcs_mailbox_epp_details(ID,MAIL_ID,EMAIL_TO,EMAIL_CC,EMAIL_BCC) values(null,'".$insert_id."', '".strtolower($empmail['EMAIL_ID_OFF'])." ','attendance@sdlindia.com',null)");
 
         endQry('Task Approved');
-        echo json_encode([
-            "status" => true,
-            "status_code" => 200,
-            "message" => "Record Authroized successfully"
-        ]);
+        // echo json_encode([
+        //     "status" => true,
+        //     "status_code" => 200,
+        //     "message" => "Record Authroized successfully"
+        // ]);
+        apiResponse(true,"Record Authroized successfully");
     }
 }
 

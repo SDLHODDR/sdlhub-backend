@@ -21,14 +21,14 @@ if($data['getTbrdata']==true)
                 to_char(TTNT_DEPR_TIME , 'hh24:mi') TTNT_DEPR_TIME, 
                 to_char(TTNT_ARVL_TIME , 'hh24:mi') TTNT_ARVL_TIME, 
                 REMARKS, STATUS, TRVL_TKT_ID 
-            FROM epplive.BCS_TRVLTKT_REQUEST 
+            FROM EPT_BCS_TRVLTKT_REQUEST 
             WHERE ID = '" . $data['id'] . "'
         ");
     }
 
     // Step 1: Manager logic (reuse)
     $name  = singRec("
-        SELECT epplive.hr_get_emp_mgr('".$empCode."', SYSDATE) AS EMP_CODE 
+        SELECT EPT_hr_get_emp_mgr('".$empCode."', SYSDATE) AS EMP_CODE 
         FROM dual
     ");
     $name1 = findParentOrgEmp($empCode);
@@ -42,7 +42,7 @@ if($data['getTbrdata']==true)
             -- Self
             SELECT 
                 '".$empCode."' AS emp_code,
-                epplive.get_emp_name('".$empCode."') AS emp_name,
+                EPT_get_emp_name('".$empCode."') AS emp_name,
                 'Self' AS category
             FROM dual
 
@@ -51,9 +51,9 @@ if($data['getTbrdata']==true)
             -- My Manager
             SELECT 
                 emp_code,
-                epplive.get_emp_name(emp_code),
+                EPT_get_emp_name(emp_code),
                 'My Manager'
-            FROM epplive.bcs_employee
+            FROM EPT_bcs_employee
             WHERE status = 'A'
             AND emp_code = '".$manager."'
 
@@ -62,9 +62,9 @@ if($data['getTbrdata']==true)
             -- My Colleagues
             SELECT 
                 emp_code,
-                epplive.get_emp_name(emp_code),
+                EPT_get_emp_name(emp_code),
                 'My Colleague'
-            FROM epplive.bcs_employee
+            FROM EPT_bcs_employee
             WHERE status = 'A'
             AND report_to = '".$manager."'
             AND emp_code <> '".$empCode."'
@@ -74,9 +74,9 @@ if($data['getTbrdata']==true)
             -- My Team
             SELECT 
                 emp_code,
-                epplive.get_emp_name(emp_code),
+                EPT_get_emp_name(emp_code),
                 'My Team'
-            FROM epplive.bcs_employee
+            FROM EPT_bcs_employee
             WHERE status = 'A'
             AND report_to = '".$empCode."'
 
@@ -401,7 +401,7 @@ if($data['getTbrdata']==true)
             "disabled" => "No",
             "PleaseSelect" => "No",
             "isRequired" => "No",
-            "options" => getOptionsCustom("select distinct TRVL_CLASS, TRVL_CLASS from epplive.BCS_TRVL_TICKET order by 1")
+            "options" => getOptionsCustom("select distinct TRVL_CLASS, TRVL_CLASS from EPT_BCS_TRVL_TICKET order by 1")
         ]
     ];
 

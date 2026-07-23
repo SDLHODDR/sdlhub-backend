@@ -13,7 +13,7 @@ if($data['ClValidate']==true)
     //     SELECT 
     //         COUNT(*) AS CNT,
     //         NVL(SUM(NO_DAYS), 0) AS TOTAL_DAYS
-    //     FROM epplive.bcs_emp_leaves
+    //     FROM EPT_bcs_emp_leaves
     //     WHERE emp_code = '" . $data['EMP_CODE'] . "'
     //     AND lve_code = 'CL'
     //     AND LVE_DATE_FR >= TRUNC(TO_DATE('" . $data['fr_dt'] . "', 'YYYY-MM-DD'), 'MM')
@@ -22,7 +22,7 @@ if($data['ClValidate']==true)
     $clLeaves = singRec("
         SELECT 
             COUNT(*)CNT 
-        FROM epplive.bcs_emp_leaves 
+        FROM EPT_bcs_emp_leaves 
         WHERE emp_code = '" . $data['EMP_CODE'] . "'
         AND lve_code = 'CL' 
         AND EXTRACT(MONTH FROM TO_DATE( '" . $data['fr_dt'] . "',  'YYYY-MM-DD')) = EXTRACT(MONTH FROM LVE_DATE_FR)
@@ -31,7 +31,7 @@ if($data['ClValidate']==true)
     $clLeavedays = singRec("
         SELECT 
             sum(NO_DAYS)CNT 
-        FROM epplive.bcs_emp_leaves
+        FROM EPT_bcs_emp_leaves
         WHERE emp_code = '" . $data['EMP_CODE'] . "'
         AND lve_code = 'CL' 
         AND EXTRACT(MONTH FROM TO_DATE( '" . $data['fr_dt'] . "',  'YYYY-MM-DD')) = EXTRACT(MONTH FROM LVE_DATE_FR)
@@ -64,7 +64,7 @@ if($data['ClValidate']==true)
     // // echo "clLeaves-CNT : " . $clLeaves['CNT'] . "<br/>clLeavedays-CNT : " . $clLeavedays['CNT'] . "<br/>days : " . $days . "<br/>to_dt : " . $data['to_dt'] . "<br/>fr_dt : " . $data['fr_dt'] . "SELECT 
     // //         COUNT(*) AS CNT,
     // //         NVL(SUM(NO_DAYS), 0) AS TOTAL_DAYS
-    // //     FROM epplive.bcs_emp_leaves
+    // //     FROM EPT_bcs_emp_leaves
     // //     WHERE emp_code = '" . $data['EMP_CODE'] . "'
     // //     AND lve_code = 'CL'
     // //     AND LVE_DATE_FR >= TRUNC(TO_DATE('" . $data['fr_dt'] . "', 'DD-Mon-YYYY'), 'MM')
@@ -85,9 +85,9 @@ if($data['ClValidate']==true)
 	// }
 
 } else if($data['OlValidate']==true) {
-    //$holVal = singRec("select * from epplive.bcs_holidays where hol_type = 'O' and hol_date = '" . $data['attd_date'] . "' and hol_grp in (select hol_tblno from epplive.bcs_employee where emp_code='" . $data['EMP_CODE'] . "')");
+    //$holVal = singRec("select * from EPT_bcs_holidays where hol_type = 'O' and hol_date = '" . $data['attd_date'] . "' and hol_grp in (select hol_tblno from EPT_bcs_employee where emp_code='" . $data['EMP_CODE'] . "')");
 
-    $holVal = singRec("select * from epplive.bcs_holidays where hol_type = 'O' and hol_date = to_date('".$data['attd_date']."','YYYY-MM-DD') and hol_grp in (select hol_tblno from epplive.bcs_employee where emp_code='" . $data['EMP_CODE'] . "')");
+    $holVal = singRec("select * from EPT_bcs_holidays where hol_type = 'O' and hol_date = to_date('".$data['attd_date']."','YYYY-MM-DD') and hol_grp in (select hol_tblno from EPT_bcs_employee where emp_code='" . $data['EMP_CODE'] . "')");
 	
 	if (($holVal['HOL_GRP']!='')) {
 		echo json_encode([

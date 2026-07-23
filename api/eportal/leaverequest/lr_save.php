@@ -7,18 +7,18 @@ if($data['saveLrData']==true)
 {
     startQry();
    
-    $name = singRec("SELECT epplive.hr_get_emp_mgr('".$data['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
+    $name = singRec("SELECT EPT_hr_get_emp_mgr('".$data['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
 	$name1 = findParentOrgEmp($data['EMP_CODE']);        
 	$Manager = $name['EMP_CODE'] ? $name['EMP_CODE'] : $name1;
 
-    $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from epplive.bcs_employee WHERE emp_code = '".$Manager."'");
+    $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from EPT_bcs_employee WHERE emp_code = '".$Manager."'");
 
-    $empData = singRec("select DEPT_CODE,PROC_GROUP PROC_GRP from epplive.bcs_employee where emp_code='" . $data['EMP_CODE'] . "' ");
+    $empData = singRec("select DEPT_CODE,PROC_GROUP PROC_GRP from EPT_bcs_employee where emp_code='" . $data['EMP_CODE'] . "' ");
 
     $LVE_DATE_FR = date('d-M-Y', strtotime($data['LVE_DATE_FR']));
-    // $sql = multiRec("select emp_code from epplive.bcs_emp_leaves_temp where emp_code='" . $data['EMP_CODE'] . "'  and status not in ('X' , 'R')  and (lve_date_fr between '" . $data['LVE_DATE_FR'] . "' and '" . $data['LVE_DATE_TO'] . "' or lve_date_to between '" . $data['LVE_DATE_FR'] . "' and '" . $data['LVE_DATE_TO'] . "' )
+    // $sql = multiRec("select emp_code from EPT_bcs_emp_leaves_temp where emp_code='" . $data['EMP_CODE'] . "'  and status not in ('X' , 'R')  and (lve_date_fr between '" . $data['LVE_DATE_FR'] . "' and '" . $data['LVE_DATE_TO'] . "' or lve_date_to between '" . $data['LVE_DATE_FR'] . "' and '" . $data['LVE_DATE_TO'] . "' )
     // union
-    // select emp_code from epplive.bcs_emp_leaves where emp_code='" . $data['EMP_CODE'] . "'  and (lve_date_fr between '" . $data['LVE_DATE_FR'] . "' and '" . $data['LVE_DATE_TO'] . "' or lve_date_to between '" . $data['LVE_DATE_FR'] . "' and '" . $data['LVE_DATE_TO'] . "')");
+    // select emp_code from EPT_bcs_emp_leaves where emp_code='" . $data['EMP_CODE'] . "'  and (lve_date_fr between '" . $data['LVE_DATE_FR'] . "' and '" . $data['LVE_DATE_TO'] . "' or lve_date_to between '" . $data['LVE_DATE_FR'] . "' and '" . $data['LVE_DATE_TO'] . "')");
 	
     // $cnt = count($sql);
 	// if ($cnt > 0) {
@@ -40,11 +40,11 @@ if($data['saveLrData']==true)
 
     // $applied_in_month = singRec("select  nvl(sum(applied_days),0) applied_in_month
 	// 				  from (
-	// 				  SELECT SUM(NO_DAYS) applied_days FROM epplive.BCS_EMP_LEAVES WHERE EMP_CODE = '" . $data['EMP_CODE'] . "' AND LVE_DATE_FR >= '" . $first_day . "' AND LVE_DATE_TO <= '" . $last_day . "' AND LVE_CODE='" . $data['LVE_CODE'] . "' AND STATUS = 'C'
+	// 				  SELECT SUM(NO_DAYS) applied_days FROM EPT_BCS_EMP_LEAVES WHERE EMP_CODE = '" . $data['EMP_CODE'] . "' AND LVE_DATE_FR >= '" . $first_day . "' AND LVE_DATE_TO <= '" . $last_day . "' AND LVE_CODE='" . $data['LVE_CODE'] . "' AND STATUS = 'C'
 	// 				  UNION 
-	// 				  SELECT  SUM(TOTAL_DAYS) FROM epplive.BCS_EMP_LEAVES_TEMP WHERE EMP_CODE = '" . $data['EMP_CODE'] . "' AND LVE_DATE_FR >= '" . $first_day . "' AND LVE_DATE_TO <= '" . $last_day . "' AND LVE_CODE='" . $data['LVE_CODE'] . "' )");
+	// 				  SELECT  SUM(TOTAL_DAYS) FROM EPT_BCS_EMP_LEAVES_TEMP WHERE EMP_CODE = '" . $data['EMP_CODE'] . "' AND LVE_DATE_FR >= '" . $first_day . "' AND LVE_DATE_TO <= '" . $last_day . "' AND LVE_CODE='" . $data['LVE_CODE'] . "' )");
 
-    $insert_id = executeQry("insert into epplive.bcs_emp_leaves_temp
+    $insert_id = executeQry("insert into EPT_bcs_emp_leaves_temp
 		(EMP_CODE,LVE_DATE_FR,LVE_DATE_TO,LVE_START_ON,LVE_END_ON,LVE_CODE,TOTAL_DAYS,REASON,CHG_BY,CHG_ON,APRVR_ID,RAISED_BY,STATUS)
 		values
 		( 
@@ -62,7 +62,7 @@ if($data['saveLrData']==true)
 	) returning ID into :newId", 'newId');
 
     if ($insert_id) {
-	$get_temp_leave = singRec("SELECT * from epplive.BCS_EMP_LEAVES_TEMP where id = '" . $insert_id . "' ");
+	$get_temp_leave = singRec("SELECT * from EPT_BCS_EMP_LEAVES_TEMP where id = '" . $insert_id . "' ");
 		// $empmail_self = singRec("select com_email from hrmslive.hr_employee_info where emp_code='" . $get_temp_leave['EMP_CODE'] . "' ");
 		$task_id = generateTask('leave_application', $insert_id, getEmpInfoByCode($data['EMP_CODE']) . " (" . trim(strtoupper($data['LVE_DATE_FR'])) . " TO " . trim(strtoupper($data['LVE_DATE_TO'])) . ")", '', '', '', '', $Manager);
         
@@ -88,13 +88,13 @@ if($data['saveLrData']==true)
 		// 	<br>Regards,<br> Admin ';
 		// 	// echo html_entity_decode($mailBody);
 		// 	// exit;
-		// 	$maild = executeQry("INSERT INTO epplive.bcs_mailbox_epp(ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS,
+		// 	$maild = executeQry("INSERT INTO EPT_bcs_mailbox_epp(ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS,
 		// 	CHG_ON,CHG_BY,MAIL_DESCR)
 		// 	values(null,'Leave Request of " . getEmpInfoByCode($get_temp_leave['EMP_CODE']) . " from 
 		// 	" . $get_temp_leave['LVE_DATE_FR'] . " to " . $get_temp_leave['LVE_DATE_TO'] . "',
 		// 	'" . trim($mailBody) . "',null,'N',SYSDATE,'" . $data['EMP_CODE'] . "','Leave') 
 		// 	returning ID into :mid", 'mid');
-		// 	executeQry("INSERT INTO epplive.bcs_mailbox_epp_details(ID,MAIL_ID,EMAIL_TO,EMAIL_CC,EMAIL_BCC)
+		// 	executeQry("INSERT INTO EPT_bcs_mailbox_epp_details(ID,MAIL_ID,EMAIL_TO,EMAIL_CC,EMAIL_BCC)
 		// 				values(null,'" . $maild . "',
 		// 				'" . strtolower($manageremail['COM_EMAIL']) . " ',null,null)");
 

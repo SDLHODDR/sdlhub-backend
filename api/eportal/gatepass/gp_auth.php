@@ -10,7 +10,7 @@ if($data['sendAuth']==true)
         $name1 = findParentOrgEmp($gpass['EMP_CODE']);        
         $Manager = $name['EMP_CODE'] ? $name['EMP_CODE'] : $name1;
         
-        $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from epplive.bcs_employee 
+        $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from EPT_bcs_employee 
                             WHERE emp_code = '".$Manager."'");
         
         $task_id = executeQry("insert into EPT_USER_TASKS (
@@ -42,10 +42,12 @@ if($data['sendAuth']==true)
             endQry();
         }
         
-        echo json_encode([
-            "status" => true,
-            "message" => "Authorization sent successfully"
-        ]);
+        // echo json_encode([
+        //     "status" => true,
+        //     "message" => "Authorization sent successfully"
+        // ]);
+
+        apiResponse(true,"Authorization sent successfully");
 
        
 

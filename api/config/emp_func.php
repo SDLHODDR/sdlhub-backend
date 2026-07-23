@@ -3,7 +3,7 @@
 	function getEmpInfoByCode($id)
 	{
 		$EmpName = singRec("SELECT EMP_FNAME, EMP_LNAME 
-								FROM epplive.bcs_employee
+								FROM EPT_bcs_employee
 								WHERE emp_code = '" . $id . "'");
 		$name = $EmpName['EMP_FNAME'] . ' ' . $EmpName['EMP_LNAME'];
 		return ucwords(strtolower($name));
