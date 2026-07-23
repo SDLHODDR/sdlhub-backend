@@ -19,32 +19,46 @@ function logOracleError($oracleError, $sql = "")
     writeErrorLog($message);
 }
 
-function singRec($sqlVal,$echo='')
-{	
-	if(!empty($echo)) echo $sqlVal.'<hr class="mt-10" style="border:2px solid #000000;" />';
-	GLOBAL $sql___func___con;
-	$record=array();
-	$sql=oci_parse($sql___func___con,$sqlVal);
+function singRec($sqlVal, $binds = [], $echo = '')
+{
+    global $sql___func___con;
 
-	if (!oci_execute($sql, OCI_DEFAULT)) {
+    if (!empty($echo)) {
+        echo $sqlVal . '<hr class="mt-10" style="border:2px solid #000000;" />';
+    }
 
-		$e = oci_error($sql);
-		logOracleError($e, $sqlVal);
-		oci_free_statement($sql);
-		return [];
-	}
-	else
-	{
-		$record=oci_fetch_array($sql);
-		if(!is_array($record))$record=array();
-		foreach($record as $key=>$value)
-		{
-			//$record[$key]=htmlentities($value,ENT_QUOTES);
-			$record[$key] = htmlentities((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
+    $stmt = oci_parse($sql___func___con, $sqlVal);
 
-		}
-	}
-	return $record;
+    if (!$stmt) {
+        $e = oci_error($sql___func___con);
+        logOracleError($e, $sqlVal);
+        return [];
+    }
+
+    foreach ($binds as $key => &$value) {
+        oci_bind_by_name($stmt, $key, $value);
+    }
+
+    if (!oci_execute($stmt, OCI_DEFAULT)) {
+        $e = oci_error($stmt);
+        logOracleError($e, $sqlVal);
+        oci_free_statement($stmt);
+        return [];
+    }
+
+    $record = oci_fetch_array($stmt, OCI_ASSOC + OCI_RETURN_NULLS);
+
+    if (!is_array($record)) {
+        $record = [];
+    }
+
+    foreach ($record as $key => $value) {
+        $record[$key] = htmlentities((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
+    }
+
+    oci_free_statement($stmt);
+
+    return $record;
 }
 
 function singRecEPP($sqlVal,$echo='')
@@ -77,14 +91,13 @@ function singRecEPP($sqlVal,$echo='')
 	return $record;
 }
 
-function multiRec($sqlVal, $options = [])
+function multiRec($sqlVal, $binds = [], $options = [])
 {
     global $sql___func___con;
 
-    // Default options
     $defaults = [
-        'debug'      => false,
-        'encodeHtml' => false,   // false for API, true for HTML pages
+        'debug' => false,
+        'encodeHtml' => false,
     ];
 
     $options = array_merge($defaults, $options);
@@ -93,41 +106,26 @@ function multiRec($sqlVal, $options = [])
         echo $sqlVal . '<hr style="border:2px solid #000;" />';
     }
 
-    $record = [];
-
-    /* ==========================
-       PARSE QUERY
-    ========================== */
-
     $stmt = oci_parse($sql___func___con, $sqlVal);
 
     if (!$stmt) {
-
         $e = oci_error($sql___func___con);
-
         logOracleError($e, $sqlVal);
-
         return [];
     }
 
-    /* ==========================
-       EXECUTE QUERY
-    ========================== */
+    foreach ($binds as $key => &$value) {
+        oci_bind_by_name($stmt, $key, $value);
+    }
 
     if (!oci_execute($stmt, OCI_DEFAULT)) {
-
         $e = oci_error($stmt);
-
         logOracleError($e, $sqlVal);
-
         oci_free_statement($stmt);
-
         return [];
     }
 
-    /* ==========================
-       FETCH RECORDS
-    ========================== */
+    $records = [];
 
     while ($row = oci_fetch_array($stmt, OCI_ASSOC + OCI_RETURN_NULLS)) {
 
@@ -146,12 +144,12 @@ function multiRec($sqlVal, $options = [])
             $row[$key] = $cleanValue;
         }
 
-        $record[] = $row;
+        $records[] = $row;
     }
 
     oci_free_statement($stmt);
 
-    return $record;
+    return $records;
 }
 
 function multiRecEPP($sqlVal, $options = [])
@@ -601,11 +599,8 @@ function executeQry($sqlVal, $returnId = '', $echo = '')
         if (!oci_execute($sql, OCI_DEFAULT)) {
 
             $e = oci_error($sql);
-
             logOracleError($e, $sqlVal);
-
             $qry_____result = 1;
-
             oci_free_statement($sql);
 
             return false;

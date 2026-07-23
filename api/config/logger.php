@@ -3,7 +3,7 @@ require_once "db.php";
 require_once "session.php";
 
 function writeErrorLog($message)
-{ 
+{
     $sql___func___con = db_eportal();
 
     if (!$sql___func___con) {

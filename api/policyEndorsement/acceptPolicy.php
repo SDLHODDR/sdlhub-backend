@@ -7,40 +7,42 @@ require_once __DIR__ . "/../config/session.php";
 require_once __DIR__ . "/../cors.php";
 require_once __DIR__ . "/../config/db.php";
 
-header('Content-Type: application/json');
+$sql___func___con = db_eportal();
 
-$data = json_decode(file_get_contents("php://input"), true);
-$con = db_eportal();
+require_once __DIR__ . "/../config/functions.php";
+require_once __DIR__ . "/../config/utils.php";
 
-$policyId = $data['policy_id'] ?? 0;
+require_once __DIR__ . "/../config/logger.php";
+
+header("Content-Type: application/json");
 
 try {
 
-    $empCode = $_SESSION['emp_code'] ?? '';
+    /* ==========================================================
+       SESSION VALIDATION
+    ========================================================== */
 
-    if (empty($empCode)) {
-
-        echo json_encode([
-            "status" => false,
-            "message" => "Session expired"
-        ]);
-        exit;
+    if (!isset($_SESSION["emp_code"])) {
+        apiResponse(false, "Session expired", null, 401);
     }
+
+    $empCode = $_SESSION["emp_code"];
+
+    /* ==========================================================
+       READ INPUT
+    ========================================================== */
+
+    $data = json_decode(file_get_contents("php://input"), true);
+
+    $policyId = $data["policy_id"] ?? 0;
 
     if (empty($policyId)) {
-
-        echo json_encode([
-            "status" => false,
-            "message" => "Invalid policy"
-        ]);
-        exit;
+        apiResponse(false, "Invalid policy", null, 400);
     }
 
-    /*
-    -------------------------------------------------------
-    CHECK ALREADY ACCEPTED
-    -------------------------------------------------------
-    */
+    /* ==========================================================
+       CHECK POLICY ALREADY ACCEPTED
+    ========================================================== */
 
     $checkSql = "
         SELECT COUNT(*) CNT
@@ -49,29 +51,41 @@ try {
         AND EMP_CODE = :emp_code
     ";
 
-    $checkStmt = oci_parse($con, $checkSql);
+    $checkStmt = oci_parse($sql___func___con, $checkSql);
+
+    if (!$checkStmt) {
+
+        $e = oci_error($sql___func___con);
+
+        logOracleError($e, $checkSql);
+
+        apiResponse(false, "Unable to process request.", null, 500);
+    }
 
     oci_bind_by_name($checkStmt, ":policy_id", $policyId);
     oci_bind_by_name($checkStmt, ":emp_code", $empCode);
 
-    oci_execute($checkStmt);
+    if (!oci_execute($checkStmt)) {
+
+        $e = oci_error($checkStmt);
+
+        logOracleError($e, $checkSql);
+
+        apiResponse(false, "Unable to process request.", null, 500);
+    }
 
     $checkRow = oci_fetch_assoc($checkStmt);
 
-    if ($checkRow['CNT'] > 0) {
+    oci_free_statement($checkStmt);
 
-        echo json_encode([
-            "status" => true,
-            "message" => "Policy already accepted"
-        ]);
-        exit;
+    if (($checkRow["CNT"] ?? 0) > 0) {
+
+        apiResponse(true, "Policy already accepted.");
     }
 
-    /*
-    -------------------------------------------------------
-    INSERT ACCEPTANCE LOG
-    -------------------------------------------------------
-    */
+    /* ==========================================================
+       INSERT POLICY ACCEPTANCE
+    ========================================================== */
 
     $sql = "
         INSERT INTO EPT_USER_POLICY_VIEW_LOG
@@ -98,11 +112,19 @@ try {
         )
     ";
 
-    $stmt = oci_parse($con, $sql);
+    $stmt = oci_parse($sql___func___con, $sql);
 
-    $ipAddr = $_SERVER['REMOTE_ADDR'] ?? '';
+    if (!$stmt) {
 
-    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $e = oci_error($sql___func___con);
+
+        logOracleError($e, $sql);
+
+        apiResponse(false, "Unable to save policy acceptance.", null, 500);
+    }
+
+    $ipAddr = $_SERVER["REMOTE_ADDR"] ?? "";
+    $userAgent = $_SERVER["HTTP_USER_AGENT"] ?? "";
 
     oci_bind_by_name($stmt, ":policy_id", $policyId);
     oci_bind_by_name($stmt, ":emp_code", $empCode);
@@ -110,29 +132,36 @@ try {
     oci_bind_by_name($stmt, ":user_agent", $userAgent);
     oci_bind_by_name($stmt, ":chg_by", $empCode);
 
-    $result = oci_execute($stmt, OCI_COMMIT_ON_SUCCESS);
-
-    if ($result) {
-
-        echo json_encode([
-            "status" => true,
-            "message" => "Policy accepted successfully"
-        ]);
-
-    } else {
+    if (!oci_execute($stmt, OCI_COMMIT_ON_SUCCESS)) {
 
         $e = oci_error($stmt);
-
-        echo json_encode([
-            "status" => false,
-            "message" => $e['message']
-        ]);
+        logOracleError($e, $sql);
+        oci_free_statement($stmt);
+        apiResponse(false, "Unable to save policy acceptance.", null, 500);
     }
 
-} catch (Exception $e) {
+    oci_free_statement($stmt);
 
-    echo json_encode([
-        "status" => false,
-        "message" => $e->getMessage()
-    ]);
+    apiResponse(true, "Policy accepted successfully");
+
+} catch (Throwable $e) {
+
+    writeErrorLog($e->getMessage());
+
+    apiResponse(false, "Internal Server Error", null, 500);
+
+} finally {
+
+    if (isset($stmt) && is_resource($stmt)) {
+        @oci_free_statement($stmt);
+    }
+
+    if (isset($checkStmt) && is_resource($checkStmt)) {
+        @oci_free_statement($checkStmt);
+    }
+
+    if (isset($sql___func___con) && is_resource($sql___func___con)) {
+        @oci_close($sql___func___con);
+    }
+
 }
