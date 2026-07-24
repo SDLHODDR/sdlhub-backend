@@ -19,6 +19,15 @@ function logOracleError($oracleError, $sql = "")
     writeErrorLog($message);
 }
 
+function logFuncError($message, $level = 'ERROR') {
+    $logFile = __DIR__ . '/logs/errorDB.log';
+    $timestamp = date('Y-m-d H:i:s');
+    $formatted = "[$timestamp] [$level] $message" . PHP_EOL;
+
+    error_log($formatted, 3, $logFile);
+}
+
+
 function singRec($sqlVal, $binds = [], $echo = '')
 {
     global $sql___func___con;

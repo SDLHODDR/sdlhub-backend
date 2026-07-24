@@ -13,8 +13,8 @@ $data = json_decode(file_get_contents("php://input"), true);
 
 // $offset = ($page - 1) * $limit;
 
-$first_date = date('d-M-Y', strtotime('first day of January'));
-$last_date  = date('d-M-Y', strtotime('last day of December'));
+$first_date = date('d-M-Y', strtotime('first day of January last year'));
+$last_date  = date('d-M-Y', strtotime('last day of December last year'));
 
 $decodeStat = [
     'A' => 'Approved',
