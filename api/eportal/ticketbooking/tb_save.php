@@ -7,6 +7,8 @@ if($data['saveTbrData']==true)
 {
     startQry();
    
+    
+
     if($data['TRVL_EMP']=='E'){
         $pn = singRec("select EPT_GET_EMP_NAME('".$data['EMP_CODE']."')pn from dual");
     }
@@ -28,7 +30,21 @@ if($data['saveTbrData']==true)
     //     $arr_date=$data['TRVL_DATE'];
     // }    
     $arr_date=$data['TRVL_DATE'];
-    
+
+    if($data['TRVL_EMP']=='E'){
+        $checkTicket = singRec("select * from EPT_BCS_TRVLTKT_REQUEST where EMP_CODE='".$data['EMP_CODE']."' and TRVL_DATE = '". $data['TRVL_DATE'] ."' ");
+
+        if(!empty($checkTicket) || isset($checkTicket["ID"])) {
+            endQry("");
+            echo json_encode([
+                "status" => false,
+                "status_code" => 200,
+                "message" => "Ticket Booking for this date ".$data['TRVL_DATE']." is alreay exits"
+            ]);
+            exit;
+        }
+    }
+
     $insert_id=executeQry("INSERT INTO EPT_BCS_TRVLTKT_REQUEST
     (ID, REQ_DATE, REQ_BY, SITE_CODE, TRVL_EMP, EMP_CODE, PERSON_NAME, TRVL_MODE, TRVL_CLASS , TRVL_DATE, TRVL_FROM_LOC, TRVL_TO_LOC, TRVL_FT_NAME, TRVL_FT_NO ,EVENT_ID, TTNT_DEPR_TIME, TTNT_ARVL_TIME, REMARKS, STATUS, CHG_ON, CHG_BY)
         values( 													
