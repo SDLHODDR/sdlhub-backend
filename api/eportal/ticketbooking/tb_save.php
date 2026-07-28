@@ -246,7 +246,7 @@ if($data['saveTbrData']==true)
                     <b>  Cancelled By :</b>'.(getEmpInfoByCode($tickdets['REQ_BY'])).'<br><br>
             <br><br> Regards<br> Admin';
             
-            $maild = executeQry("INSERT INTO EPT_BCS_MAILBOX_EPP(ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS, CHG_ON,CHG_BY,MAIL_DESCR) values(null,'  Ticket Cancellation : ".getEmpInfoByCode($tickdets['EMP_CODE'])." dated ".$tickdets['TRVL_DATE']."', '".trim($mailBody)."',null,'N',SYSDATE, '".$empCode."','Ticket Booking')  returning ID into :mid",'mid',1);
+            $maild = executeQry("INSERT INTO EPT_BCS_MAILBOX_EPP(ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS, CHG_ON,CHG_BY,MAIL_DESCR) values(null,'  Ticket Cancellation : ".getEmpInfoByCode($tickdets['EMP_CODE'])." dated ".$tickdets['TRVL_DATE']."', '".trim($mailBody)."',null,'N',SYSDATE, '".$empCode."','Ticket Booking')  returning ID into :mid",'mid');
 
             executeQry("INSERT INTO EPT_BCS_MAILBOX_EPP_DETAILS(ID,MAIL_ID,EMAIL_TO,EMAIL_CC,EMAIL_BCC) values(null,'".$maild."', '".strtolower($empemail['EMPEMAIL'])." ','attendance@sdlindia.com,".$manageremail['COM_EMAIL']."',null)");
 
