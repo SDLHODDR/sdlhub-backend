@@ -1,81 +1,115 @@
 <?php
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
-
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
 
-$sql___func___con = db_eportal();
+$conn = db_eportal();
+$sql___func___con = $conn;
 
-require_once __DIR__."/../../config/functions.php";
-require_once __DIR__."/../../config/utils.php";
-require_once __DIR__."/../../config/emp_func.php";
+require_once __DIR__ . "/../../config/functions.php";
+require_once __DIR__ . "/../../config/utils.php";
+require_once __DIR__ . "/../../config/emp_func.php";
 
-header('Content-Type: application/json');
+header("Content-Type: application/json");
+
+/* ===========================================
+   DATABASE CONNECTION
+=========================================== */
+
+if (!$conn) {
+    apiResponse(false, "Database connection failed.", null, 500);
+}
 
 try {
 
-    /* -------- SESSION VALIDATION -------- */
+    /* ===========================================
+       SESSION VALIDATION
+    =========================================== */
 
     $empCode = $_SESSION['emp_code'] ?? '';
 
     if (empty($empCode)) {
-        apiResponse(false,"Unauthorized access",null,401);
+        apiResponse(false, "Unauthorized access.", null, 401);
     }
 
-    /* -------- READ REQUEST BODY -------- */
+    /* ===========================================
+       READ REQUEST BODY
+    =========================================== */
 
-    $data = json_decode(file_get_contents("php://input"), true);
+    $input = json_decode(file_get_contents("php://input"), true);
 
-    if (!$data) {
-        throw new Exception("Invalid request payload");
+    if (!is_array($input)) {
+        apiResponse(false, "Invalid request payload.");
     }
 
-    $profile = intval($data['profile'] ?? 0);
-    $dashboards = $data['dashboards'] ?? [];
+    $profileId = (int)($input['profile'] ?? 0);
+    $dashboards = $input['dashboards'] ?? [];
 
-    if ($profile == 0) {
-        throw new Exception("Invalid profile ID");
+    if ($profileId <= 0) {
+        apiResponse(false, "Invalid profile ID.");
     }
 
-    /* -------- DELETE OLD DASHBOARD ACCESS -------- */
+    /* ===========================================
+       DELETE EXISTING DASHBOARD ACCESS
+    =========================================== */
 
-    executeQry("DELETE FROM EPT_PROFILE_DASH WHERE PROFILE_ID=".$profile);
-    executeQry("COMMIT");
-    /* -------- INSERT NEW DASHBOARD ACCESS -------- */
+    executeQry("
+        DELETE FROM EPT_PROFILE_DASH
+        WHERE PROFILE_ID = {$profileId}
+    ");
+
+    /* ===========================================
+       INSERT DASHBOARD ACCESS
+    =========================================== */
 
     if (!empty($dashboards)) {
 
-        foreach ($dashboards as $dash) {
+        foreach ($dashboards as $dashboardId) {
 
-            $dashId = intval($dash);
+            $dashboardId = (int)$dashboardId;
 
             executeQry("
                 INSERT INTO EPT_PROFILE_DASH
-                (PROFILE_ID, DASH_ID)
+                (
+                    PROFILE_ID,
+                    DASH_ID
+                )
                 VALUES
-                ($profile, $dashId)
+                (
+                    {$profileId},
+                    {$dashboardId}
+                )
             ");
-             executeQry("COMMIT");
         }
     }
 
-    /* -------- SUCCESS RESPONSE -------- */
+    /* ===========================================
+       COMMIT
+    =========================================== */
 
-    echo json_encode([
-        "status" => true,
-        "message" => "Dashboard access saved successfully"
-    ]);
+    executeQry("COMMIT");
 
-} catch (Throwable $e) {
+    /* ===========================================
+       RESPONSE
+    =========================================== */
 
-    http_response_code(500);
+    apiResponse(true,"Dashboard access saved successfully.");
 
-    echo json_encode([
-        "status" => false,
-        "message" => $e->getMessage()
-    ]);
+} catch (Exception $e) {
+
+    logOracleError(
+        [
+            "message" => $e->getMessage()
+        ],
+        "saveProfileDashboardAccess.php"
+    );
+
+    apiResponse(false,"Something went wrong while saving dashboard access.", null,500);
+
+} finally {
+
+    if (!empty($conn)) {
+        oci_close($conn);
+    }
 }
-?>

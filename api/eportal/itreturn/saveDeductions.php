@@ -1,8 +1,5 @@
 <?php
 
-error_reporting(E_ALL);
-ini_set("display_errors", 1);
-
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
@@ -19,12 +16,8 @@ header("Content-Type: application/json");
 |--------------------------------------------------------------------------
 */
 
-if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-    echo json_encode([
-        "status" => false,
-        "message" => "Invalid request method"
-    ]);
-    exit;
+if ($_SERVER["REQUEST_METHOD"] !== "POST") { 
+    apiResponse(false, "Invalid request method", null, 400);
 }
 
 /*
@@ -35,7 +28,6 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
 
 if (!isset($_SESSION["emp_code"])) {
     apiResponse(false, "Unauthorized Access", null, 401);
-    exit;
 }
 
 $empCode = $_SESSION["emp_code"] ?? "";
@@ -54,12 +46,8 @@ $empData = singRec("
 
 $empId = $empData["ID"] ?? null;
 
-if (!$empId) {
-    echo json_encode([
-        "status" => false,
-        "message" => "Employee not found"
-    ]);
-    exit;
+if (!$empId) {   
+    apiResponse(false, "Employee not found.", null, 400);
 }
 
 /*
@@ -69,19 +57,15 @@ if (!$empId) {
 */
 
 $acctPeriod = singRec("
-    SELECT *
+   SELECT CODE
     FROM EPT_BCS_ACCT_PERIOD
     WHERE SYSDATE BETWEEN FR_DATE AND TO_DATE
 ");
 
 $financialYear = $acctPeriod["CODE"] ?? "";
 
-if (empty($financialYear)) {
-    echo json_encode([
-        "status" => false,
-        "message" => "Financial year not found"
-    ]);
-    exit;
+if (empty($financialYear)) {   
+    apiResponse(false, "Financial year not found.", null, 400);
 }
 
 /*
@@ -90,16 +74,8 @@ if (empty($financialYear)) {
 |--------------------------------------------------------------------------
 */
 
-if (
-    !isset($_POST["DEDN"]) ||
-    !is_array($_POST["DEDN"]) ||
-    empty($_POST["DEDN"])
-) {
-    echo json_encode([
-        "status" => false,
-        "message" => "No deduction data received"
-    ]);
-    exit;
+if (empty($_POST["DEDN"]) || !is_array($_POST["DEDN"])) {
+    apiResponse(false, "No deduction data received.");
 }
 
 /*
@@ -107,8 +83,14 @@ if (
 | FILE UPLOAD DIRECTORY
 |--------------------------------------------------------------------------
 */
-$uploadDir = realpath(__DIR__ . "/../../../../public") .
-    "/assets/img/incometax/" .
+$publicPath = realpath(__DIR__ . "/../../../../public");
+
+if ($publicPath === false) {
+    apiResponse(false, "Public directory not found.");
+}
+
+$uploadDir = $publicPath .
+    "/assets/incometax/" .
     $financialYear .
     "/" .
     $empCode .
@@ -123,67 +105,58 @@ $uploadDir = realpath(__DIR__ . "/../../../../public") .
 }*/
 
 if (!is_dir($uploadDir)) {
-    if (!mkdir($uploadDir, 0777, true)) {
-        echo json_encode([
-            "status" => false,
-            "message" => "Failed to create upload directory"
-        ]);
-        exit;
+    if (!mkdir($uploadDir, 0775, true)) {        
+        apiResponse(false, "Failed to create upload directory.");
     }
-}
-
-if (!is_writable($uploadDir)) {
-    echo json_encode([
-        "status" => false,
-        "message" => "Upload directory is not writable"
-    ]);
-    exit;
 }
 
 try {
 
+    if (!is_writable($uploadDir)) {
+        throw new Exception("Upload directory is not writable.");
+    }
     /*
     |--------------------------------------------------------------------------
     | LOOP THROUGH DEDUCTIONS
     |--------------------------------------------------------------------------
     */
-
     foreach ($_POST["DEDN"] as $headId => $amount) {
 
         $headId = trim($headId);
-        $amount = trim($amount);
+
+        if (!ctype_digit((string)$headId)) {
+            throw new Exception("Invalid deduction head.");
+        }
+
+        $amount = is_numeric($amount) ? (float)$amount : 0;
+
+        if ($amount < 0) {
+            throw new Exception("Amount cannot be negative.");
+        }
+
+        if ($amount > 999999999) {
+            throw new Exception("Invalid deduction amount.");
+        }
 
         if ($headId === "") {
             continue;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | CHECK EXISTING RECORD
-        |--------------------------------------------------------------------------
-        */
-
         $existingRecord = singRec("
             SELECT ATTACHMENTS
             FROM EPT_BCS_ITAX_DEDUCTIONS
-            WHERE EMP_ID = '".$empId."'
-            AND FY = '".$financialYear."'
-            AND HEAD_ID = '".$headId."'
+            WHERE EMP_ID = '{$empId}'
+            AND FY = '{$financialYear}'
+            AND HEAD_ID = '{$headId}'
         ");
 
         $recordExists = !empty($existingRecord);
 
         $previousFile = $existingRecord["ATTACHMENTS"] ?? "";
 
-        /*
-        |--------------------------------------------------------------------------
-        | INSERT OR UPDATE RECORD
-        |--------------------------------------------------------------------------
-        */
-
         if ($recordExists) {
 
-            $updateSql = "
+            $sql = "
                 UPDATE EPT_BCS_ITAX_DEDUCTIONS
                 SET
                     AMOUNT = :amount,
@@ -194,17 +167,9 @@ try {
                 AND HEAD_ID = :head_id
             ";
 
-            $stmt = oci_parse($sql___func___con, $updateSql);
-
-            oci_bind_by_name($stmt, ":amount", $amount);
-            oci_bind_by_name($stmt, ":chg_by", $empId);
-            oci_bind_by_name($stmt, ":emp_id", $empId);
-            oci_bind_by_name($stmt, ":fy", $financialYear);
-            oci_bind_by_name($stmt, ":head_id", $headId);
-
         } else {
 
-            $insertSql = "
+            $sql = "
                 INSERT INTO EPT_BCS_ITAX_DEDUCTIONS
                 (
                     ID,
@@ -228,153 +193,45 @@ try {
                     :fy
                 )
             ";
+        }
 
-            $stmt = oci_parse($sql___func___con, $insertSql);
+        $stmt = oci_parse($sql___func___con, $sql);
+
+        try {
+
+            if (!$stmt) {
+                $e = oci_error($sql___func___con);
+                throw new Exception($e["message"]);
+            }
 
             oci_bind_by_name($stmt, ":emp_id", $empId);
             oci_bind_by_name($stmt, ":head_id", $headId);
             oci_bind_by_name($stmt, ":amount", $amount);
-            oci_bind_by_name($stmt, ":chg_by", $empId);
+            oci_bind_by_name($stmt, ":chg_by", $empCode);
             oci_bind_by_name($stmt, ":fy", $financialYear);
-        }
 
-        $result = oci_execute($stmt, OCI_NO_AUTO_COMMIT);
+            if (!oci_execute($stmt, OCI_NO_AUTO_COMMIT)) {
+                $e = oci_error($stmt);
+                throw new Exception($e["message"]);
+            }
 
-        if (!$result) {
+            uploadDeductionDocument(
+                $headId,
+                $previousFile,
+                $empCode,
+                $empId,
+                $financialYear,
+                $uploadDir,
+                $sql___func___con
+            );
 
-            $e = oci_error($stmt);
+        } finally {
 
-            oci_rollback($sql___func___con);
-
-            echo json_encode([
-                "status" => false,
-                "message" => $e["message"]
-            ]);
-            exit;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | FILE UPLOAD
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            isset($_FILES["DEDN_DOC"]["name"][$headId]) &&
-            !empty($_FILES["DEDN_DOC"]["name"][$headId])
-        ) {
-
-            $originalName = $_FILES["DEDN_DOC"]["name"][$headId];
-            $tmpName = $_FILES["DEDN_DOC"]["tmp_name"][$headId];
-            $error = $_FILES["DEDN_DOC"]["error"][$headId];
-
-            if ($error === UPLOAD_ERR_OK) {
-
-                /*
-                |--------------------------------------------------------------------------
-                | VALIDATE FILE TYPE
-                |--------------------------------------------------------------------------
-                */
-
-                $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-
-                $allowed = ["pdf"];
-
-                if (!in_array($ext, $allowed)) {
-
-                    oci_rollback($sql___func___con);
-
-                    echo json_encode([
-                        "status" => false,
-                        "message" => "Only PDF files are allowed"
-                    ]);
-                    exit;
-                }
-
-                /*
-                |--------------------------------------------------------------------------
-                | DELETE OLD FILE IF EXISTS
-                |--------------------------------------------------------------------------
-                */
-
-                if (!empty($previousFile)) {
-
-                    $oldPath = $uploadDir . $previousFile;
-
-                    if (file_exists($oldPath)) {
-                        unlink($oldPath);
-                    }
-                }
-
-                /*
-                |--------------------------------------------------------------------------
-                | CREATE NEW FILE NAME
-                |--------------------------------------------------------------------------
-                */
-
-                $random = substr(
-                    str_shuffle("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
-                    0,
-                    4
-                );
-
-                //$fileName = $empCode . "_" . $headId . "_" . $random . "." . $ext;
-                $fileName = $empCode . "_" . $headId . $ext;
-
-                $targetPath = $uploadDir . $fileName;
-
-                /*
-                |--------------------------------------------------------------------------
-                | MOVE FILE
-                |--------------------------------------------------------------------------
-                */
-
-                if (move_uploaded_file($tmpName, $targetPath)) {
-
-                    $updateAttachmentSql = "
-                        UPDATE EPT_BCS_ITAX_DEDUCTIONS
-                        SET ATTACHMENTS = :attachments
-                        WHERE EMP_ID = :emp_id
-                        AND FY = :fy
-                        AND HEAD_ID = :head_id
-                    ";
-
-                    $attachStmt = oci_parse($sql___func___con, $updateAttachmentSql);
-
-                    oci_bind_by_name($attachStmt, ":attachments", $fileName);
-                    oci_bind_by_name($attachStmt, ":emp_id", $empId);
-                    oci_bind_by_name($attachStmt, ":fy", $financialYear);
-                    oci_bind_by_name($attachStmt, ":head_id", $headId);
-
-                    $attachResult = oci_execute($attachStmt, OCI_NO_AUTO_COMMIT);
-
-                    if (!$attachResult) {
-
-                        $e = oci_error($attachStmt);
-
-                        oci_rollback($sql___func___con);
-
-                        echo json_encode([
-                            "status" => false,
-                            "message" => $e["message"]
-                        ]);
-                        exit;
-                    }
-
-                } else {
-
-                    oci_rollback($sql___func___con);
-
-                    echo json_encode([
-                        "status" => false,
-                        "message" => "Failed to upload file for Head ID: ".$headId
-                    ]);
-                    exit;
-                }
+            if ($stmt) {
+                oci_free_statement($stmt);
             }
         }
     }
-
     /*
     |--------------------------------------------------------------------------
     | COMMIT TRANSACTION
@@ -382,18 +239,186 @@ try {
     */
 
     oci_commit($sql___func___con);
+    apiResponse(true, "Deductions saved successfully.");
 
-    echo json_encode([
-        "status" => true,
-        "message" => "Deductions saved successfully"
-    ]);
-
-} catch (Exception $e) {
+} catch (Throwable $e) {
 
     oci_rollback($sql___func___con);
 
-    echo json_encode([
-        "status" => false,
-        "message" => $e->getMessage()
-    ]);
+    logOracleError($e);
+
+    apiResponse(false, "Unable to save deductions.", null, 500);
+}
+
+function uploadDeductionDocument(
+    $headId,
+    $previousFile,
+    $empCode,
+    $empId,
+    $financialYear,
+    $uploadDir,
+    $conn
+) {
+
+    /*
+    |--------------------------------------------------------------------------
+    | CHECK FILE EXISTS
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        !isset($_FILES["DEDN_DOC"]["name"][$headId]) ||
+        empty($_FILES["DEDN_DOC"]["name"][$headId])
+    ) {
+        return;
+    }
+
+    $originalName = $_FILES["DEDN_DOC"]["name"][$headId];
+    $tmpName      = $_FILES["DEDN_DOC"]["tmp_name"][$headId];
+    $error        = $_FILES["DEDN_DOC"]["error"][$headId];
+    $fileSize     = $_FILES["DEDN_DOC"]["size"][$headId];
+
+    /*
+    |--------------------------------------------------------------------------
+    | CHECK UPLOAD ERROR
+    |--------------------------------------------------------------------------
+    */
+
+    if ($error !== UPLOAD_ERR_OK) {
+        throw new Exception("File upload failed.");
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | FILE SIZE VALIDATION (5 MB)
+    |--------------------------------------------------------------------------
+    */
+
+    $maxSize = 5 * 1024 * 1024;
+
+    if ($fileSize > $maxSize) {
+        throw new Exception("Maximum file size allowed is 5 MB.");
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | EXTENSION VALIDATION
+    |--------------------------------------------------------------------------
+    */
+
+    $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+    if ($ext !== "pdf") {
+        throw new Exception("Only PDF files are allowed.");
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | MIME TYPE VALIDATION
+    |--------------------------------------------------------------------------
+    */
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+
+    if ($finfo === false) {
+        throw new Exception("Unable to validate uploaded file.");
+    }
+   
+    if (!file_exists($tmpName)) {
+        throw new Exception("Uploaded file not found.");
+    }
+
+   try {
+        $mime = finfo_file($finfo, $tmpName);
+    } finally {
+        finfo_close($finfo);
+    }
+
+    $allowed = [
+    "application/pdf",
+    "application/x-pdf",
+    "application/acrobat",
+    "applications/vnd.pdf"
+];
+
+    if (!in_array($mime, $allowed, true)) {
+        throw new Exception("Uploaded file is not a valid PDF.");
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CREATE FILE NAME
+    |--------------------------------------------------------------------------
+    */
+
+    $fileName = $empCode . "_" . $headId . ".pdf";
+
+    $targetPath = $uploadDir . $fileName;
+
+    /*
+    |--------------------------------------------------------------------------
+    | MOVE FILE
+    |--------------------------------------------------------------------------
+    */
+    if (!is_uploaded_file($tmpName)) {
+        throw new Exception("Invalid uploaded file.");
+    }
+
+    if (!move_uploaded_file($tmpName, $targetPath)) {
+        throw new Exception("Unable to upload attachment.");
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | DELETE PREVIOUS FILE (AFTER SUCCESSFUL UPLOAD)
+    |--------------------------------------------------------------------------
+    */
+
+    if (!empty($previousFile)) {
+
+        $oldPath = $uploadDir . $previousFile;
+
+        if (
+        $previousFile !== $fileName &&
+            file_exists($oldPath) &&
+            !unlink($oldPath)
+        ) {
+            throw new Exception("Unable to delete previous attachment.");
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE ATTACHMENT NAME IN DATABASE
+    |--------------------------------------------------------------------------
+    */
+
+    $sql = "
+        UPDATE EPT_BCS_ITAX_DEDUCTIONS
+        SET ATTACHMENTS = :attachment
+        WHERE EMP_ID = :emp_id
+        AND FY = :fy
+        AND HEAD_ID = :head_id
+    ";
+
+    $stmt = oci_parse($conn, $sql);
+
+    if (!$stmt) {
+        $e = oci_error($conn);
+        throw new Exception($e["message"]);
+    }
+
+    oci_bind_by_name($stmt, ":attachment", $fileName);
+    oci_bind_by_name($stmt, ":emp_id", $empId);
+    oci_bind_by_name($stmt, ":fy", $financialYear);
+    oci_bind_by_name($stmt, ":head_id", $headId);
+
+    if (!oci_execute($stmt, OCI_NO_AUTO_COMMIT)) {
+
+        $e = oci_error($stmt);
+        oci_free_statement($stmt);
+        throw new Exception($e["message"]);
+    }
+
+    oci_free_statement($stmt);
 }

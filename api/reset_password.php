@@ -1,57 +1,86 @@
 <?php
+
 require_once __DIR__ . "/cors.php";
 require_once __DIR__ . "/config/db.php";
+
+global $login_conn;
+$sql___func___con = $login_conn;
+
+require_once __DIR__ . "/config/functions.php";
 require_once __DIR__ . "/config/utils.php";
 
-header('Content-Type: application/json');
+header("Content-Type: application/json");
 
-$data = json_decode(file_get_contents("php://input"), true);
-
-if (!$data) {
-    echo json_encode([
-        "status" => false,
-        "message" => "Invalid input"
-    ]);
-    exit;
+/* ===========================================
+   DATABASE CONNECTION
+=========================================== */
+if (!$sql___func___con) {
+    apiResponse(false, "Database connection failed.", null, 500);
 }
+try {
 
-$emp_code = $data['emp_code'] ?? null;
-$new_pass = $data['password'] ?? null;
+    /* ===========================================
+       READ INPUT
+    =========================================== */
 
-if (!$emp_code || !$new_pass) {
-    echo json_encode([
-        "status" => false,
-        "message" => "Missing required fields"
-    ]);
-    exit;
-}
+    $data = json_decode(file_get_contents("php://input"), true);
 
-$encoded = encodel($new_pass);
+    if (!is_array($data)) {
+        apiResponse(false, "Invalid request.", null, 400);
+    }
 
+    $empCode = trim($data['emp_code'] ?? '');
+    $newPassword = trim($data['password'] ?? '');
+
+    if ($empCode === '' || $newPassword === '') {
+        apiResponse(false, "Missing required fields.", null, 400);
+    }
+
+    /* ===========================================
+       ENCODE PASSWORD
+    =========================================== */
+
+    $encodedPassword = encodel($newPassword);
+
+    $empCode = str_replace("'", "''", $empCode);
+    $encodedPassword = str_replace("'", "''", $encodedPassword);
+
+    /* ===========================================
+       UPDATE PASSWORD
+    =========================================== */
 /*
-$sql = "UPDATE SDL_USERS
-        SET PASS_WD = :pwd,
+    startQry();
+
+    executeQry("
+        UPDATE SDL_USERS
+        SET
+            PASS_WD = '{$encodedPassword}',
             RESET_OTP = NULL,
             OTP_EXPIRES_AT = NULL
-        WHERE EMP_CODE = :emp";
+        WHERE EMP_CODE = '{$empCode}'
+    ");
 
-$stid = oci_parse($login_conn, $sql);
-oci_bind_by_name($stid, ":pwd", $encoded);
-oci_bind_by_name($stid, ":emp", $emp_code);
+    endQry();
+*/
+    /* ===========================================
+       SUCCESS RESPONSE
+    =========================================== */
+    apiResponse(true, "Password updated successfully.");
 
-if (oci_execute($stid)) {
-    echo json_encode([
-        "status" => true,
-        "message" => "Password updated successfully"
-    ]);
-} else {
-    echo json_encode([
-        "status" => false,
-        "message" => "Database error"
-    ]);
-}*/
+} catch (Throwable $e) {
 
- echo json_encode([
-        "status" => true,
-        "message" => "Password updated successfully"
-    ]);
+    logOracleError(
+        [
+            "message" => $e->getMessage()
+        ],
+        "resetPassword.php"
+    );
+
+    apiResponse(false,"Unable to update password.", null, 500);
+
+} finally {
+
+    if (!empty($sql___func___con)) {
+        oci_close($sql___func___con);
+    }
+}

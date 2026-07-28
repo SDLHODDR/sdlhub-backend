@@ -1,43 +1,107 @@
 <?php
-require_once "cors.php";
 
-session_set_cookie_params([
-    'samesite' => 'None',
-    'secure' => false // switch to true after HTTPS
-]);
+require_once __DIR__ . "/cors.php";
+require_once __DIR__ . "/config/session.php";
+require_once __DIR__ . "/config/db.php";
 
-session_start();
-header('Content-Type: application/json');
+global $login_conn;
+$sql___func___con = $login_conn;
 
-if(!isset($_SESSION['emp_code'])){
-    echo json_encode(["status"=>false,"message"=>"Not logged in"]);
-    exit;
+require_once __DIR__ . "/config/functions.php";
+require_once __DIR__ . "/config/utils.php";
+
+header("Content-Type: application/json");
+
+/* ===========================================
+   DATABASE CONNECTION
+=========================================== */
+if (!$sql___func___con) {
+    apiResponse(false, "Database connection failed.", null, 500);
 }
 
-include "config/db.php";
+try {
+    /* ===========================================
+       SESSION VALIDATION
+    =========================================== */
 
-$emp = $_SESSION['emp_code'];
+    $empCode = $_SESSION['emp_code'] ?? '';
 
-$sql = "SELECT a.id, a.app_name, a.app_url, a.app_btn_id, a.app_icon
-        FROM sdl_apps a
-        JOIN sdl_app_access aa ON a.id = aa.app_id
-        WHERE aa.emp_code = :e
-        ORDER BY a.app_name";
+    if (empty($empCode)) {
+        apiResponse(false, "Not logged in.", null, 401);
+    }
 
-$stid = oci_parse($login_conn,$sql);
-oci_bind_by_name($stid,":e",$emp);  
-oci_execute($stid);
+    /* ===========================================
+       FETCH APPLICATIONS
+    =========================================== */
 
-$apps = [];
-while($row = oci_fetch_assoc($stid)){
-    $apps[] = $row;
+    $empCode = str_replace("'", "''", $empCode);
+
+    $apps = multiRec("
+        SELECT
+            A.ID,
+            A.APP_NAME,
+            A.APP_URL,
+            A.APP_BTN_ID,
+            A.APP_ICON
+        FROM SDL_APPS A
+        INNER JOIN SDL_APP_ACCESS AA
+            ON A.ID = AA.APP_ID
+        WHERE AA.EMP_CODE = '{$empCode}'
+        ORDER BY A.APP_NAME
+    ");
+
+    /* ===========================================
+       SUCCESS RESPONSE
+    =========================================== */
+
+    apiResponse(
+        true,
+        "Applications fetched successfully.",
+        [
+            "user" => $_SESSION['name'] ?? '',
+            "apps" => $apps
+        ]
+    );
+
+} catch (Throwable $e) {
+
+    logOracleError(
+        [
+            "message" => $e->getMessage()
+        ],
+        "getApps.php"
+    );
+
+    apiResponse(false, "Unable to fetch applications.", null, 500);
+
+} finally {
+
+    if (!empty($sql___func___con)) {
+        oci_close($sql___func___con);
+    }
 }
 
-echo json_encode([
-    "status"=>true,
-    "user"=>$_SESSION['name'],
-    "apps"=>$apps
-]);
-
-exit;
-?>
+//output:
+/*{
+  "status": true,
+  "message": "Applications fetched successfully.",
+  "data": {
+    "user": "John Doe",
+    "apps": [
+      {
+        "ID": "1",
+        "APP_NAME": "EPortal",
+        "APP_URL": "/eportal",
+        "APP_BTN_ID": "eportal",
+        "APP_ICON": "ti ti-home"
+      },
+      {
+        "ID": "2",
+        "APP_NAME": "HRMS",
+        "APP_URL": "/hrms",
+        "APP_BTN_ID": "hrms",
+        "APP_ICON": "ti ti-users"
+      }
+    ]
+  }
+}*/

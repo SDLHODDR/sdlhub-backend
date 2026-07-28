@@ -22,7 +22,6 @@ $empCode = $_SESSION['emp_code'] ?? '';
 
 if (empty($empCode)) {
     apiResponse(false, "Unauthorized access", null, 401);
-    exit;
 }
 
 /* =========================================
@@ -31,7 +30,6 @@ if (empty($empCode)) {
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     apiResponse(false, "Invalid request method", null, 405);
-    exit;
 }
 
 /* =========================================
@@ -42,7 +40,6 @@ $profileId = $_GET['profileId'] ?? '';
 
 if (empty($profileId)) {
     apiResponse(false, "Profile ID is required", null, 400);
-    exit;
 }
 
 /* =========================================
@@ -93,7 +90,5 @@ apiResponse(
     $users,
     200
 );
-
-exit;
 
 ?>

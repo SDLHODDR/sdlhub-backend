@@ -1,83 +1,115 @@
 <?php
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
-
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
 
-$sql___func___con = db_eportal();
+$conn = db_eportal();
+$sql___func___con = $conn;
 
-require_once __DIR__."/../../config/functions.php";
-require_once __DIR__."/../../config/utils.php";
-require_once __DIR__."/../../config/emp_func.php";
+require_once __DIR__ . "/../../config/functions.php";
+require_once __DIR__ . "/../../config/utils.php";
+require_once __DIR__ . "/../../config/emp_func.php";
 
-header('Content-Type: application/json');
+header("Content-Type: application/json");
 
 try {
 
-    /* -------- SESSION VALIDATION -------- */
+    /* ===========================================
+       DATABASE CONNECTION
+    =========================================== */
+
+    if (!$conn) {
+        apiResponse(false, "Database connection failed.", null, 500);
+    }
+
+    /* ===========================================
+       SESSION VALIDATION
+    =========================================== */
 
     $empCode = $_SESSION['emp_code'] ?? '';
-  
-    if(!$empCode){
-		apiResponse(false,"Unauthorized access",null,401);
-	}
 
-    /* -------- READ INPUT -------- */
-
-    $data = json_decode(file_get_contents("php://input"), true);
-
-    if(!$data){
-        throw new Exception("Invalid request data");
+    if (empty($empCode)) {
+        apiResponse(false, "Unauthorized access.", null, 401);
     }
 
-    $profile = intval($data['profile'] ?? 0);
-    $tasks = $data['tasks'] ?? [];
+    /* ===========================================
+       READ INPUT
+    =========================================== */
 
-    if($profile == 0){
-        throw new Exception("Invalid profile");
+    $input = json_decode(file_get_contents("php://input"), true);
+
+    if (!is_array($input)) {
+        apiResponse(false, "Invalid request data.", null, 400);
     }
 
-    /* -------- DELETE OLD TASK ACCESS -------- */
+    $profile = (int)($input['profile'] ?? 0);
+    $tasks = $input['tasks'] ?? [];
 
-    executeQry("DELETE FROM EPT_PROFILE_TASK WHERE PROFILE_ID=".$profile);
-    executeQry("COMMIT");
+    if ($profile <= 0) {
+        apiResponse(false, "Invalid profile.", null, 400);
+    }
 
-    /* -------- INSERT NEW TASK ACCESS -------- */
+    /* ===========================================
+       DELETE EXISTING TASK ACCESS
+    =========================================== */
 
-    if(!empty($tasks)){
+    startQry();
 
-        foreach($tasks as $task){
+    executeQry("
+        DELETE FROM EPT_PROFILE_TASK
+        WHERE PROFILE_ID = {$profile}
+    ");
 
-            $taskId = intval($task);
+    /* ===========================================
+       INSERT TASK ACCESS
+    =========================================== */
+
+    if (!empty($tasks)) {
+
+        foreach ($tasks as $taskId) {
+
+            $taskId = (int)$taskId;
 
             executeQry("
                 INSERT INTO EPT_PROFILE_TASK
-                (PROFILE_ID, TASK_ID)
+                (
+                    PROFILE_ID,
+                    TASK_ID
+                )
                 VALUES
-                ($profile, $taskId)
+                (
+                    {$profile},
+                    {$taskId}
+                )
             ");
-            executeQry("COMMIT");   
         }
-
     }
 
-    /* -------- SUCCESS RESPONSE -------- */
+    endQry();
 
-    echo json_encode([
-        "status" => true,
-        "message" => "Task access saved successfully"
-    ]);
+    /* ===========================================
+       SUCCESS RESPONSE
+    =========================================== */
 
-} catch (Throwable $e) {
+    apiResponse(true,"Task access saved successfully.");
 
-    http_response_code(500);
+} catch (Exception $e) {
 
-    echo json_encode([
-        "status" => false,
-        "message" => $e->getMessage()
-    ]);
+    logOracleError(
+        [
+            "message" => $e->getMessage()
+        ],
+        "saveProfileTaskAccess.php"
+    );
+
+    apiResponse(false, "Something went wrong while saving task access.", null, 500
+    );
+
+} finally {
+
+    if (!empty($conn)) {
+        oci_close($conn);
+    }
 
 }

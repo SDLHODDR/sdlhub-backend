@@ -1,129 +1,152 @@
 <?php
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
-
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
 
-$sql___func___con = db_eportal();
+$conn = db_eportal();
+$sql___func___con = $conn;
 
 require_once __DIR__ . "/../../config/functions.php";
 require_once __DIR__ . "/../../config/utils.php";
 require_once __DIR__ . "/../../config/emp_func.php";
 
-header('Content-Type: application/json');
+header("Content-Type: application/json");
 
 try {
 
+    /* ===========================================
+       DATABASE CONNECTION
+    =========================================== */
+
+    if (!$conn) {
+        apiResponse(false, "Database connection failed.", null, 500);
+    }
+
+    /* ===========================================
+       SESSION VALIDATION
+    =========================================== */
+
     $empCode = $_SESSION['emp_code'] ?? '';
-    
-    if(!$empCode){
-		apiResponse(false,"Unauthorized access",null,401);
-	}
 
-    $data = json_decode(file_get_contents("php://input"), true);
-
-    if (!$data) {
-        throw new Exception("Invalid request data");
+    if (empty($empCode)) {
+        apiResponse(false, "Unauthorized access.", null, 401);
     }
 
-    $profile = intval($data['profile'] ?? 0);
-    $submenuAccess = $data['submenuAccess'] ?? [];
+    /* ===========================================
+       READ REQUEST BODY
+    =========================================== */
 
-    if ($profile == 0) {
-        throw new Exception("Invalid profile");
+    $input = json_decode(file_get_contents("php://input"), true);
+
+    if (!is_array($input)) {
+        apiResponse(false, "Invalid request data.", null, 400);
     }
 
-    /* ---------------------------
-       GET ONLY CHECKED SUBMENUS
-    ---------------------------- */
+    $profile = (int)($input['profile'] ?? 0);
+    $submenuAccess = $input['submenuAccess'] ?? [];
+
+    if ($profile <= 0) {
+        apiResponse(false, "Invalid profile.", null, 400);
+    }
+
+    /* ===========================================
+       GET SELECTED SUBMENUS
+    =========================================== */
 
     $checkedSubmenus = [];
 
     foreach ($submenuAccess as $subId => $checked) {
         if ($checked) {
-            $checkedSubmenus[] = intval($subId);
+            $checkedSubmenus[] = (int)$subId;
         }
     }
 
     if (empty($checkedSubmenus)) {
-        throw new Exception("Please select at least one menu.");
+        apiResponse(false, "Please select at least one menu.", null, 400);
     }
 
-    /* ---------------------------
-       DELETE OLD PERMISSIONS
-    ---------------------------- */
+    /* ===========================================
+       DELETE EXISTING PERMISSIONS
+    =========================================== */
+
+    startQry();
 
     executeQry("
         DELETE FROM EPT_PROFILE_MENU
-        WHERE PROFILE_ID = $profile
+        WHERE PROFILE_ID = {$profile}
     ");
-    executeQry("COMMIT");
-    /* ---------------------------
-       FETCH ALL MENU MAPPINGS AT ONCE
-    ---------------------------- */
+
+    /* ===========================================
+       FETCH MENU MAPPINGS
+    =========================================== */
 
     $subIds = implode(",", $checkedSubmenus);
 
     $submenuRows = multiRec("
-        SELECT ID, MENU_ID
+        SELECT
+            ID,
+            MENU_ID
         FROM EPT_SUBMENU
         WHERE ID IN ($subIds)
     ");
 
-    if (!$submenuRows) {
-        throw new Exception("No submenu records found");
+    if (empty($submenuRows)) {
+        apiResponse(false, "No submenu records found.", null, 404);
     }
 
-    /* ---------------------------
-       PREPARE BULK INSERT
-    ---------------------------- */
+    /* ===========================================
+       BULK INSERT
+    =========================================== */
 
-    $insertValues = [];
+    $insertSql = "INSERT ALL ";
 
     foreach ($submenuRows as $row) {
-        $subId = intval($row['ID']);
-        $menuId = intval($row['MENU_ID']);
 
-        $insertValues[] = "($profile, $menuId, $subId)";
+        $menuId = (int)$row['MENU_ID'];
+        $subId  = (int)$row['ID'];
+
+        $insertSql .= "
+            INTO EPT_PROFILE_MENU
+            (
+                PROFILE_ID,
+                MENU_ID,
+                SUB_MENU_ID
+            )
+            VALUES
+            (
+                {$profile},
+                {$menuId},
+                {$subId}
+            )
+        ";
     }
 
-    if (!empty($insertValues)) {
+    $insertSql .= " SELECT * FROM dual";
+    executeQry($insertSql);
+    endQry();
 
-        $insertSql = "INSERT ALL ";
+    /* ===========================================
+       SUCCESS RESPONSE
+    =========================================== */
 
-        foreach ($submenuRows as $row) {
-            $subId = intval($row['ID']);
-            $menuId = intval($row['MENU_ID']);
+    apiResponse(true, "Menu permissions saved successfully.");
 
-            $insertSql .= "
-                INTO EPT_PROFILE_MENU
-                (PROFILE_ID, MENU_ID, SUB_MENU_ID)
-                VALUES
-                ($profile, $menuId, $subId)
-            ";
-        }
+} catch (Exception $e) {
 
-        $insertSql .= " SELECT * FROM dual";
-        executeQry($insertSql);
+    logOracleError(
+        [
+            "message" => $e->getMessage()
+        ],
+        "saveProfileMenuAccess.php"
+    );
 
-        // IMPORTANT FOR ORACLE
-        executeQry("COMMIT");
+    apiResponse(false,"Something went wrong while saving menu permissions.",null,500);
+
+} finally {
+
+    if (!empty($conn)) {
+        oci_close($conn);
     }
 
-    echo json_encode([
-        "status" => true,
-        "message" => "Menu permissions saved successfully."
-    ]);
-
-} catch (Throwable $e) {
-
-    http_response_code(500);
-
-    echo json_encode([
-        "status" => false,
-        "message" => $e->getMessage()
-    ]);
 }

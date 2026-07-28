@@ -3,84 +3,103 @@
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
+require_once __DIR__ . "/../../config/utils.php";
 
 $sql___func___con = db_eportal();
 
-require_once __DIR__."/../../config/functions.php";
-require_once __DIR__."/../../config/utils.php";
-require_once __DIR__."/../../config/emp_func.php";
+require_once __DIR__ . "/../../config/functions.php";
+require_once __DIR__ . "/../../config/emp_func.php";
 
-header('Content-Type: application/json');
+header("Content-Type: application/json");
 
 try {
+
+    /* ===========================================
+       SESSION VALIDATION
+    =========================================== */
 
     $empCode = $_SESSION['emp_code'] ?? '';
 
     if (empty($empCode)) {
-        apiResponse(false,"Unauthorized access",null,401);
+        apiResponse(false, "Unauthorized access.", null, 401);
     }
+
+    /* ===========================================
+       READ REQUEST
+    =========================================== */
 
     $data = json_decode(file_get_contents("php://input"), true);
-   
-    if(!$data){
-        throw new Exception("Invalid request data");
+
+    if (!is_array($data)) {
+        apiResponse(false, "Invalid request data.");
     }
 
- 
-    if(!is_array($data)){
-        throw new Exception("Invalid payload format");
-    }
+    /* ===========================================
+       SAVE EMPLOYEE PROFILES
+    =========================================== */
 
-    foreach($data as $row){
+    startQry();
 
-        $emp = trim($row['empCode'] ?? '');
+    foreach ($data as $row) {
+
+        $employeeCode = trim($row['empCode'] ?? '');
         $profiles = $row['profiles'] ?? [];
 
-        if($emp == ''){
+        if ($employeeCode === '') {
             continue;
         }
 
-        startQry();
-        /* DELETE EXISTING PROFILES */
+        /* Delete Existing Profiles */
 
         executeQry("
-            DELETE FROM EPT_EMP_PROFILE 
-            WHERE EMP_CODE = '".$emp."'
-        "); 
+            DELETE FROM EPT_EMP_PROFILE
+            WHERE EMP_CODE = '{$employeeCode}'
+        ");
 
-        /* INSERT NEW PROFILES */
+        /* Insert Selected Profiles */
 
-        if(!empty($profiles)){
+        if (!empty($profiles) && is_array($profiles)) {
 
-            foreach($profiles as $pid){
-                $pid = intval($pid);
-                if($pid == 0){
+            foreach ($profiles as $profileId) {
+
+                $profileId = (int)$profileId;
+
+                if ($profileId <= 0) {
                     continue;
                 }
+
                 executeQry("
                     INSERT INTO EPT_EMP_PROFILE
-                    (EMP_CODE, PROFILE_ID)
+                    (
+                        EMP_CODE,
+                        PROFILE_ID
+                    )
                     VALUES
-                    ('".$emp."', ".$pid.")
+                    (
+                        '{$employeeCode}',
+                        {$profileId}
+                    )
                 ");
             }
         }
     }
+
     endQry();
-    echo json_encode([
-        "status" => true,
-        "message" => "Employee profiles saved successfully."
-    ]);
-    exit;
+
+    /* ===========================================
+       SUCCESS RESPONSE
+    =========================================== */
+
+    apiResponse(true, "Employee profiles saved successfully.");
 
 } catch (Throwable $e) {
 
-    http_response_code(500);
+    logOracleError(
+        [
+            "message" => $e->getMessage()
+        ],
+        "saveEmployeeProfiles.php"
+    );
 
-    echo json_encode([
-        "status" => false,
-        "message" => $e->getMessage()
-    ]);
-    exit;
-
+    apiResponse(false, "Unable to save employee profiles.", null, 500 );
 }

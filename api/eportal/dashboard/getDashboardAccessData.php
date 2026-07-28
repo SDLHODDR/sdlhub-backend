@@ -1,65 +1,85 @@
 <?php
+
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
 
 $sql___func___con = db_eportal();
+
 require_once __DIR__ . "/../../config/functions.php";
-require_once __DIR__ ."/../../config/utils.php";
+require_once __DIR__ . "/../../config/utils.php";
 
-header('Content-Type: application/json');
-session_start();
+header("Content-Type: application/json");
 
-$empCode = $_SESSION['emp_code'] ?? null;
-if (!$empCode) {   
-    apiResponse(false,"Unauthorized Access",null,401);
+/*
+|--------------------------------------------------------------------------
+| METHOD CHECK
+|--------------------------------------------------------------------------
+*/
+
+if ($_SERVER["REQUEST_METHOD"] !== "GET") {
+    apiResponse(false, "Invalid request method", null, 405);
 }
 
-$empCode = '00575'; // $_SESSION['emp_code']
+/*
+|--------------------------------------------------------------------------
+| SESSION CHECK
+|--------------------------------------------------------------------------
+*/
 
-/* RELEASE LOCK */
+$empCode = $_SESSION["emp_code"] ?? "";
+
+if (empty($empCode)) {
+    apiResponse(false, "Unauthorized Access", null, 401);
+}
+
+/*
+|--------------------------------------------------------------------------
+| RELEASE SESSION LOCK
+|--------------------------------------------------------------------------
+*/
+
 session_write_close();
 
 try {
 
-    /* ---------------------------
-       DASH ACCESS
-    ---------------------------- */
+    /*
+    |--------------------------------------------------------------------------
+    | DASHBOARD ACCESS
+    |--------------------------------------------------------------------------
+    */
 
-    $result = 
-        multiRec("
-            SELECT DISTINCT edm.DASH_GRP
-            FROM EPT_EMP_PROFILE eep
-            INNER JOIN EPT_PROFILE_DASH epd
-                ON eep.PROFILE_ID = epd.PROFILE_ID
-            INNER JOIN EPT_DASH_MASTER edm
-                ON epd.DASH_ID = edm.ID
-            WHERE eep.EMP_CODE = '$empCode'
-            AND edm.STATUS = 'A'
-        ");
-    
+    $result = multiRec("
+        SELECT DISTINCT edm.DASH_GRP
+        FROM EPT_EMP_PROFILE eep
+        INNER JOIN EPT_PROFILE_DASH epd
+            ON eep.PROFILE_ID = epd.PROFILE_ID
+        INNER JOIN EPT_DASH_MASTER edm
+            ON epd.DASH_ID = edm.ID
+        WHERE eep.EMP_CODE = '".$empCode."'
+        AND edm.STATUS = 'A'
+        ORDER BY edm.DASH_GRP
+    ");
+
     $dashAccess = [];
-    if (!empty($result)) {
-        foreach ($result as $row) {
-            $dashAccess[] = $row['DASH_GRP'];
-        }
+
+    foreach ($result as $row) {
+        $dashAccess[] = $row["DASH_GRP"];
     }
 
-    /* ---------------------------
-       RESPONSE
-    ---------------------------- */
+    /*
+    |--------------------------------------------------------------------------
+    | RESPONSE
+    |--------------------------------------------------------------------------
+    */
 
-    echo json_encode([
-        "status" => true,
-        "data" => [
-            "dashAccess" => $dashAccess ?: []
-        ]
+    apiResponse(true, "Dashboard access fetched successfully", [
+        "dashAccess" => $dashAccess
     ]);
 
 } catch (Throwable $e) {
 
-    echo json_encode([
-        "status" => false,
-        "message" => $e->getMessage()
-    ]);
+    logOracleError($e);
+
+    apiResponse(false, "Unable to fetch dashboard access.", null, 500);
 }

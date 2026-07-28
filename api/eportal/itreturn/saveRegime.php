@@ -1,7 +1,7 @@
 <?php
 
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+// error_reporting(E_ALL);
+// ini_set('display_errors', 1);
 
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
@@ -16,125 +16,154 @@ header("Content-Type: application/json");
 
 try {
 
-    /* =====================================================
-       AUTH CHECK
-    ===================================================== */
+    /*
+    |--------------------------------------------------------------------------
+    | METHOD CHECK
+    |--------------------------------------------------------------------------
+    */
 
-    if (!isset($_SESSION['emp_code'])) {
+    if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+        apiResponse(false, "Invalid request method", null, 405);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SESSION CHECK
+    |--------------------------------------------------------------------------
+    */
+
+    if (!isset($_SESSION["emp_code"])) {
         apiResponse(false, "Unauthorized Access", null, 401);
     }
 
-    $empCode = $_SESSION['emp_code'] ?? '';
+    $empCode = $_SESSION["emp_code"];
 
-    /* =====================================================
-       INPUT
-    ===================================================== */
+    /*
+    |--------------------------------------------------------------------------
+    | READ INPUT
+    |--------------------------------------------------------------------------
+    */
 
     $input = json_decode(file_get_contents("php://input"), true);
 
-    $regime = strtoupper(trim($input['regime'] ?? ''));
-
-    if (!in_array($regime, ['N', 'O'])) {
-
-        echo json_encode([
-            "success" => false,
-            "message" => "Invalid Regime Selected"
-        ]);
-        exit;
+    if (!is_array($input)) {
+        apiResponse(false, "Invalid input data.");
     }
 
-    /* =====================================================
-       GET EMPLOYEE ID
-    ===================================================== */
+    $regime = strtoupper(trim($input["regime"] ?? ""));
+
+    if (!in_array($regime, ["N", "O"])) {
+        apiResponse(false, "Invalid Regime Selected.");
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET EMPLOYEE
+    |--------------------------------------------------------------------------
+    */
 
     $employee = singRec("
         SELECT ID
         FROM EPT_BCS_EMPLOYEE
-        WHERE EMP_CODE = '{$empCode}'
+        WHERE EMP_CODE = '".$empCode."'
     ");
 
-    $empId = $employee['ID'] ?? '';
+    $empId = $employee["ID"] ?? null;
 
     if (!$empId) {
-
-        echo json_encode([
-            "success" => false,
-            "message" => "Employee Not Found"
-        ]);
-        exit;
+        apiResponse(false, "Employee Not Found", null, 404);
     }
 
-    /* =====================================================
-       CURRENT FY
-    ===================================================== */
+    /*
+    |--------------------------------------------------------------------------
+    | CURRENT FINANCIAL YEAR
+    |--------------------------------------------------------------------------
+    */
 
-    $bcs_acct_period = singRec("
-        SELECT *
+    $acctPeriod = singRec("
+        SELECT CODE
         FROM EPT_BCS_ACCT_PERIOD
         WHERE SYSDATE BETWEEN FR_DATE AND TO_DATE
-    "); 
-
-    if (empty($bcs_acct_period)) {
-
-        echo json_encode([
-            "success" => false,
-            "message" => "Financial Year Not Found"
-        ]);
-        exit;
-    }
-
-    $fy = $bcs_acct_period['DESCR'] ?? '';
-
-    /* =====================================================
-       CHECK EXISTING REGIME
-    ===================================================== */
-
-    $existing = singRec("
-        SELECT *
-        FROM EPT_BCS_ITAX_EMP_REGIME
-        WHERE EMP_ID = '{$empId}'
-        AND FY = '{$fy}'
     ");
 
-    startQry();
+    $fy = $acctPeriod["CODE"] ?? "";
 
-    /* =====================================================
-       UPDATE
-    ===================================================== */
+    if (empty($fy)) {
+        apiResponse(false, "Financial Year Not Found");
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CHECK EXISTING RECORD
+    |--------------------------------------------------------------------------
+    */
+
+    $checkSql = "
+        SELECT ID
+        FROM EPT_BCS_ITAX_EMP_REGIME
+        WHERE EMP_ID = :emp_id
+        AND FY = :fy
+    ";
+
+    $checkStmt = oci_parse($sql___func___con, $checkSql);
+
+    if (!$checkStmt) {
+        throw new Exception(oci_error($sql___func___con)["message"]);
+    }
+
+    oci_bind_by_name($checkStmt, ":emp_id", $empId);
+    oci_bind_by_name($checkStmt, ":fy", $fy);
+
+    if (!oci_execute($checkStmt)) {
+        throw new Exception(oci_error($checkStmt)["message"]);
+    }
+
+    $existing = oci_fetch_assoc($checkStmt);
+
+    oci_free_statement($checkStmt);
+
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE
+    |--------------------------------------------------------------------------
+    */
 
     if (!empty($existing)) {
 
-        execQry([
-            'type'  => 'update',
-            'table' => 'EPT_BCS_ITAX_EMP_REGIME',
-            'data'  => [
-                'REGIME' => $regime,
-                'CHG_BY' => $empCode,
-                'CHG_ON' => date('d-M-Y')
-            ],
-            'where' => [
-                'EMP_ID' => $empId,
-                'FY'     => $fy
-            ],
-            'print' => 0
-        ]);
+        $sql = "
+            UPDATE EPT_BCS_ITAX_EMP_REGIME
+            SET
+                REGIME = :regime,
+                CHG_BY = :chg_by,
+                CHG_ON = SYSDATE
+            WHERE
+                EMP_ID = :emp_id
+            AND FY = :fy
+        ";
+
+        $stmt = oci_parse($sql___func___con, $sql);
+
+        if (!$stmt) {
+            throw new Exception(oci_error($sql___func___con)["message"]);
+        }
+
+        oci_bind_by_name($stmt, ":regime", $regime);
+        oci_bind_by_name($stmt, ":chg_by", $empCode);
+        oci_bind_by_name($stmt, ":emp_id", $empId);
+        oci_bind_by_name($stmt, ":fy", $fy);
 
         $message = "Regime Updated Successfully";
+    }
 
-    } else {
+    /*
+    |--------------------------------------------------------------------------
+    | INSERT
+    |--------------------------------------------------------------------------
+    */
 
-        /* =====================================================
-           GENERATE ID
-        ===================================================== */
+    else {
 
-        $maxId = singRec("
-            SELECT NVL(MAX(ID),0)+1 AS ID
-            FROM EPT_BCS_ITAX_EMP_REGIME
-        ");
-
-        $id = $maxId['ID'];
-
-        executeQry("
+        $sql = "
             INSERT INTO EPT_BCS_ITAX_EMP_REGIME
             (
                 ID,
@@ -146,40 +175,64 @@ try {
             )
             VALUES
             (
-                '{$id}',
-                '{$empId}',
-                '{$regime}',
+                EPT_BCS_ITAX_EMP_REGIME_SEQ.NEXTVAL,
+                :emp_id,
+                :regime,
                 SYSDATE,
-                '{$empCode}',
-                '{$fy}'
+                :chg_by,
+                :fy
             )
-        ");
+        ";
+
+        $stmt = oci_parse($sql___func___con, $sql);
+
+        if (!$stmt) {
+            throw new Exception(oci_error($sql___func___con)["message"]);
+        }
+
+        oci_bind_by_name($stmt, ":emp_id", $empId);
+        oci_bind_by_name($stmt, ":regime", $regime);
+        oci_bind_by_name($stmt, ":chg_by", $empCode);
+        oci_bind_by_name($stmt, ":fy", $fy);
 
         $message = "Regime Saved Successfully";
     }
 
-    endQry();
+    /*
+    |--------------------------------------------------------------------------
+    | EXECUTE
+    |--------------------------------------------------------------------------
+    */
 
-    /* =====================================================
-       RESPONSE
-    ===================================================== */
+    if (!oci_execute($stmt, OCI_NO_AUTO_COMMIT)) {
+        throw new Exception(oci_error($stmt)["message"]);
+    }
 
-    echo json_encode([
-        "success" => true,
-        "message" => $message,
-        "data" => [
-            "EMP_ID" => $empId,
-            "FY"     => $fy,
-            "REGIME" => $regime
-        ]
+    oci_commit($sql___func___con);
+
+    apiResponse(true, $message, [
+        "emp_id" => $empId,
+        "fy" => $fy,
+        "regime" => $regime
     ]);
 
-} catch (Exception $e) {
+} catch (Throwable $e) {
 
-    rollbackQry();
+    oci_rollback($sql___func___con);
 
-    echo json_encode([
-        "success" => false,
-        "message" => $e->getMessage()
-    ]);
+    if (function_exists("logOracleError")) {
+        logOracleError($e);
+    }
+
+    apiResponse(false, "Unable to save regime.", null, 500);
+
+} finally {
+
+    if (isset($stmt) && $stmt) {
+        oci_free_statement($stmt);
+    }
+
+    if (isset($checkStmt) && $checkStmt) {
+        oci_free_statement($checkStmt);
+    }
 }

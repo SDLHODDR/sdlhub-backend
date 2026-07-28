@@ -1,19 +1,36 @@
 <?php
 
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
+require_once __DIR__ . "/../../config/session.php";
+require_once __DIR__ . "/../../config/utils.php";
 require_once __DIR__ . "/../itr/getEmployeeSummaryData.php";
 
-if (!isset($_SESSION['emp_code'])) {   
-    apiResponse(false,"Unauthorized Access",null,401);
+/* =====================================================
+   SESSION VALIDATION
+===================================================== */
+
+$empCode = $_SESSION['emp_code'] ?? '';
+
+if (empty($empCode)) {
+    apiResponse(false, "Unauthorized access.", null, 401);
 }
 
-$result = getEmployeeSummaryData(
-    $_SESSION['emp_code']
-);
+try {
 
-header("Content-Type: application/json");
+    /* =====================================================
+       FETCH EMPLOYEE SUMMARY
+    ===================================================== */
 
-echo json_encode($result);
-exit;
+    $result = getEmployeeSummaryData($empCode);
+
+    /* =====================================================
+       SUCCESS RESPONSE
+    ===================================================== */
+
+    apiResponse(true, "Employee summary fetched successfully.",  $result);
+
+} catch (Throwable $e) {
+
+    logOracleError($e);
+
+    apiResponse(false, "Unable to fetch employee summary.", null, 500);
+}

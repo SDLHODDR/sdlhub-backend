@@ -1,35 +1,67 @@
 <?php
+
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
 
-$sql___func___con = db_eportal();
+$conn = db_eportal();
+$sql___func___con = $conn;
+
 require_once __DIR__ . "/../../config/functions.php";
-require_once __DIR__."/../../config/utils.php";
+require_once __DIR__ . "/../../config/utils.php";
+
+header("Content-Type: application/json");
+
+/* ===========================================
+   DATABASE CONNECTION
+=========================================== */
+
+if (!$conn) {
+    apiResponse(false, "Database connection failed.", null, 500);
+}
+
+/* ===========================================
+   SESSION VALIDATION
+=========================================== */
 
 $empCode = $_SESSION['emp_code'] ?? '';
 
 if (empty($empCode)) {
-     apiResponse(false,"Unauthorized access",null,401);
+    apiResponse(false, "Unauthorized access.", null, 401);
 }
 
-header('Content-Type: application/json');
-
 try {
-    $sql = "SELECT PROFILE_ID, PROFILE_DESC 
+
+    /* ===========================================
+       GET ACTIVE PROFILES
+    =========================================== */
+
+    $sql = "
+        SELECT
+            PROFILE_ID,
+            PROFILE_DESC
         FROM EPT_PROFILES
         WHERE STATUS = 'A'
-        ORDER BY PROFILE_DESC";
+        ORDER BY PROFILE_DESC
+    ";
 
-$result = multiRec($sql);
-
-echo json_encode($result);
+    $profiles = multiRec($sql);
+    apiResponse( true, "Profiles loaded successfully.", $profiles);
 
 } catch (Exception $e) {
 
-    echo json_encode([
-        "status" => false,
-        "message" => "Database error",
-        "error" => $e->getMessage()
-    ]);
+    logOracleError(
+        [
+            "message" => $e->getMessage()
+        ],
+        "getProfiles.php"
+    );
+
+    apiResponse(false,  "Unable to load profiles.", null, 500);
+
+} finally {
+
+    if (!empty($conn)) {
+        oci_close($conn);
+    }
 }

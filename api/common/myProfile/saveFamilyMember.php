@@ -1,8 +1,4 @@
 <?php
-
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
@@ -10,144 +6,150 @@ require_once __DIR__ . "/../../config/db.php";
 $sql___func___con = db_eportal();
 
 require_once __DIR__ . "/../../config/functions.php";
+require_once __DIR__ . "/../../config/utils.php";
 
-header('Content-Type: application/json');
-
-$empCode = $_SESSION['emp_code'] ?? '';
-
-if (!$empCode) {
-    apiResponse(false, "Unauthorized access", null, 401);
-}
-
-$data = json_decode(file_get_contents("php://input"), true);
-
-if (!$data) {
-    echo json_encode([
-        "status" => false,
-        "message" => "Invalid input"
-    ]);
-    exit;
-}
-
-$id         = $data['id'] ?? null;
-$name       = trim($data['name'] ?? '');
-$relation   = trim($data['relation'] ?? '');
-$dob        = trim($data['dob'] ?? '');
-$aadhaar    = trim($data['aadhaar'] ?? '');
-$dependent  = trim($data['dependent'] ?? '');
-$occupation = trim($data['occupation'] ?? '');
-
-$age = null;
-
-if (!empty($dob)) {
-    $birthDate = new DateTime($dob);
-    $today = new DateTime();
-    $age = $today->diff($birthDate)->y;
-}
-
-if (!$name || !$relation) {
-    echo json_encode([
-        "status" => false,
-        "message" => "Required fields missing"
-    ]);
-    exit;
-}
+header("Content-Type: application/json");
 
 try {
 
-    /* =========================================
-       UPDATE
-    ========================================= */
+    /* ===========================================
+       SESSION VALIDATION
+    =========================================== */
 
-    if (!empty($id)) {
-        $sql = "
+    $empCode = $_SESSION['emp_code'] ?? '';
+
+    if (empty($empCode)) {
+        apiResponse(false, "Unauthorized access", null, 401);
+    }
+
+    /* ===========================================
+       READ INPUT
+    =========================================== */
+
+    $data = json_decode(file_get_contents("php://input"), true);
+
+    if (!is_array($data)) {
+        apiResponse(false, "Invalid request data.", null, 400);
+    }
+
+    $id         = (int)($data['id'] ?? 0);
+    $name       = trim($data['name'] ?? '');
+    $relation   = trim($data['relation'] ?? '');
+    $dob        = trim($data['dob'] ?? '');
+    $aadhaar    = trim($data['aadhaar'] ?? '');
+    $dependent  = trim($data['dependent'] ?? '');
+    $occupation = trim($data['occupation'] ?? '');
+
+    if ($name === '' || $relation === '') {
+        apiResponse(false, "Name and Relation are required.", null, 400);
+    }
+
+    /* ===========================================
+       CALCULATE AGE
+    =========================================== */
+
+    $age = '';
+
+    if (!empty($dob)) {
+        $birthDate = new DateTime($dob);
+        $today = new DateTime();
+        $age = $today->diff($birthDate)->y;
+    }
+
+    /* ===========================================
+       ESCAPE VALUES
+    =========================================== */
+
+    $nameEsc       = str_replace("'", "''", ucfirst($name));
+    $relationEsc   = str_replace("'", "''", $relation);
+    $aadhaarEsc    = str_replace("'", "''", $aadhaar);
+    $dependentEsc  = str_replace("'", "''", $dependent);
+    $occupationEsc = str_replace("'", "''", $occupation);
+    $empCodeEsc    = str_replace("'", "''", $empCode);
+
+    startQry();
+
+    /* ===========================================
+       UPDATE
+    =========================================== */
+
+    if ($id > 0) {
+
+        executeQry("
             UPDATE EPT_HR_EMP_FAMILY_INFO
             SET
-                FM_NAME = '" . ucfirst($name) . "',
-                FM_RELATION = '" . $relation . "',
-                DOB = TO_DATE('" . strtoupper($dob) . "', 'DD-MON-YYYY'),
-                AADHAAR = '" . $aadhaar . "',
-                FM_DEP = '" . $dependent . "',
-                FM_OCCUPATION = '" . $occupation . "',
-                AGE = '" . $age . "',
+                FM_NAME = '{$nameEsc}',
+                FM_RELATION = '{$relationEsc}',
+                DOB = TO_DATE('{$dob}','DD-MON-YYYY'),
+                AADHAAR = '{$aadhaarEsc}',
+                FM_DEP = '{$dependentEsc}',
+                FM_OCCUPATION = '{$occupationEsc}',
+                AGE = '{$age}',
                 CHG_ON = SYSDATE,
-                CHG_BY = '" . $empCode . "'
-            WHERE ID = " . (int)$id . "
-        ";
+                CHG_BY = '{$empCodeEsc}'
+            WHERE ID = {$id}
+        ");
 
-        executeQry($sql);
-        if ($qry_____result == 0) {
-            endQry();
-            echo json_encode([
-                "status" => true,
-                "message" => "Family member updated successfully"
-            ]);
-
-        } else {
-            forceRollback("Update query failed");
-            echo json_encode([
-                "status" => false,
-                "message" => "Failed to update family member"
-            ]);
+        if ($qry_____result != 0) {
+            forceRollback("Failed to update family member.");
         }
+
+        endQry();
+
+        apiResponse(true, "Family member updated successfully.");
     }
 
-    /* =========================================
+    /* ===========================================
        INSERT
-    ========================================= */
+    =========================================== */
 
-    else {
+    executeQry("
+        INSERT INTO EPT_HR_EMP_FAMILY_INFO
+        (
+            EMP_CODE,
+            FM_NAME,
+            FM_RELATION,
+            FM_DEP,
+            DOB,
+            AADHAAR,
+            FM_OCCUPATION,
+            AGE,
+            CHG_ON,
+            CHG_BY
+        )
+        VALUES
+        (
+            '{$empCodeEsc}',
+            '{$nameEsc}',
+            '{$relationEsc}',
+            '{$dependentEsc}',
+            TO_DATE('{$dob}','DD-MON-YYYY'),
+            '{$aadhaarEsc}',
+            '{$occupationEsc}',
+            '{$age}',
+            SYSDATE,
+            '{$empCodeEsc}'
+        )
+    ");
 
-        $sql = "
-            INSERT INTO EPT_HR_EMP_FAMILY_INFO
-            (
-                EMP_CODE,
-                FM_NAME,
-                FM_RELATION,
-                FM_DEP,
-                DOB,
-                AADHAAR,
-                FM_OCCUPATION,
-                AGE,
-                CHG_ON,
-                CHG_BY
-            )
-            VALUES
-            (
-                '" . $empCode . "',
-                '" . ucfirst($name) . "',
-                '" . $relation . "',
-                '" . $dependent . "',
-                TO_DATE('" . strtoupper($dob) . "', 'DD-MON-YYYY'),
-                '" . $aadhaar . "',
-                '" . $occupation . "',
-                '" . $age . "',
-                SYSDATE,
-                '" . $empCode . "'
-            )
-        ";
-        
-        executeQry($sql);
-        if ($qry_____result == 0) {
-            endQry();
-            echo json_encode([
-                "status" => true,
-                "message" => "Family member added successfully"
-            ]);
-
-        } else {
-            forceRollback("Insert query failed");
-            echo json_encode([
-                "status" => false,
-                "message" => "Failed to add family member"
-            ]);
-        }
+    if ($qry_____result != 0) {
+        forceRollback("Failed to add family member.");
     }
 
-} catch (Exception $e) {
-    forceRollback("Query execution failed");
-    echo json_encode([
-        "status" => false,
-      "message" => $e->getMessage()
-    ]);
+    endQry();
+
+    apiResponse(true, "Family member added successfully.");
+
+} catch (Throwable $e) {
+
+    forceRollback("Save family member failed.");
+
+    logOracleError(
+        [
+            "message" => $e->getMessage()
+        ],
+        "saveFamilyMember.php"
+    );
+
+    apiResponse(false, "Unable to save family member.", null,500);
 }

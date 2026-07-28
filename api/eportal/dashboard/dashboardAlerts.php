@@ -1,142 +1,197 @@
 <?php
+
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
 
 $sql___func___con = db_eportal();
+
 require_once __DIR__ . "/../../config/functions.php";
-require_once __DIR__ ."/../../config/utils.php";
+require_once __DIR__ . "/../../config/utils.php";
 
-header('Content-Type: application/json');
-session_start();
+header("Content-Type: application/json");
 
-$empCode = $_SESSION['emp_code'] ?? null;
-if (!$empCode) {   
-	apiResponse(false,"Unauthorized Access",null,401);
+try {
+
+    /*
+    |--------------------------------------------------------------------------
+    | METHOD CHECK
+    |--------------------------------------------------------------------------
+    */
+
+    if ($_SERVER["REQUEST_METHOD"] !== "GET") {
+        apiResponse(false, "Invalid request method.", null, 405);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SESSION CHECK
+    |--------------------------------------------------------------------------
+    */
+
+    if (!isset($_SESSION["emp_code"])) {
+        apiResponse(false, "Unauthorized Access.", null, 401);
+    }
+
+    $empCode = trim($_SESSION["emp_code"]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | VERIFY EMPLOYEE
+    |--------------------------------------------------------------------------
+    */
+
+    $employee = singRec("
+        SELECT ID
+        FROM EPT_BCS_EMPLOYEE
+        WHERE EMP_CODE = '".$empCode."'
+    ");
+
+    $empId = $employee["ID"] ?? null;
+
+    if (!$empId) {
+        apiResponse(false, "Profile not found.", null, 404);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | RELEASE SESSION LOCK
+    |--------------------------------------------------------------------------
+    */
+
+    session_write_close();
+
+    /*
+    |--------------------------------------------------------------------------
+    | CURRENT FINANCIAL YEAR
+    |--------------------------------------------------------------------------
+    */
+
+    $year = date("Y");
+    $month = date("m");
+
+    $fy = ($month >= 4)
+        ? $year . "-" . substr($year + 1, -2)
+        : ($year - 1) . "-" . substr($year, -2);
+
+    /*
+    |--------------------------------------------------------------------------
+    | IT DECLARATION CHECK
+    |--------------------------------------------------------------------------
+    */
+
+    $isDeclared = singRec("
+        SELECT EMP_ID
+        FROM EPT_BCS_ITAX_EMP_REGIME
+        WHERE EMP_ID = '".$empId."'
+        AND FY = '".$fy."'
+    ");
+
+    /*
+    |--------------------------------------------------------------------------
+    | ALERTS
+    |--------------------------------------------------------------------------
+    */
+
+    $alerts = [];
+
+    if (empty($isDeclared)) {
+
+        $alerts[] = [
+            "type" => "danger",
+            "message" => "You have not completed IT Declaration for current financial year.",
+            "actionText" => "Click here to proceed",
+            "actionUrl" => "/eportal/it-return"
+        ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | UPCOMING MEETINGS
+    |--------------------------------------------------------------------------
+    */
+
+    $meetings = multiRec("
+        SELECT
+            r.ROOM_LABEL,
+            TO_CHAR(c.START_TIME,'HH24:MI') AS START_TIME,
+            TO_CHAR(c.END_TIME,'HH24:MI') AS END_TIME
+        FROM EPT_CONF_ROOM_TRAN c
+        LEFT JOIN EPT_CONF_ROOMS r
+            ON r.ID = c.ROOM_ID
+        WHERE
+            (c.CHG_BY = '".$empCode."'
+            OR c.BOOK_BY_EMP = '".$empCode."')
+        AND c.STATUS IN ('A','N','T')
+        AND TRUNC(c.START_TIME) = TRUNC(SYSDATE)
+        AND c.START_TIME >= SYSDATE
+        AND c.START_TIME <= SYSDATE + (1/24)
+        ORDER BY c.START_TIME
+    ");
+
+    if (!empty($meetings)) {
+
+        $alerts[] = [
+            "type" => "info",
+            "message" => count($meetings)." upcoming meeting(s) in next 1 hour",
+            "actionText" => "View Schedule",
+            "actionUrl" => "/eportal/conference-room"
+        ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | MONTH END ALERT
+    |--------------------------------------------------------------------------
+    */
+
+    if ((int)date("d") >= 25) {
+
+        $alerts[] = [
+            "type" => "warning",
+            "message" => "Kindly check the status of your leave or OD request to ensure approval.",
+            "actionText" => null,
+            "actionUrl" => null
+        ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SUCCESS RESPONSE
+    |--------------------------------------------------------------------------
+    */
+
+    apiResponse(
+        true,
+        "Dashboard alerts fetched successfully.",
+        [
+            "alerts" => $alerts,
+            "meetings" => $meetings
+        ]
+    );
+
+} catch (Throwable $e) {
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOG ERROR
+    |--------------------------------------------------------------------------
+    */
+
+    logOracleError($e);
+
+    apiResponse(false, "Unable to fetch dashboard alerts.", null, 500);
+
+} finally {
+
+    /*
+    |--------------------------------------------------------------------------
+    | CLOSE CONNECTION
+    |--------------------------------------------------------------------------
+    */
+
+    if ($sql___func___con) {
+        oci_close($sql___func___con);
+    }
+
 }
-
-$empCode = $_SESSION['emp_code'];
-
-/* RELEASE LOCK */
-session_write_close();
-
-/* ---------------------------
-   GET EMP ID
----------------------------- */
-$empId = singRec("
-    SELECT ID 
-    FROM EPT_BCS_EMPLOYEE 
-    WHERE emp_code = '".$empCode."'
-")['ID'] ?? null;
-
-if (!$empId) {
-    echo json_encode(['status' => false, 'message' => 'Profile Not Found']);
-    exit;
-}
-
-/* ---------------------------
-   FINANCIAL YEAR
----------------------------- */
-$year = date('Y');
-$month = date('m');
-
-$fy = ($month >= 4)
-    ? $year . '-' . substr($year + 1, -2)
-    : ($year - 1) . '-' . substr($year, -2);
-
-/* ---------------------------
-   IT DECLARATION CHECK
----------------------------- */
-$isDeclared = singRec("
-    SELECT emp_id 
-    FROM ept_bcs_itax_emp_regime 
-    WHERE emp_id = '$empId' 
-    AND fy = '$fy'
-");
-
-/* ---------------------------
-   ALERT BUILD
----------------------------- */
-$alerts = [];
-
-// IT not declared
-if (empty($isDeclared)) {
-    $alerts[] = [
-        "type" => "danger",
-        "message" => "You have not completed IT Declaration for current financial year.",
-        "actionText" => "Click here to proceed",
-        "actionUrl" => "/eportal/it-return"
-    ];
-}
-
-/* ---------------------------
-   CONFERENCE ALERT BUILD
----------------------------- */
-
-$empCodeEscaped = addslashes($empCode);
-
-$query = "
-    SELECT 
-        r.room_label,
-        TO_CHAR(c.start_time, 'HH24:MI') AS start_time,
-        TO_CHAR(c.end_time, 'HH24:MI') AS end_time
-    FROM ept_conf_room_tran c
-    LEFT JOIN ept_conf_rooms r ON r.id = c.room_id
-    WHERE (c.chg_by = '$empCodeEscaped' OR c.book_by_emp = '$empCodeEscaped')
-    AND c.status IN ('A','N','T')
-    AND TRUNC(c.start_time) = TRUNC(SYSDATE)
-    AND c.start_time >= SYSDATE
-    AND c.start_time <= SYSDATE + (1/24)
-    ORDER BY c.start_time ASC
-";
-
-$meetings = multiRec($query);
-
-  $meetings = [
-    [
-      "room_label" => "CR-1",
-      "start_time" => "10:30",
-      "end_time" => "11:00"
-    ],
-    [
-      "room_label" => "Board Room",
-      "start_time" => "11:15",
-      "end_time" => "12:00"
-    ],
-    [
-      "room_label" => "Meeting Room A",
-      "start_time" => "14:00",
-      "end_time" => "14:45"
-    ]
-  ];
-
-if (!empty($meetings)) {
-    $alerts[] = [
-        "type" => "info",
-        "message" => count($meetings) . " upcoming meeting(s) in next 1 hour",
-        "actionText" => "View Schedule",
-        "actionUrl" => "/eportal/conference-room"
-    ];
-}
-
-
-// Month-end reminder
-if ((int)date('d') >= 25) {
-    $alerts[] = [
-        "type" => "warning",
-        "message" => "Kindly check the status of your leave or OD request to ensure approval.",
-        "actionText" => null,
-        "actionUrl" => null
-    ];
-}
-
-/* ---------------------------
-   RESPONSE
----------------------------- */
-echo json_encode([
-    "status" => true,
-    "data" => [
-        "alerts" => $alerts,
-        "meetings" => $meetings
-    ]
-]);

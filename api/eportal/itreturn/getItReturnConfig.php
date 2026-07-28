@@ -1,4 +1,5 @@
 <?php
+
 error_reporting(E_ALL);
 ini_set("display_errors", 1);
 
@@ -15,102 +16,77 @@ header("Content-Type: application/json");
 
 try {
 
-    if (!isset($_SESSION['emp_code'])) {
-        apiResponse(false, "Unauthorized Access", null, 401);
+    /* =====================================================
+       SESSION VALIDATION
+    ===================================================== */
+
+    $empCode = $_SESSION['emp_code'] ?? '';
+
+    if (empty($empCode)) {
+        apiResponse(false, "Unauthorized access.", null, 401);
     }
 
-    /*
-    ============================================
-    GET PARAM VALUE
-    ============================================
-    */
+    /* =====================================================
+       GET IT RETURN EDIT DATES
+    ===================================================== */
+
     $param = singRec("
         SELECT SYS_VAL
         FROM EPT_SYS_PARAM
         WHERE SYS_LBL = 'IT_RETURN_EDIT_DATES'
     ");
 
-    if (!empty($param['SYS_VAL'])) {
+    $dateString = trim(
+        $param['SYS_VAL']
+        ?? $param['sys_val']
+        ?? ''
+    );
 
-        // HANDLE BOTH LOWERCASE / UPPERCASE
-        $dateString = trim(
-            $param['SYS_VAL']
-            ?? $param['sys_val']
-            ?? ''
-        );
-
-        /*
-        ============================================
-        DEFAULT VALUES
-        ============================================
-        */
-
-        $allowedDates = [];
-        $canEdit = false;
-        $today = date("Y-m-d");
-
-        /*
-        ============================================
-        PROCESS DATE RANGE
-        ============================================
-        */
-
-        if (!empty($dateString)) {
-
-            $dates = explode(",", $dateString);
-
-            if (count($dates) !== 2) {
-
-                echo json_encode([
-                    "status" => false,
-                    "message" => "Two Date parameters (From and To) are expected."
-                ]);
-
-                exit;
-            }
-
-            $fromDate = trim($dates[0]);
-            $toDate   = trim($dates[1]);
-
-            $allowedDates = [
-                "from_date" => $fromDate,
-                "to_date" => $toDate
-            ];
-
-            /*
-            ============================================
-            RANGE CHECK
-            ============================================
-            */
-            $canEdit = (
-                strtotime($today) >= strtotime($fromDate) &&
-                strtotime($today) <= strtotime($toDate)
-            );
-        }   
-
-        /*
-        ============================================
-        RESPONSE
-        ============================================
-        */
-
-        echo json_encode([
-            "status" => true,
-            "allowed_dates" => $allowedDates,
-            "today" => $today,
-            "can_edit" => $canEdit
-        ]);
-    }else{
-         echo json_encode([
-            "status" => false,
-            "message" => "Dates not set for It return"
-        ]);
+    if (empty($dateString)) {
+        apiResponse(false, "IT Return edit dates are not configured.");
     }
 
-} catch (Exception $e) {
+    /* =====================================================
+       VALIDATE DATE RANGE
+    ===================================================== */
 
-    echo json_encode([
-        "status" => false,
-        "message" => $e->getMessage()
-    ]);
+    $dates = array_map('trim', explode(',', $dateString));
+
+    if (count($dates) !== 2) {
+        apiResponse(false, "IT Return edit dates are configured incorrectly.");
+    }
+
+    $fromDate = $dates[0];
+    $toDate   = $dates[1];
+    $today    = date("Y-m-d");
+
+    /* =====================================================
+       CHECK EDIT PERMISSION
+    ===================================================== */
+
+    $canEdit =
+        strtotime($today) >= strtotime($fromDate) &&
+        strtotime($today) <= strtotime($toDate);
+
+    /* =====================================================
+       SUCCESS RESPONSE
+    ===================================================== */
+
+    apiResponse(
+        true,
+        "IT Return configuration fetched successfully.",
+        [
+            "allowed_dates" => [
+                "from_date" => $fromDate,
+                "to_date"   => $toDate
+            ],
+            "today"    => $today,
+            "can_edit" => $canEdit
+        ]
+    );
+
+} catch (Throwable $e) {
+
+    logOracleError($e);
+    apiResponse(false, "Unable to fetch IT Return configuration.", null, 500);
 }
