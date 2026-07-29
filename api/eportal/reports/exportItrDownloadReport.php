@@ -1,41 +1,74 @@
 <?php
+
 ob_start();
 
-ini_set('display_errors', 1);
+ini_set("display_errors", 1);
 error_reporting(E_ALL);
+
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
+require_once __DIR__ . "/../../config/functions.php";
+require_once __DIR__ . "/../../config/utils.php";
 
 require_once __DIR__ . "/../../../vendor/autoload.php";
-
-$con = db_eportal();
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
+$con = db_eportal();
+
 try {
+    /*
+    =========================================
+    SESSION VALIDATION
+    =========================================
+    */
+
+    $sessionEmpCode = $_SESSION["emp_code"] ?? "";
+
+    if (!$sessionEmpCode) {
+        apiResponse(false, "Unauthorized Access", null, 401);
+    }
+
+    /*
+    =========================================
+    REQUEST INPUT
+    =========================================
+    */
 
     $input = json_decode(file_get_contents("php://input"), true);
 
-    $financialYear = trim($input['financial_year'] ?? '');
-    $empCode       = trim($input['emp_code'] ?? '');
-    $downloadType  = trim($input['download_type'] ?? '');
-    $fromDate      = trim($input['from_date'] ?? '');
-    $toDate        = trim($input['to_date'] ?? '');
+    $financialYear = trim($input["financial_year"] ?? "");
+    $empCode = trim($input["emp_code"] ?? "");
+    $downloadType = trim($input["download_type"] ?? "");
+    $fromDate = trim($input["from_date"] ?? "");
+    $toDate = trim($input["to_date"] ?? "");
+
+    /*
+    =========================================
+    BUILD FILTER
+    =========================================
+    */
 
     $where = " WHERE 1=1 ";
 
     if (!empty($financialYear)) {
-        $where .= " AND FINANCIAL_YEAR = :financial_year ";
+        $where .= "
+            AND FINANCIAL_YEAR = :financial_year
+        ";
     }
 
     if (!empty($empCode)) {
-        $where .= " AND EMP_CODE = :emp_code ";
+        $where .= "
+            AND EMP_CODE = :emp_code
+        ";
     }
 
     if (!empty($downloadType)) {
-        $where .= " AND DOWNLOAD_TYPE = :download_type ";
+        $where .= "
+            AND DOWNLOAD_TYPE = :download_type
+        ";
     }
 
     if (!empty($fromDate)) {
@@ -52,7 +85,14 @@ try {
         ";
     }
 
+    /*
+    =========================================
+    FETCH DATA
+    =========================================
+    */
+
     $sql = "
+
         SELECT
             EMP_CODE,
             DOWNLOAD_TYPE,
@@ -68,131 +108,103 @@ try {
                 DOWNLOAD_TIME,
                 'DD-MON-YYYY HH24:MI:SS'
             ) DOWNLOAD_TIME
-
         FROM EPT_ITR_DOWNLOAD_LOG
-
         $where
-
         ORDER BY DOWNLOAD_TIME DESC
     ";
 
     $stmt = oci_parse($con, $sql);
 
-    if (!empty($financialYear)) {
-        oci_bind_by_name(
-            $stmt,
-            ":financial_year",
-            $financialYear
-        );
-    }
-
-    if (!empty($empCode)) {
-        oci_bind_by_name(
-            $stmt,
-            ":emp_code",
-            $empCode
-        );
-    }
-
-    if (!empty($downloadType)) {
-        oci_bind_by_name(
-            $stmt,
-            ":download_type",
-            $downloadType
-        );
-    }
-
-    if (!empty($fromDate)) {
-        oci_bind_by_name(
-            $stmt,
-            ":from_date",
-            $fromDate
-        );
-    }
-
-    if (!empty($toDate)) {
-        oci_bind_by_name(
-            $stmt,
-            ":to_date",
-            $toDate
-        );
-    }
+    bindFilters(
+        $stmt,
+        $financialYear,
+        $empCode,
+        $downloadType,
+        $fromDate,
+        $toDate
+    );
 
     oci_execute($stmt);
 
+    /*
+    =========================================
+    CREATE EXCEL
+    =========================================
+    */
+
     $spreadsheet = new Spreadsheet();
-
     $sheet = $spreadsheet->getActiveSheet();
-
     $headers = [
-        'Employee Code',
-        'Download Type',
-        'Target Employee',
-        'Financial Year',
-        'File Name',
-        'File Size MB',
-        'IP Address',
-        'Browser',
-        'Status',
-        'Remarks',
-        'Download Time'
+        "Employee Code",
+        "Download Type",
+        "Target Employee",
+        "Financial Year",
+        "File Name",
+        "File Size MB",
+        "IP Address",
+        "Browser",
+        "Status",
+        "Remarks",
+        "Download Time",
     ];
 
-    $col = 'A';
-
-    foreach ($headers as $header) {
-        $sheet->setCellValue($col . '1', $header);
-        $col++;
+    foreach ($headers as $index => $header) {
+        $sheet->setCellValueByColumnAndRow($index + 1, 1, $header);
     }
 
     $rowNo = 2;
 
     while ($row = oci_fetch_assoc($stmt)) {
-
-        $sheet->setCellValue('A' . $rowNo, $row['EMP_CODE']);
-        $sheet->setCellValue('B' . $rowNo, $row['DOWNLOAD_TYPE']);
-        $sheet->setCellValue('C' . $rowNo, $row['TARGET_EMP_CODE']);
-        $sheet->setCellValue('D' . $rowNo, $row['FINANCIAL_YEAR']);
-        $sheet->setCellValue('E' . $rowNo, $row['FILE_NAME']);
-        $sheet->setCellValue('F' . $rowNo, $row['FILE_SIZE_MB']);
-        $sheet->setCellValue('G' . $rowNo, $row['IP_ADDRESS']);
-        $sheet->setCellValue('H' . $rowNo, $row['BROWSER_NAME']);
-        $sheet->setCellValue('I' . $rowNo, $row['STATUS']);
-        $sheet->setCellValue('J' . $rowNo, $row['REMARKS']);
-        $sheet->setCellValue('K' . $rowNo, $row['DOWNLOAD_TIME']);
+        $sheet->fromArray(
+            [
+                $row["EMP_CODE"],
+                $row["DOWNLOAD_TYPE"],
+                $row["TARGET_EMP_CODE"],
+                $row["FINANCIAL_YEAR"],
+                $row["FILE_NAME"],
+                $row["FILE_SIZE_MB"],
+                $row["IP_ADDRESS"],
+                $row["BROWSER_NAME"],
+                $row["STATUS"],
+                $row["REMARKS"],
+                $row["DOWNLOAD_TIME"],
+            ],
+            null,
+            "A" . $rowNo
+        );
 
         $rowNo++;
     }
 
-    $fileName =
-        "ITR_Download_Report_" .
-        date('Ymd_His') .
-        ".xlsx";
+    /*
+    =========================================
+    DOWNLOAD FILE
+    =========================================
+    */
+
+    $fileName = "ITR_Download_Report_" . date("Ymd_His") . ".xlsx";
+
+    // Clear previous output
+    if (ob_get_length()) {
+        ob_end_clean();
+    }
 
     header(
-        'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        "Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
 
-    header(
-        'Content-Disposition: attachment; filename="' .
-        $fileName .
-        '"'
-    );
-
-    header('Cache-Control: max-age=0');
-
+    header('Content-Disposition: attachment; filename="' . $fileName . '"');
+    header("Cache-Control: max-age=0");
     $writer = new Xlsx($spreadsheet);
-
-    $writer->save('php://output');
-
+    $writer->save("php://output");
     exit;
-}
-catch (Exception $e) {
 
-    http_response_code(500);
+} catch (Throwable $e) {
+    logOracleError($e);
 
-    echo json_encode([
-        "success" => false,
-        "message" => $e->getMessage()
-    ]);
+    // If headers are already sent, avoid JSON corruption
+    if (!headers_sent()) {
+        apiResponse(false, "Unable to export ITR download report", null, 500);
+    }
+    exit;
 }

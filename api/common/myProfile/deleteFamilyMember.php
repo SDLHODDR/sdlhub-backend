@@ -6,54 +6,75 @@ require_once __DIR__ . "/../../config/db.php";
 require_once __DIR__ . "/../../config/utils.php";
 
 $sql___func___con = db_eportal();
+
 require_once __DIR__ . "/../../config/functions.php";
 
-header('Content-Type: application/json');
-
-$empCode = $_SESSION['emp_code'] ?? '';
-
-if (!$empCode) {
-    apiResponse(false, "Unauthorized access", null, 401);
-    exit;
-}
-
-$data = json_decode(file_get_contents("php://input"), true);
-
-$id = $data['id'] ?? '';
-
-if (empty($id)) {
-    apiResponse(false, "Family member ID is required");
-    exit;
-}
+header("Content-Type: application/json");
 
 try {
-    //soft delete
-    /*executeQry("
-        DELETE FROM EPT_HR_EMP_FAMILY_INFO
-        WHERE ID = '".$id."'
-        AND EMP_CODE = '".$empCode."'
-    ");*/
 
-     executeQry("
-            UPDATE EPT_HR_EMP_FAMILY_INFO
-            SET               
-                STATUS = 'd',
-                CHG_ON = SYSDATE,
-                CHG_BY = '" . $empCode . "'
-            WHERE ID = " . (int)$id . "
-        ");
+    /* ===========================================
+       SESSION VALIDATION
+    =========================================== */
+
+    $empCode = $_SESSION['emp_code'] ?? '';
+
+    if (empty($empCode)) {
+        apiResponse(false, "Unauthorized access.", null, 401);
+    }
+
+    /* ===========================================
+       READ INPUT
+    =========================================== */
+
+    $data = json_decode(file_get_contents("php://input"), true);
+
+    if (!is_array($data)) {
+        apiResponse(false, "Invalid request data.", null, 400);
+    }
+
+    $id = (int)($data['id'] ?? 0);
+
+    if ($id <= 0) {
+        apiResponse(false, "Family member ID is required.", null, 400);
+    }
+
+    $empCodeEsc = str_replace("'", "''", $empCode);
+
+    /* ===========================================
+       SOFT DELETE
+    =========================================== */
+
+    startQry();
+
+    executeQry("
+        UPDATE EPT_HR_EMP_FAMILY_INFO
+        SET
+            STATUS = 'D',
+            CHG_ON = SYSDATE,
+            CHG_BY = '{$empCodeEsc}'
+        WHERE ID = {$id}
+          AND EMP_CODE = '{$empCodeEsc}'
+    ");
+
+    if ($qry_____result != 0) {
+        forceRollback("Failed to delete family member.");
+    }
 
     endQry();
 
-    echo json_encode([
-        "status" => true,
-        "message" => "Family member deleted successfully"
-    ]);
+    apiResponse(true, "Family member deleted successfully.");
 
-} catch (Exception $e) {
+} catch (Throwable $e) {
 
-    echo json_encode([
-        "status" => false,
-        "message" => $e->getMessage()
-    ]);
+    forceRollback("Delete family member failed.");
+
+    logOracleError(
+        [
+            "message" => $e->getMessage()
+        ],
+        "deleteFamilyMember.php"
+    );
+
+    apiResponse(false, "Unable to delete family member.", null, 500);
 }

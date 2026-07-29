@@ -1,208 +1,356 @@
 <?php
 ob_start();
 
-/*ini_set('display_errors', 1);
+/*
+ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
-error_reporting(E_ALL); */
+error_reporting(E_ALL);
+*/
 
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
 
 $sql___func___con = db_eportal();
-require_once __DIR__ . "/../../config/functions.php";
-require_once __DIR__ ."/../../config/utils.php";
 
-header('Content-Type: application/json');
+require_once __DIR__ . "/../../config/functions.php";
+require_once __DIR__ . "/../../config/utils.php";
+
+header("Content-Type: application/json");
 
 try {
 
-	$empCode = $_SESSION['emp_code'] ?? null;
-	if (!$empCode) {
-		apiResponse(false,"Unauthorized Access",null,401);
-	}
+    /*====================================================
+      SESSION
+    ====================================================*/
 
-    /* =============================
-       CACHE (2 MIN)
-    ============================== */
-    $cacheFile = sys_get_temp_dir() . "/att10_" . $empCode . ".json";
-	/*
-    if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 120) {
-        echo file_get_contents($cacheFile);
-        exit;
-    }*/
+    $empCode = $_SESSION['emp_code'] ?? null;
 
-    /* RELEASE SESSION LOCK */
+    if (!$empCode) {
+        apiResponse(false, "Unauthorized Access", null, 401);
+    }
+
+    /* Release session lock */
     session_write_close();
 
-    /* =============================
-       DATE RANGE
-    ============================== */
-    $dates = [];
+    /*====================================================
+      CACHE (OPTIONAL)
+    ====================================================*/
+
+    $cacheFile = sys_get_temp_dir() . "/att10_" . $empCode . ".json";
+
+    /*
+    if (
+        file_exists($cacheFile) &&
+        (time() - filemtime($cacheFile)) < 120
+    ) {
+        echo file_get_contents($cacheFile);
+        exit;
+    }
+    */
+
+    /*====================================================
+      BUILD LAST 10 DAYS
+    ====================================================*/
+
+    $dates   = [];
     $dateMap = [];
 
     for ($i = 9; $i >= 0; $i--) {
-        $d = date('d-M-Y', strtotime("-$i days"));
 
-        $dates[] = $d;
+        $date = date("d-M-Y", strtotime("-{$i} days"));
 
-        $dateMap[$d] = [
-            "date" => date('d-M', strtotime($d)),
-            "in" => '--:--',
-            "out" => '--:--',
-            "workingHrs" => 'Day Off',
-            "onDesk" => '00:00',
-            "offDesk" => '00:00',
-            "terrace" => '00:00',
-            "leaveType" => '--',
-            "remarks" => ''
+        $dates[] = $date;
+
+        $dateMap[$date] = [
+            "date"        => date("d-M", strtotime($date)),
+            "in"          => "--:--",
+            "out"         => "--:--",
+            "workingHrs"  => "Day Off",
+            "onDesk"      => "00:00",
+            "offDesk"     => "00:00",
+            "terrace"     => "00:00",
+            "leaveType"   => "--",
+            "remarks"     => ""
         ];
     }
 
     $dateList = "'" . implode("','", $dates) . "'";
 
+    $startDate = date("d-M-Y", strtotime("-9 days"));
+
+    /*====================================================
+      TIME METRICS
+    ====================================================*/
+
+    $sql = "
+        WITH dates AS
+        (
+            SELECT TO_DATE(:start_date,'DD-MON-YYYY') + LEVEL - 1 dt
+            FROM dual
+            CONNECT BY LEVEL <= 10
+        )
+
+        SELECT
+
+            TO_CHAR(dt,'DD-MON-YYYY') ASON_DATE,
+
+            NVL(
+                (
+                    SELECT TO_CHAR(
+                        TO_DATE(SUM(time_diff_sec),'SSSSS'),
+                        'HH24:MI'
+                    )
+                    FROM ept_bcs_attd_daily d
+                    WHERE d.emp_code = :emp_code
+                    AND d.ason_date = TO_CHAR(dt,'DD-MON-YYYY')
+                    AND d.machine_no IN (5,6,11)
+                ),
+                '00:00'
+            ) ONDESK,
+
+            NVL(
+                TO_CHAR(
+                    TO_DATE(
+                        EPT_GET_OFFDESK_TIME(:emp_code, dt),
+                        'SSSSS'
+                    ),
+                    'HH24:MI'
+                ),
+                '00:00'
+            ) OFFDESK,
+
+            NVL(
+                TO_CHAR(
+                    TO_DATE(
+                        EPT_GET_TERRACE_TIME(:emp_code, dt),
+                        'SSSSS'
+                    ),
+                    'HH24:MI'
+                ),
+                '00:00'
+            ) TERRACE
+
+        FROM dates
+        ORDER BY dt
+    ";
+
+    $stmt = oci_parse($sql___func___con, $sql);
+
+    oci_bind_by_name($stmt, ":start_date", $startDate);
+    oci_bind_by_name($stmt, ":emp_code", $empCode);
+
+    oci_execute($stmt);
+
+    while ($row = oci_fetch_assoc($stmt)) {
+
+        $key = date("d-M-Y", strtotime($row["ASON_DATE"]));
+
+        if (!isset($dateMap[$key])) {
+            continue;
+        }
+
+        $dateMap[$key]["onDesk"]  = $row["ONDESK"] ?? "00:00";
+        $dateMap[$key]["offDesk"] = $row["OFFDESK"] ?? "00:00";
+        $dateMap[$key]["terrace"] = $row["TERRACE"] ?? "00:00";
+    }
+
+    oci_free_statement($stmt);
+
     /* =============================
        1. TIME METRICS (SINGLE QUERY)
     ============================== */
+
     $startDate = date('d-M-Y', strtotime("-9 days"));
 
     $sql = "
-    WITH dates AS (
-        SELECT TO_DATE(:start_date, 'DD-MON-YYYY') + LEVEL - 1 AS dt
-        FROM dual
-        CONNECT BY LEVEL <= 10
-    )
-    SELECT 
-        TO_CHAR(dt, 'DD-MON-YYYY') AS ason_date,
+        WITH dates AS (
+            SELECT TO_DATE(:start_date,'DD-MON-YYYY') + LEVEL - 1 dt
+            FROM dual
+            CONNECT BY LEVEL <= 10
+        )
+        SELECT
+            TO_CHAR(dt,'DD-MON-YYYY') AS ASON_DATE,
 
-        NVL((
-            SELECT TO_CHAR(
-                TO_DATE(SUM(time_diff_sec), 'sssss'), 'hh24:mi'
-            )
-            FROM ept_bcs_attd_daily d
-            WHERE d.emp_code = :empCode
-            AND d.ason_date = TO_CHAR(dt, 'DD-MON-YYYY')
-            AND d.machine_no IN (5,6,11)
-        ), '00:00') AS onDesk,
+            NVL((
+                SELECT TO_CHAR(
+                    TO_DATE(SUM(time_diff_sec),'SSSSS'),
+                    'HH24:MI'
+                )
+                FROM ept_bcs_attd_daily d
+                WHERE d.emp_code = :empCode
+                AND d.ason_date = TO_CHAR(dt,'DD-MON-YYYY')
+                AND d.machine_no IN (5,6,11)
+            ),'00:00') AS ONDESK,
 
-        NVL(TO_CHAR(
-            TO_DATE(EPT_GET_OFFDESK_TIME(:empCode, dt), 'sssss'),
-        'hh24:mi'), '00:00') AS offDesk,
+            NVL(
+                TO_CHAR(
+                    TO_DATE(EPT_GET_OFFDESK_TIME(:empCode,dt),'SSSSS'),
+                    'HH24:MI'
+                ),
+                '00:00'
+            ) AS OFFDESK,
 
-        NVL(TO_CHAR(
-            TO_DATE(ept_get_terrace_time(:empCode, dt), 'sssss'),
-        'hh24:mi'), '00:00') AS terrace
+            NVL(
+                TO_CHAR(
+                    TO_DATE(EPT_GET_TERRACE_TIME(:empCode,dt),'SSSSS'),
+                    'HH24:MI'
+                ),
+                '00:00'
+            ) AS TERRACE
 
-    FROM dates
-    ORDER BY dt
+        FROM dates
+        ORDER BY dt
     ";
 
     $stid = oci_parse($sql___func___con, $sql);
+
     oci_bind_by_name($stid, ":start_date", $startDate);
     oci_bind_by_name($stid, ":empCode", $empCode);
-    oci_execute($stid);
 
-	while ($row = oci_fetch_assoc($stid)) {
-
-		$key = date('d-M-Y', strtotime($row['ASON_DATE']));
-
-		if (!isset($dateMap[$key])) {
-			continue;
-		}
-
-		$dateMap[$key]['onDesk']   = $row['ONDESK']  ?? '00:00';
-		$dateMap[$key]['offDesk']  = $row['OFFDESK'] ?? '00:00';
-		$dateMap[$key]['terrace']  = $row['TERRACE'] ?? '00:00';
-	}
-
-    /* =============================
-       2. PUNCH DATA (BULK)
-    ============================== */
-    $punchRows = multiRec("
-        SELECT attd_date,
-        to_char(IN_TIME,'HH24:MI:SS') IN_TIM,
-        to_char(OUT_TIME,'HH24:MI:SS') OUT_TIM,
-        WORK_HOUR
-        FROM ept_bcs_attd_reg 
-        WHERE emp_code='$empCode'
-        AND attd_date IN ($dateList)
-    ");
-    
-    foreach ($punchRows as $r) {
-
-		$d = date('d-M-Y', strtotime($r['ATTD_DATE'] ?? $r['attd_date']));
-
-		if (isset($dateMap[$d])) {
-			$dateMap[$d]['in'] = $r['IN_TIM'] ?? '--:--';
-			$dateMap[$d]['out'] = $r['OUT_TIM'] ?? '--:--';
-			$dateMap[$d]['workingHrs'] = !empty($r['WORK_HOUR'])
-				? $r['WORK_HOUR'] . " HRS"
-				: "Day Off";
-		}
+    if (!oci_execute($stid)) {
+        $e = oci_error($stid);
+        throw new Exception($e['message']);
     }
 
+    while ($row = oci_fetch_assoc($stid)) {
+
+        $key = date('d-M-Y', strtotime($row['ASON_DATE']));
+
+        if (!isset($dateMap[$key])) {
+            continue;
+        }
+
+        $dateMap[$key]['onDesk']  = $row['ONDESK'] ?? '00:00';
+        $dateMap[$key]['offDesk'] = $row['OFFDESK'] ?? '00:00';
+        $dateMap[$key]['terrace'] = $row['TERRACE'] ?? '00:00';
+    }
+
+    oci_free_statement($stid);
+
     /* =============================
-       3. LEAVE (BULK)
+       2. PUNCH DATA
     ============================== */
-    $leaveRows = multiRec("
-        SELECT LVE_CODE, NO_DAYS, REMARKS, lve_date_fr, lve_date_to
-        FROM bcs_emp_leaves
-        WHERE emp_code='$empCode'
+
+    $punchRows = multiRec("
+        SELECT
+            ATTD_DATE,
+            TO_CHAR(IN_TIME,'HH24:MI:SS') AS IN_TIME,
+            TO_CHAR(OUT_TIME,'HH24:MI:SS') AS OUT_TIME,
+            WORK_HOUR
+        FROM EPT_BCS_ATTD_REG
+        WHERE EMP_CODE = '$empCode'
+        AND ATTD_DATE IN ($dateList)
     ");
 
-    foreach ($dates as $d) {
-        foreach ($leaveRows as $l) {
-            if ($l['LVE_DATE_FR'] <= $d && $l['LVE_DATE_TO'] >= $d) {
-                $dateMap[$d]['leaveType'] =
-                    $l['LVE_CODE'] . '(' . number_format($l['NO_DAYS'], 1) . ')';
-                $dateMap[$d]['remarks'] = $l['REMARKS'];
+    foreach ($punchRows as $row) {
+
+        $key = date('d-M-Y', strtotime($row['ATTD_DATE']));
+
+        if (!isset($dateMap[$key])) {
+            continue;
+        }
+
+        $dateMap[$key]['in'] = $row['IN_TIME'] ?: '--:--';
+        $dateMap[$key]['out'] = $row['OUT_TIME'] ?: '--:--';
+
+        if (!empty($row['WORK_HOUR'])) {
+            $dateMap[$key]['workingHrs'] = $row['WORK_HOUR'] . " HRS";
+        }
+    }
+    /* =============================
+   3. LEAVE (BULK)
+============================= */
+
+$leaveRows = multiRec("
+    SELECT
+        LVE_CODE,
+        NO_DAYS,
+        REMARKS,
+        LVE_DATE_FR,
+        LVE_DATE_TO
+    FROM BCS_EMP_LEAVES
+    WHERE EMP_CODE = '$empCode'
+");
+
+foreach ($leaveRows as $leave) {
+
+    $fromDate = strtotime($leave['LVE_DATE_FR']);
+    $toDate   = strtotime($leave['LVE_DATE_TO']);
+
+    foreach ($dates as $displayDate) {
+
+        $currentDate = strtotime($displayDate);
+
+        if ($currentDate >= $fromDate && $currentDate <= $toDate) {
+
+            if (isset($dateMap[$displayDate])) {
+
+                $dateMap[$displayDate]['leaveType'] =
+                    $leave['LVE_CODE'] .
+                    '(' .
+                    number_format((float)$leave['NO_DAYS'], 1) .
+                    ')';
+
+                $dateMap[$displayDate]['remarks'] =
+                    $leave['REMARKS'] ?? '';
             }
         }
     }
+}
 
-    /* =============================
-       4. HOLIDAYS (BULK)
-    ============================== */
-    $holidayRows = multiRec("
-        SELECT hol_date, descr
-        FROM ept_bcs_holidays 
-        WHERE hol_grp = (
-            SELECT hol_tblno
-            FROM ept_bcs_employee  
-            WHERE emp_code='$empCode'
-        )
-        AND hol_date IN ($dateList)
-    ");
+/* =============================
+   4. HOLIDAYS (BULK)
+============================= */
 
-    foreach ($holidayRows as $h) {
-		$d = date('d-M-Y', strtotime($h['HOL_DATE']));
+$holidayRows = multiRec("
+    SELECT
+        HOL_DATE,
+        DESCR
+    FROM EPT_BCS_HOLIDAYS
+    WHERE HOL_GRP = (
+        SELECT HOL_TBLNO
+        FROM EPT_BCS_EMPLOYEE
+        WHERE EMP_CODE = '$empCode'
+    )
+    AND HOL_DATE IN ($dateList)
+");
 
-		if (isset($dateMap[$d]) && $dateMap[$d]['leaveType'] === '--') {
-			$dateMap[$d]['leaveType'] = $h['DESCR'];
-		}
+foreach ($holidayRows as $holiday) {
+
+    $holidayKey = date('d-M-Y', strtotime($holiday['HOL_DATE']));
+
+    if (
+        isset($dateMap[$holidayKey]) &&
+        $dateMap[$holidayKey]['leaveType'] === '--'
+    ) {
+        $dateMap[$holidayKey]['leaveType'] = $holiday['DESCR'] ?? 'Holiday';
     }
+}
 
-    /* =============================
-       FINAL OUTPUT
-    ============================== */
-    $final = array_values($dateMap);
+/* =============================
+   FINAL RESPONSE
+============================= */
 
-    $output = json_encode([
-        "status" => true,
-        "data" => $final
-    ]);
+ksort($dateMap);
 
-    file_put_contents($cacheFile, $output);
+$response = array_values($dateMap);
 
-    ob_clean();
-    echo $output;
+/* Cache Response */
+$output = json_encode([
+    "status" => true,
+    "data"   => $response
+]);
+
+file_put_contents($cacheFile, $output);
+
+ob_clean();
+
+/* Standard API Response */
+apiResponse(true, "Attendance fetched successfully", $response, 200 );
 
 } catch (Exception $e) {
 
     ob_clean();
-
-    echo json_encode([
-        "status" => false,
-        "message" => $e->getMessage()
-    ]);
+    apiResponse(false, $e->getMessage(), null, 500);
 }
