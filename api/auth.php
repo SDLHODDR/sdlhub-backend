@@ -26,8 +26,8 @@ $username = trim($data["login_code"] ?? "");
 $password = trim($data["password"] ?? "");
 
 // Remove these after testing
- $username = "00575";
- $password = "Power90";
+//$username = "00575";
+//$password = "Power90";
 
 if ($username === "" || $password === "") {
     apiResponse(false, "Login & Password required.", null, 400);
