@@ -6,6 +6,8 @@
 
 require_once "gatepass/gp_head.php";
 
+try {
+
 $authTasksData = [];
 
 $base_query = "
@@ -48,11 +50,29 @@ foreach($myTasksCounts as $res)
         'TOTAL'      => $res['TOTAL'],
     ];
 }          
-
-echo json_encode([
-    "status" => true,
-    "success" => true,
-    "taskscnt"   => $authTasksData,
-    "SUBTOTAL" => $overAllCnt
-    //"data"    => $authTasksData,
-]);
+/*
+    |--------------------------------------------------------------------------
+    | RESPONSE
+    |--------------------------------------------------------------------------
+    */
+    if($authTasksData || !empty($authTasksData)) {
+        apiResponse(
+            true,
+            "Authorization data fetched successfully.",
+            [
+                "success" => true,
+                "taskscnt"   => $authTasksData,
+                "SUBTOTAL" => $overAllCnt
+            ]
+        );
+    } else {
+        apiResponse(false, "Unable to fetch authorization duty data.", null, 404);
+    }
+} catch (Throwable $e) {
+    logOracleError($e);
+    apiResponse(false, "Unable to fetch authorization slice data.", null, 500);
+} finally {
+    if ($sql___func___con) {
+        oci_close($sql___func___con);
+    }
+}

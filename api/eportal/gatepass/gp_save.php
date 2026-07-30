@@ -16,6 +16,21 @@ if($data['saveGpData']==true)
         // ===============================
         // Fetch existing entries for same date
         // ===============================
+
+        $checkGPData = singRec("
+            select count(id) as cnt
+            from EPT_EMPLOYEE_GPASS 
+            where EMP_CODE = '".$data['EMP_CODE']."' 
+            and GPASS_DATE = '".$data['GPASS_DATE']."'
+            and OUT_TYPE = '".$data['OUT_TYPE']."' 
+        ");
+        
+        if ($checkGPData['CNT'] > 0) {
+            $isAllowed = false;
+            apiResponse(false, "You have already added Outduty for ".$data['OUT_TYPE']." earlier", null, 200);
+            exit; 
+        }
+
         $gpass = multiRec("
             select OUT_TYPE 
             from EPT_EMPLOYEE_GPASS 
@@ -24,6 +39,7 @@ if($data['saveGpData']==true)
         ");
 
         $existingTypes = array_column($gpass, 'OUT_TYPE');
+        
         $newType = $data['OUT_TYPE'];
 
         // ===============================
@@ -32,10 +48,11 @@ if($data['saveGpData']==true)
         if (in_array($newType, ["OD", "FW", "TO"])) {
             if (count($existingTypes) > 0) {
                 $isAllowed = false;
-                echo json_encode([
-                    "status" => false,
-                    "message" => "Only one ".$newType." entry allowed for this date"
-                ]);
+                apiResponse(false, "Only one ".$newType." entry allowed for this date", null, 200);
+                // echo json_encode([
+                //     "status" => false,
+                //     "message" => "Only one ".$newType." entry allowed for this date"
+                // ]);
                 
                 //rollbackQry();
                 exit;
@@ -48,10 +65,11 @@ if($data['saveGpData']==true)
         foreach ($existingTypes as $type) {
             if (in_array($type, ["OD", "FW", "TO"])) {
                 $isAllowed = false;
-                echo json_encode([
-                    "status" => false,
-                    "message" => "Full-day/Field/Tour entry already exists for this date"
-                ]);
+                apiResponse(false, "Full-day/Field/Tour entry already exists for this date", null, 200);
+                // echo json_encode([
+                //     "status" => false,
+                //     "message" => "Full-day/Field/Tour entry already exists for this date"
+                // ]);
                 //rollbackQry();
                 exit;
             }
@@ -62,20 +80,22 @@ if($data['saveGpData']==true)
         // ===============================
         if ($newType === "FO" && in_array("FO", $existingTypes)) {
             $isAllowed = false;    
-            echo json_encode([
-                "status" => false,
-                "message" => "First Half already exists for this date"
-            ]);
+            // echo json_encode([
+            //     "status" => false,
+            //     "message" => "First Half already exists for this date"
+            // ]);
+            apiResponse(false, "First Half already exists for this date", null, 200);
             //rollbackQry();
             exit;
         }
 
         if ($newType === "SO" && in_array("SO", $existingTypes)) {
             $isAllowed = false;
-            echo json_encode([
-                "status" => false,
-                "message" => "Second Half already exists for this date"
-            ]);
+            apiResponse(false, "Second Half already exists for this date", null, 200);
+            // echo json_encode([
+            //     "status" => false,
+            //     "message" => "Second Half already exists for this date"
+            // ]);
             //rollbackQry();
             exit;
         }
@@ -110,6 +130,7 @@ if($data['saveGpData']==true)
         // RULE 5: OI → always allowed
         // ===============================
         // No restriction needed
+        exit;
         if($isAllowed)
         {
             $name = singRec("SELECT hr_get_emp_mgr('".$data['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
@@ -176,22 +197,38 @@ if($data['saveGpData']==true)
                                     values(null,'".$maild."', '".strtolower($manageremail['COM_EMAIL'])." ','attendance@sdlindia.com',null)");			
                         endQry();
                     }
-                    
-                    echo json_encode([
-                        "status" => true,
+                    endQry();
+                    apiResponse(
+                      true,
+                      "Gatepass generated and send for Authorization successfully",
+                      [
                         "task_id" => $task_id,
                         "gpass_id" => $insert_id,
-                        "status_code" => 200,
-                        "message" => "Gatepass generated and send for Authorization successfully"
-                    ]);
+                      ]
+                    );
+                    // echo json_encode([
+                    //     "status" => true,
+                    //     "task_id" => $task_id,
+                    //     "gpass_id" => $insert_id,
+                    //     "status_code" => 200,
+                    //     "message" => "Gatepass generated and send for Authorization successfully"
+                    // ]);
                 } else {
-                    
-                    echo json_encode([
-                        "status" => true,
+                    endQry();
+                    apiResponse(
+                      true,
+                      "Gatepass generated successfully",
+                      [
                         "task_id" => $insert_id,
-                        "status_code" => 200,
-                        "message" => "Gatepass generated successfully"
-                    ]);
+                        "gpass_id" => $insert_id,
+                      ]
+                    );
+                    // echo json_encode([
+                    //     "status" => true,
+                    //     "task_id" => $insert_id,
+                    //     "status_code" => 200,
+                    //     "message" => "Gatepass generated successfully"
+                    // ]);
                 }
 
                 
