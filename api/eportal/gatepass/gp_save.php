@@ -16,6 +16,7 @@ if($data['saveGpData']==true)
         // ===============================
         // Fetch existing entries for same date
         // ===============================
+
         $gpass = multiRec("
             select OUT_TYPE 
             from EPT_EMPLOYEE_GPASS 
@@ -24,6 +25,7 @@ if($data['saveGpData']==true)
         ");
 
         $existingTypes = array_column($gpass, 'OUT_TYPE');
+        
         $newType = $data['OUT_TYPE'];
 
         // ===============================
@@ -32,12 +34,8 @@ if($data['saveGpData']==true)
         if (in_array($newType, ["OD", "FW", "TO"])) {
             if (count($existingTypes) > 0) {
                 $isAllowed = false;
-                echo json_encode([
-                    "status" => false,
-                    "message" => "Only one ".$newType." entry allowed for this date"
-                ]);
+                apiResponse(false, "Only one ".$newType." entry allowed for this date", null, 200);
                 
-                //rollbackQry();
                 exit;
             }
         }
@@ -48,11 +46,8 @@ if($data['saveGpData']==true)
         foreach ($existingTypes as $type) {
             if (in_array($type, ["OD", "FW", "TO"])) {
                 $isAllowed = false;
-                echo json_encode([
-                    "status" => false,
-                    "message" => "Full-day/Field/Tour entry already exists for this date"
-                ]);
-                //rollbackQry();
+                apiResponse(false, "Full-day/Field/Tour entry already exists for this date", null, 200);
+                
                 exit;
             }
         }
@@ -62,21 +57,14 @@ if($data['saveGpData']==true)
         // ===============================
         if ($newType === "FO" && in_array("FO", $existingTypes)) {
             $isAllowed = false;    
-            echo json_encode([
-                "status" => false,
-                "message" => "First Half already exists for this date"
-            ]);
-            //rollbackQry();
+           apiResponse(false, "First Half already exists for this date", null, 200);
+            
             exit;
         }
 
         if ($newType === "SO" && in_array("SO", $existingTypes)) {
             $isAllowed = false;
-            echo json_encode([
-                "status" => false,
-                "message" => "Second Half already exists for this date"
-            ]);
-            //rollbackQry();
+            apiResponse(false, "Second Half already exists for this date", null, 200);
             exit;
         }
 
@@ -110,6 +98,7 @@ if($data['saveGpData']==true)
         // RULE 5: OI → always allowed
         // ===============================
         // No restriction needed
+        //exit;
         if($isAllowed)
         {
             $name = singRec("SELECT hr_get_emp_mgr('".$data['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
@@ -176,35 +165,31 @@ if($data['saveGpData']==true)
                                     values(null,'".$maild."', '".strtolower($manageremail['COM_EMAIL'])." ','attendance@sdlindia.com',null)");			
                         endQry();
                     }
-                    
-                    echo json_encode([
-                        "status" => true,
+                    endQry();
+                    apiResponse(
+                      true,
+                      "Gatepass generated and send for Authorization successfully",
+                      [
                         "task_id" => $task_id,
                         "gpass_id" => $insert_id,
-                        "status_code" => 200,
-                        "message" => "Gatepass generated and send for Authorization successfully"
-                    ]);
+                      ]
+                    );
                 } else {
-                    
-                    echo json_encode([
-                        "status" => true,
+                    endQry();
+                    apiResponse(
+                      true,
+                      "Gatepass generated successfully",
+                      [
                         "task_id" => $insert_id,
-                        "status_code" => 200,
-                        "message" => "Gatepass generated successfully"
-                    ]);
+                        "gpass_id" => $insert_id,
+                      ]
+                    );
+                    
                 }
-
-                
             } else {
-                // echo json_encode([
-                //     "status" => false,
-                //     "status_code" => 500,
-                //     "message" => "Some Error occured"
-                // ]);
                 apiResponse(false,"Some Error occured",null,500,$e->getMessage());
             }
         }
-        
         endQry();
     }
 } 
@@ -259,11 +244,7 @@ else if($data['deleteOD']==true)
         executeQry("update ept_employee_gpass set status='X' where ID='".$data['ID']."' ") ;
 	    executeQry("update EPT_USER_TASKS set status='C', Remarks='Auto Closed due to Cancellation' where task_id='349' and tran_code='".$data['ID']."'");
 	}
-    // echo json_encode([
-    //     "status" => true,
-    //     "status_code" => 200,
-    //     "message" => "Gatepass deleted successfully"
-    // ]);
+   
      endQry();
     apiResponse(true,"Gatepass deleted successfully");
    

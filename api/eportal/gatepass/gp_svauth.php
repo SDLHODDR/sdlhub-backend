@@ -13,8 +13,6 @@ $decodeOT = [
 	'TO' => 'Tour'
 ];
 
-
-
 if($data['authForm']==true)
 {
     startQry();
@@ -66,13 +64,11 @@ if($data['authForm']==true)
 
         endQry('Task Rejected');
         
-        echo json_encode([
-            "status" => true,
-            "status_code" => 200,
-            "chkTask" => $chk,
-            "message" => "Record Rejected successfully"
-        ]);
-
+        apiResponse(
+            true,
+            "Record Rejected successfully",
+            [ "chkTask" => $chk]
+        );
         
 
 		
@@ -113,11 +109,6 @@ if($data['authForm']==true)
 		executeQry("INSERT INTO EPT_bcs_mailbox_epp_details(ID,MAIL_ID,EMAIL_TO,EMAIL_CC,EMAIL_BCC) values(null,'".$insert_id."', '".strtolower($empmail['EMAIL_ID_OFF'])." ','attendance@sdlindia.com',null)");
 
         endQry('Task Approved');
-        // echo json_encode([
-        //     "status" => true,
-        //     "status_code" => 200,
-        //     "message" => "Record Authroized successfully"
-        // ]);
         apiResponse(true,"Record Authroized successfully");
     }
 }
