@@ -1,137 +1,128 @@
-<?php
 
-ob_start();
+
+<?php
 
 require_once __DIR__ . "/../config/session.php";
 require_once __DIR__ . "/../cors.php";
 require_once __DIR__ . "/../config/db.php";
 
-$sql___func___con = db_eportal();
+$conn = db_eportal();
+$sql___func___con = $conn;
+
 require_once __DIR__ . "/../config/functions.php";
-require_once __DIR__ ."/../config/utils.php";
+require_once __DIR__ . "/../config/utils.php";
 
-header('Content-Type: application/json');
+header("Content-Type: application/json");
 
-// ================= SESSION VALIDATION =================
+try {
 
-if (!isset($_SESSION['emp_code'])) {   
-	apiResponse(false,"Unauthorized Access",null,401);
-}
+    /* ===========================================
+       DATABASE CONNECTION
+    =========================================== */
 
-$empCode = $_SESSION['emp_code'] ?? '';
+    if (!$conn) {
+        apiResponse(false, "Database connection failed.", null, 500);
+    }
 
-// ================= FETCH POLICIES =================
-/*
-$sql = "
-SELECT 
-    POLI_ID,
-    POLICY_NAME,
-    DOC_PATH,
-    POLICY_DESC,
-    TO_CHAR(START_DATE,'dd-Mon-yyyy') AS STARTDATE,
-    TO_CHAR(END_DATE,'dd-Mon-yyyy') AS ENDDATE
-FROM EPT_HR_POLICY
-WHERE STATUS = 'A'
-AND (
-    DIVISION_ID = (
-        SELECT DIVISION 
-        FROM EPT_BCS_EMPLOYEE
-        WHERE EMP_CODE = '$empCode'
-    )
-    OR DIVISION_ID IS NULL
-)
-AND (
-    DEPT_ID = (
-        SELECT DIVISION 
-        FROM EPT_BCS_EMPLOYEE
-        WHERE EMP_CODE = '$empCode'
-    )
-    OR DEPT_ID IS NULL
-)
--- Optional date filter:
--- AND SYSDATE BETWEEN START_DATE AND NVL(END_DATE, TO_DATE('31-Mar-3000','DD-Mon-YYYY'))
-ORDER BY START_DATE DESC
-"; */
+    /* ===========================================
+       SESSION VALIDATION
+    =========================================== */
 
-$sql = "
-SELECT 
-    POLI_ID,
-    POLICY_NAME,
-    DOC_PATH,
-    POLICY_DESC,
-    TO_CHAR(START_DATE, 'dd-Mon-yyyy') AS STARTDATE,
-    TO_CHAR(END_DATE, 'dd-Mon-yyyy') AS ENDDATE
-FROM EPT_HR_POLICY
-WHERE STATUS = 'A'
+    $empCode = $_SESSION['emp_code'] ?? '';
 
-    /* Division Filter */
-    AND (
-        DIVISION_ID = (
-            SELECT DIVISION
-            FROM EPT_BCS_EMPLOYEE
-            WHERE EMP_CODE = '$empCode'
+    if (empty($empCode)) {
+        apiResponse(false, "Unauthorized access.", null, 401);
+    }
+
+    /* ===========================================
+       FETCH POLICIES
+    =========================================== */
+
+    $empCodeEsc = str_replace("'", "''", $empCode);
+
+    $sql = "
+        SELECT
+            POLI_ID,
+            POLICY_NAME,
+            DOC_PATH,
+            POLICY_DESC,
+            TO_CHAR(START_DATE,'DD-MON-YYYY') STARTDATE,
+            TO_CHAR(END_DATE,'DD-MON-YYYY') ENDDATE
+        FROM EPT_HR_POLICY
+        WHERE STATUS = 'A'
+
+        AND (
+            DIVISION_ID = (
+                SELECT DIVISION
+                FROM EPT_BCS_EMPLOYEE
+                WHERE EMP_CODE = '{$empCodeEsc}'
+            )
+            OR DIVISION_ID IS NULL
         )
-        OR DIVISION_ID IS NULL
-    )
 
-    /* Department Filter */
-    AND (
-        DEPT_ID = (
-            SELECT DIVISION
-            FROM EPT_BCS_EMPLOYEE
-            WHERE EMP_CODE = '$empCode'
+        AND (
+            DEPT_ID = (
+                SELECT DEPT_ID
+                FROM EPT_BCS_EMPLOYEE
+                WHERE EMP_CODE = '{$empCodeEsc}'
+            )
+            OR DEPT_ID IS NULL
         )
-        OR DEPT_ID IS NULL
-    )
 
-   /* Start date should be started */
-    AND TRUNC(START_DATE) <= TRUNC(SYSDATE)
+        AND TRUNC(START_DATE) <= TRUNC(SYSDATE)
 
-    /* End date should be today or future */
-    AND (
-        END_DATE IS NULL
-        OR TRUNC(END_DATE) >= TRUNC(SYSDATE)
-    )
+        AND (
+            END_DATE IS NULL
+            OR TRUNC(END_DATE) >= TRUNC(SYSDATE)
+        )
 
-ORDER BY START_DATE DESC";
+        ORDER BY START_DATE DESC
+    ";
 
-$policy = multiRec($sql);
+    $policyRows = multiRec($sql);
 
-if (empty($policy)) {
-    echo json_encode([
-        "status" => true,
-        "data" => []
-    ]);
-    exit;
+    /* ===========================================
+       FORMAT RESPONSE
+    =========================================== */
+
+    $policies = [];
+
+    foreach ($policyRows as $row) {
+
+        $fileUrl = !empty($row["DOC_PATH"])
+            ? "https://hrms.sdlindia.com/hradmin/" . $row["DOC_PATH"]
+            : null;
+
+        $policies[] = [
+            "policyId"    => $row["POLI_ID"],
+            "policyName"  => $row["POLICY_NAME"],
+            "description" => $row["POLICY_DESC"],
+            "startDate"   => $row["STARTDATE"],
+            "endDate"     => $row["ENDDATE"],
+            "previewUrl"  => $fileUrl
+        ];
+    }
+
+    apiResponse(true, "Policies fetched successfully.", $policies);
+
+} catch (Exception $e) {
+
+    logOracleError(
+        [
+            "message" => $e->getMessage()
+        ],
+        "getPolicies.php"
+    );
+
+    apiResponse(false, "Something went wrong while fetching policies.", null,500);
+
+} finally {
+
+    if (!empty($conn)) {
+        oci_close($conn);
+    }
+
 }
-
-// ================= FORMAT RESPONSE =================
-
-$policies = [];
-
-foreach ($policy as $row) {
-
-    // Adjust base path if needed
-    $fileUrl = !empty($row['DOC_PATH'])
-        ? "https://hrms.sdlindia.com/hradmin/" . $row['DOC_PATH']
-        : null;
-
-    $policies[] = [
-        "policyId"     => $row['POLI_ID'],
-        "policyName"   => $row['POLICY_NAME'],
-        "description"  => $row['POLICY_DESC'],
-        "startDate"    => $row['STARTDATE'],
-        "endDate"      => $row['ENDDATE'],
-        "previewUrl"   => $fileUrl
-    ];
-}
-
-echo json_encode([
-    "status" => true,
-    "data"   => $policies
-]);
-
-exit;
 
 /*
 OUTPUT:

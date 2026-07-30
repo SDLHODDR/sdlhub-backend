@@ -1,8 +1,5 @@
 <?php
 
-error_reporting(E_ALL);
-ini_set("display_errors", 1);
-
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
@@ -10,7 +7,7 @@ require_once __DIR__ . "/../../config/db.php";
 $sql___func___con = db_eportal();
 
 require_once __DIR__ . "/../../config/functions.php";
-require_once __DIR__ ."/../../config/utils.php";
+require_once __DIR__ . "/../../config/utils.php";
 
 header("Content-Type: application/json");
 
@@ -26,170 +23,148 @@ Fetches:
 
 try {
 
-    if ($_SERVER["REQUEST_METHOD"] !== "GET") {
-        echo json_encode([
-            "status" => false,
-            "message" => "Invalid request method"
-        ]);
-        exit;
-    }
-    
-    // ================= SESSION VALIDATION =================
+    /* =====================================================
+       METHOD VALIDATION
+    ===================================================== */
 
-    if (!isset($_SESSION['emp_code'])) {   
-        apiResponse(false,"Unauthorized Access",null,401);
+    if ($_SERVER["REQUEST_METHOD"] !== "GET") {
+        apiResponse(false, "Invalid request method.", null, 405);
     }
+
+    /* =====================================================
+       SESSION VALIDATION
+    ===================================================== */
 
     $empCode = $_SESSION['emp_code'] ?? '';
 
-    /* ---------------------------
-    GET EMP ID
-    ---------------------------- */
-    $empId = singRec("
-        SELECT ID 
-        FROM EPT_BCS_EMPLOYEE 
-        WHERE emp_code = '".$empCode."'
-    ")['ID'] ?? null;
-
-    if (!$empId) {
-        echo json_encode(['status' => false, 'message' => 'Profile Not Found']);
-        exit;
+    if (empty($empCode)) {
+        apiResponse(false, "Unauthorized access.", null, 401);
     }
 
-    /*
-    =====================================================
-    CURRENT FINANCIAL YEAR
-    =====================================================
-    */
+    /* =====================================================
+       GET EMPLOYEE ID
+    ===================================================== */
 
-    
-    $bcs_acct_period = singRec("
-        SELECT *
-        FROM ept_bcs_acct_period 
-        WHERE SYSDATE BETWEEN fr_date AND to_date
+    $employee = singRec("
+        SELECT ID
+        FROM EPT_BCS_EMPLOYEE
+        WHERE EMP_CODE = '$empCode'
     ");
 
-    if (
-        empty($bcs_acct_period) ||
-        !isset($bcs_acct_period['DESCR'])
-    ) {
-        echo json_encode([
-            "status" => false,
-            "message" => "Financial year not found in BCS_ACCT_PERIOD"
-        ]);
-        exit;
-    }   
-    //$financialYear = $bcs_acct_period['DESCR'];
-    //$financialYear = '26-27';
+    $empId = $employee['ID'] ?? null;
 
-    $financialYear = $bcs_acct_period['CODE'] ?? '';
+    if (empty($empId)) {
+        apiResponse(false, "Employee profile not found.");
+    }
 
-    /*
-    =====================================================
-    GROSS SALARY
-    =====================================================
-    */
+    /* =====================================================
+       CURRENT FINANCIAL YEAR
+    ===================================================== */
 
-    $emp_gross = multiRec("
-        SELECT
-            b.sh_descr,
-            a.amount,
-            b.seq_no
-        FROM ept_bcs_allw_dedn_itax a
-        INNER JOIN ept_bcs_allw_dedn b
-            ON a.ad_code = b.ad_code
-        WHERE
-            a.emp_code = '{$empCode}'
-            AND a.fin_year = '{$financialYear}'
-        ORDER BY 3
+    $acctPeriod = singRec("
+        SELECT CODE
+        FROM EPT_BCS_ACCT_PERIOD
+        WHERE SYSDATE BETWEEN FR_DATE AND TO_DATE
     ");
 
-    /*
-    =====================================================
-    OTHER INCOME
-    =====================================================
-    */
+    $financialYear = $acctPeriod['CODE'] ?? '';
 
-    $other_income = multiRec("
+    if (empty($financialYear)) {
+        apiResponse(false, "Financial year not found.");
+    }
+
+    /* =====================================================
+       GROSS SALARY
+    ===================================================== */
+
+    $grossSalary = multiRec("
         SELECT
-            a.itax_id,
-            a.itax_desc,
-            b.amount,
-            b.agreement_attach,
-            b.fy,
-            '{$empCode}' AS emp_code
-        FROM ept_bcs_itax_heads a
+            b.SH_DESCR,
+            a.AMOUNT,
+            b.SEQ_NO
+        FROM EPT_BCS_ALLW_DEDN_ITAX a
+        INNER JOIN EPT_BCS_ALLW_DEDN b
+            ON a.AD_CODE = b.AD_CODE
+        WHERE a.EMP_CODE = '$empCode'
+        AND a.FIN_YEAR = '$financialYear'
+        ORDER BY b.SEQ_NO
+    ");
 
-        LEFT JOIN ept_bcs_itax_other_income b
-            ON a.itax_id = b.head_id
-            AND b.emp_id = '{$empId}'
-            AND b.fy = '{$financialYear}'
+    /* =====================================================
+       OTHER INCOME
+    ===================================================== */
 
-        WHERE a.itax_id IN (
-            SELECT head
-            FROM ept_bcs_itax_setup
-            WHERE sub_section = 'OTHER INCOME'
+    $otherIncome = multiRec("
+        SELECT
+            a.ITAX_ID,
+            a.ITAX_DESC,
+            b.AMOUNT,
+            b.AGREEMENT_ATTACH,
+            b.FY,
+            '$empCode' EMP_CODE
+        FROM EPT_BCS_ITAX_HEADS a
+
+        LEFT JOIN EPT_BCS_ITAX_OTHER_INCOME b
+            ON a.ITAX_ID = b.HEAD_ID
+            AND b.EMP_ID = '$empId'
+            AND b.FY = '$financialYear'
+
+        WHERE a.ITAX_ID IN (
+            SELECT HEAD
+            FROM EPT_BCS_ITAX_SETUP
+            WHERE SUB_SECTION = 'OTHER INCOME'
         )
 
-        ORDER BY 1
+        ORDER BY a.ITAX_ID
     ");
 
-    /*
-    =====================================================
-    DISTINCT DEDUCTIONS SECTIONS
-    =====================================================
-    */
+    /* =====================================================
+       DEDUCTION SECTIONS
+    ===================================================== */
 
-    $distinct_dedn = singDymention(
+    $deductionSections = singDymention(
         multiRec("
-            SELECT DISTINCT sub_section
-            FROM ept_bcs_itax_setup
-            WHERE sub_section NOT IN (
+            SELECT DISTINCT SUB_SECTION
+            FROM EPT_BCS_ITAX_SETUP
+            WHERE SUB_SECTION NOT IN (
                 'OTHER INCOME',
                 'OTHER SECTIONS'
             )
-            ORDER BY 1
+            ORDER BY SUB_SECTION
         ")
     );
 
     /* =====================================================
-       GET EXISTING REGIME
+       EMPLOYEE REGIME
     ===================================================== */
 
     $regimeData = singRec("
-        SELECT regime
+        SELECT REGIME
         FROM EPT_BCS_ITAX_EMP_REGIME
-        WHERE EMP_ID = '{$empId}'
-        AND FY = '{$financialYear}'
+        WHERE EMP_ID = '$empId'
+        AND FY = '$financialYear'
     ");
 
-    $regime = '';
-    if (!empty($regimeData) || isset($regimeData['REGIME'])) {
-        $regime = $regimeData['REGIME'];
-    }
+    $regime = $regimeData['REGIME'] ?? '';
 
-    /*
-    =====================================================
-    RESPONSE
-    =====================================================
-    */
+    /* =====================================================
+       SUCCESS RESPONSE
+    ===================================================== */
 
-    echo json_encode([
-        "status" => true,
-        "message" => "Data fetched successfully",
-
-        "data" => [
-            "gross_salary" => $emp_gross ?: [],
-            "other_income" => $other_income ?: [],
-            "deduction_sections" => $distinct_dedn ?: [],
-            "regime" => $regime ?: ""
+    apiResponse(
+        true,
+        "Income data fetched successfully.",
+        [
+            "financial_year" => $financialYear,
+            "gross_salary" => $grossSalary ?: [],
+            "other_income" => $otherIncome ?: [],
+            "deduction_sections" => $deductionSections ?: [],
+            "regime" => $regime
         ]
-    ]);
+    );
 
-} catch (Exception $e) {
+} catch (Throwable $e) {
 
-    echo json_encode([
-        "status" => false,
-        "message" => $e->getMessage()
-    ]);
+    logOracleError($e);
+    apiResponse(false, "Unable to fetch income data.", null, 500);
 }

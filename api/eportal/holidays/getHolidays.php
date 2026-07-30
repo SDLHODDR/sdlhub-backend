@@ -6,66 +6,104 @@ require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
 
 $sql___func___con = db_eportal();
+
 require_once __DIR__ . "/../../config/functions.php";
+require_once __DIR__ . "/../../config/utils.php";
 
 header('Content-Type: application/json');
 
-$empCode = $_SESSION['emp_code'] ?? '';
+try {
+    /* ========================
+       Session Validation
+       ======================== */
 
-if (!$empCode) {
-    echo json_encode([
-        "status" => false,
-        "message" => "Session expired"
-    ]);
-    exit;
-}
+    $empCode = $_SESSION['emp_code'] ?? '';
 
-$year = isset($_GET['year']) ? intval($_GET['year']) : date('Y');
+    if (!$empCode) {
+        apiResponse(false, "Session expired", null, 401);
+    }
 
-$strt_date = "01-Jan-$year";
-$end_date  = "31-Dec-$year";
+    /* ========================
+       Get Year Parameter
+       ======================== */
 
-$sqlRaw = multiRec("
-    SELECT 
-        BH.ID,
-        BH.DESCR,
-        TO_CHAR(BH.HOL_DATE, 'DAY') AS FULL_DAY,
-        TO_CHAR(BH.HOL_DATE,'yyyy-mm-dd') AS HOLDATE,
-        BH.HOL_TYPE
-    FROM EPT_BCS_HOLIDAYS BH
-    WHERE HOL_GRP = (
-        SELECT HOL_TBLNO 
+    $year = isset($_GET['year'])
+        ? intval($_GET['year'])
+        : date('Y');
+
+    $strtDate = "01-Jan-$year";
+    $endDate  = "31-Dec-$year";
+
+    /* ========================
+       Get Employee Holiday Group
+       ======================== */
+
+    $employeeSql = "
+        SELECT HOL_TBLNO
         FROM EPT_BCS_EMPLOYEE
         WHERE EMP_CODE = '$empCode'
-    )
-    AND HOL_TYPE IN ('H','O')
-    AND HOL_DATE BETWEEN '$strt_date' AND '$end_date'
-    ORDER BY HOLDATE
-");
+    ";
+    $employee = singRec($employeeSql);
 
-/* ========================
-   Clean Response Structure
-   ======================== */
+    if (empty($employee)) {
+        apiResponse(false, "Employee holiday group not found", null,404);
+    }
+    $holGrp = $employee['HOL_TBLNO'];
 
-$holidays = [];
+    /* ========================
+       Fetch Holidays
+       ======================== */
 
-if (!empty($sqlRaw)) {
+    $sql = "
+        SELECT
+            BH.ID,
+            BH.DESCR,
+            TRIM(TO_CHAR(BH.HOL_DATE, 'DAY')) AS FULL_DAY,
+            TO_CHAR(BH.HOL_DATE,'YYYY-MM-DD') AS HOLDATE,
+            BH.HOL_TYPE
+        FROM EPT_BCS_HOLIDAYS BH
+        WHERE BH.HOL_GRP = '$holGrp'
+        AND BH.HOL_TYPE IN ('H','O')
+        AND BH.HOL_DATE BETWEEN
+            TO_DATE('$strtDate','DD-Mon-YYYY')
+            AND TO_DATE('$endDate','DD-Mon-YYYY')
+        ORDER BY BH.HOL_DATE
+    ";
+
+    $sqlRaw = multiRec($sql);
+
+    /* ========================
+       Prepare Response
+       ======================== */
+
+    $holidays = [];
+
     foreach ($sqlRaw as $row) {
         $holidays[] = [
             "id"    => $row['ID'],
             "title" => trim($row['DESCR']),
-            "date"  => $row['HOLDATE'],        // yyyy-mm-dd
+            "date"  => $row['HOLDATE'],
             "day"   => trim($row['FULL_DAY']),
-            "type"  => $row['HOL_TYPE']        // H / O
+            "type"  => $row['HOL_TYPE']
         ];
     }
+
+    /* ========================
+       Success Response
+       ======================== */
+    apiResponse(true, "Holiday list fetched successfully",$holidays, 200,[],
+        [
+            "year"  => $year,
+            "count" => count($holidays)
+        ]
+    );
+
+} catch (Throwable $e) {
+    /* ========================
+       Error Logging
+       ======================== */
+
+    logOracleError($e);
+    apiResponse(false, "Unable to fetch holidays", null, 500);
+
 }
-
-echo json_encode([
-    "status" => true,
-    "year"   => $year,
-    "count"  => count($holidays),
-    "data"   => $holidays
-]);
-
-exit;

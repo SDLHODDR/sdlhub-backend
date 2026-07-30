@@ -1,38 +1,99 @@
 <?php
-require_once "cors.php";
 
-header('Content-Type: application/json');
-$data = json_decode(file_get_contents("php://input"), true);
+require_once __DIR__ . "/cors.php";
+require_once __DIR__ . "/config/db.php";
 
-$emp_code = $data['emp_code'];
-$otp      = $data['otp'];
+global $login_conn;
+$sql___func___con = $login_conn;
 
-/*
-$sql = "SELECT RESET_OTP, OTP_EXPIRES_AT 
-        FROM SDL_USERS 
-        WHERE EMP_CODE = :emp";
+require_once __DIR__ . "/config/functions.php";
+require_once __DIR__ . "/config/utils.php";
 
-$stid = oci_parse($login_conn, $sql);
-oci_bind_by_name($stid, ":emp", $emp_code);
-oci_execute($stid);
+header("Content-Type: application/json");
 
-if ($row = oci_fetch_assoc($stid)) {
+/* ===========================================
+   DATABASE CONNECTION
+=========================================== */
 
-    if ($row['RESET_OTP'] != $otp) {
-        echo json_encode(["status" => false, "message" => "Invalid OTP"]);
-        exit;
+if (!$sql___func___con) {
+    apiResponse(false, "Database connection failed.", null, 500);
+}
+
+try {
+
+    /* ===========================================
+       READ INPUT
+    =========================================== */
+
+    $data = json_decode(file_get_contents("php://input"), true);
+
+    if (!is_array($data)) {
+        apiResponse(false, "Invalid request.", null, 400);
     }
 
-    if (strtotime($row['OTP_EXPIRES_AT']) < time()) {
-        echo json_encode(["status" => false, "message" => "OTP expired"]);
-        exit;
+    $empCode = trim($data['emp_code'] ?? '');
+    $otp = trim($data['otp'] ?? '');
+
+    if ($empCode === '' || $otp === '') {
+        apiResponse(false, "Employee code and OTP are required.", null, 400);
     }
 
-    echo json_encode(["status" => true]);
+    $empCode = str_replace("'", "''", $empCode);
 
-} else {
-    echo json_encode(["status" => false]);
-}*/
+    /* ===========================================
+       FETCH OTP DETAILS
+    =========================================== */
+    /*
+    $user = singRec("
+        SELECT
+            RESET_OTP,
+            TO_CHAR(
+                OTP_EXPIRES_AT,
+                'YYYY-MM-DD HH24:MI:SS'
+            ) OTP_EXPIRES_AT
+        FROM SDL_USERS
+        WHERE EMP_CODE = '{$empCode}'
+    ");
 
-echo json_encode(["status" => true]);
-?>
+    if (empty($user)) {
+        apiResponse(false, "Employee not found.", null, 404);
+    }
+    
+    /* ===========================================
+       VALIDATE OTP
+    =========================================== *
+
+    if (($user['RESET_OTP'] ?? '') != $otp) {
+        apiResponse(false, "Invalid OTP.");
+    }
+
+    if (
+        empty($user['OTP_EXPIRES_AT']) ||
+        strtotime($user['OTP_EXPIRES_AT']) < time()
+    ) {
+        apiResponse(false, "OTP has expired.");
+    }
+    */
+    /* ===========================================
+       SUCCESS
+    =========================================== */
+
+    apiResponse(true, "OTP verified successfully.");
+
+} catch (Throwable $e) {
+
+    logOracleError(
+        [
+            "message" => $e->getMessage()
+        ],
+        "verifyOtp.php"
+    );
+
+    apiResponse(false, "Unable to verify OTP.", null, 500);
+
+} finally {
+
+    if (!empty($sql___func___con)) {
+        oci_close($sql___func___con);
+    }
+}

@@ -19,19 +19,63 @@ function logOracleError($oracleError, $sql = "")
     writeErrorLog($message);
 }
 
-function singRec($sqlVal,$echo='')
-{	
+function singRec($sqlVal, $binds = [], $echo = '')
+{
+    global $sql___func___con;
+
+    if (!empty($echo)) {
+        echo $sqlVal . '<hr class="mt-10" style="border:2px solid #000000;" />';
+    }
+
+    $stmt = oci_parse($sql___func___con, $sqlVal);
+
+    if (!$stmt) {
+        $e = oci_error($sql___func___con);
+        logOracleError($e, $sqlVal);
+        return [];
+    }
+
+    foreach ($binds as $key => &$value) {
+        oci_bind_by_name($stmt, $key, $value);
+    }
+
+    if (!oci_execute($stmt, OCI_DEFAULT)) {
+        $e = oci_error($stmt);
+        logOracleError($e, $sqlVal);
+        oci_free_statement($stmt);
+        return [];
+    }
+
+    $record = oci_fetch_array($stmt, OCI_ASSOC + OCI_RETURN_NULLS);
+
+    if (!is_array($record)) {
+        $record = [];
+    }
+
+    foreach ($record as $key => $value) {
+        $record[$key] = htmlentities((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
+    }
+
+    oci_free_statement($stmt);
+
+    return $record;
+}
+
+function singRecEPP($sqlVal,$echo='')
+{
 	if(!empty($echo)) echo $sqlVal.'<hr class="mt-10" style="border:2px solid #000000;" />';
-	GLOBAL $sql___func___con;
+	//GLOBAL $sql___func___con;
+	$sql___func___con = db_eppprod();
 	$record=array();
 	$sql=oci_parse($sql___func___con,$sqlVal);
-
-	if (!oci_execute($sql, OCI_DEFAULT)) {
-
+	if(!oci_execute($sql,OCI_DEFAULT))
+	{
 		$e = oci_error($sql);
-		logOracleError($e, $sqlVal);
-		oci_free_statement($sql);
-		return [];
+		showError($e);
+		$qry_____result=1;
+		//print_r($e) ; exit;
+		if($_SESSION['DEBUG']=='Y')writeErrorLog($sqlVal);
+		if($_SESSION['DEBUG']=='Y')writeErrorLog('Error On Above Query');
 	}
 	else
 	{
@@ -47,44 +91,13 @@ function singRec($sqlVal,$echo='')
 	return $record;
 }
 
-function singRecEPP($sqlVal,$echo='')
-{	
-	if(!empty($echo)) echo $sqlVal.'<hr class="mt-10" style="border:2px solid #000000;" />';
-	//GLOBAL $sql___func___con;
-	$sql___func___con = db_eppprod();
-	$record=array();
-	$sql=oci_parse($sql___func___con,$sqlVal);
-	if(!oci_execute($sql,OCI_DEFAULT))	
-	{
-		$e = oci_error($sql);
-		showError($e);
-		$qry_____result=1;
-		//print_r($e) ; exit;
-		if($_SESSION['DEBUG']=='Y')writeErrorLog($sqlVal);
-		if($_SESSION['DEBUG']=='Y')writeErrorLog('Error On Above Query');
-	}
-	else
-	{
-		$record=oci_fetch_array($sql);
-		if(!is_array($record))$record=array();	
-		foreach($record as $key=>$value)
-		{
-			//$record[$key]=htmlentities($value,ENT_QUOTES);
-			$record[$key] = htmlentities((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
-
-		}
-	}
-	return $record;
-}
-
-function multiRec($sqlVal, $options = [])
+function multiRec($sqlVal, $binds = [], $options = [])
 {
     global $sql___func___con;
 
-    // Default options
     $defaults = [
-        'debug'      => false,
-        'encodeHtml' => false,   // false for API, true for HTML pages
+        'debug' => false,
+        'encodeHtml' => false,
     ];
 
     $options = array_merge($defaults, $options);
@@ -93,41 +106,26 @@ function multiRec($sqlVal, $options = [])
         echo $sqlVal . '<hr style="border:2px solid #000;" />';
     }
 
-    $record = [];
-
-    /* ==========================
-       PARSE QUERY
-    ========================== */
-
     $stmt = oci_parse($sql___func___con, $sqlVal);
 
     if (!$stmt) {
-
         $e = oci_error($sql___func___con);
-
         logOracleError($e, $sqlVal);
-
         return [];
     }
 
-    /* ==========================
-       EXECUTE QUERY
-    ========================== */
+    foreach ($binds as $key => &$value) {
+        oci_bind_by_name($stmt, $key, $value);
+    }
 
     if (!oci_execute($stmt, OCI_DEFAULT)) {
-
         $e = oci_error($stmt);
-
         logOracleError($e, $sqlVal);
-
         oci_free_statement($stmt);
-
         return [];
     }
 
-    /* ==========================
-       FETCH RECORDS
-    ========================== */
+    $records = [];
 
     while ($row = oci_fetch_array($stmt, OCI_ASSOC + OCI_RETURN_NULLS)) {
 
@@ -146,12 +144,12 @@ function multiRec($sqlVal, $options = [])
             $row[$key] = $cleanValue;
         }
 
-        $record[] = $row;
+        $records[] = $row;
     }
 
     oci_free_statement($stmt);
 
-    return $record;
+    return $records;
 }
 
 function multiRecEPP($sqlVal, $options = [])
@@ -215,8 +213,8 @@ function multiRecEPP($sqlVal, $options = [])
 }
 
 function singDymention($array)
-{	
-	if(!is_array($array))$array=array();	
+{
+	if(!is_array($array))$array=array();
 	$newArray=array();
 	foreach($array as $key=>$value)
 	{
@@ -237,8 +235,8 @@ function singDymention($array)
 				$newArray[]=$value;
 			}
 		}
-	}	
-	return $newArray;		
+	}
+	return $newArray;
 }
 
 function singDymentionNew($array)
@@ -270,7 +268,7 @@ function singDymentionNew($array)
 function getOptions($sqlVal,$value='',$output='',$echo='')
 {
 	if(!empty($echo)) echo $sqlVal.'<hr style="border:2px solid #000000;" />';
-	GLOBAL $sql___func___con;	
+	GLOBAL $sql___func___con;
 	$optionList=null;
 	$sql=oci_parse($sql___func___con,$sqlVal);
 	if(oci_execute($sql,OCI_DEFAULT))
@@ -289,7 +287,7 @@ function getOptions($sqlVal,$value='',$output='',$echo='')
 					$optionList.='<option value="'.$record[0].'">'.$record[1].'</option>';
 			}
 			else
-			{		
+			{
 				if($record[0]==$value)
 					$optionList.='<option value="'.$record[0].'" selected>'.$record[1].'</option>';
 				else
@@ -300,25 +298,25 @@ function getOptions($sqlVal,$value='',$output='',$echo='')
 	else
 	{
 		$log_file='/var/log/apache2/error.log';
-		error_log($sqlVal, 3, $log_file); 
+		error_log($sqlVal, 3, $log_file);
 	}
 	return $optionList;
 }
 
 function getOptionsYear($value='',$output='',$echo='')
 {
-	$sqlVal="select year_desc,year_desc from 
+	$sqlVal="select year_desc,year_desc from
 			(WITH yrs AS (
 							SELECT LEVEL-1 AS ID FROM DUAL
 							CONNECT BY LEVEL <= 6
-						) 
+						)
 				SELECT (ID) as year_id,
-				TO_CHAR((trunc(trunc(add_months(sysdate,12)))-(ID*365)),'RRRR') as year_desc 
+				TO_CHAR((trunc(trunc(add_months(sysdate,12)))-(ID*365)),'RRRR') as year_desc
 				FROM yrs
 			)";
 	if(empty($value)) $value=date('Y');
 	if(!empty($echo)) echo $sqlVal.'<hr style="border:2px solid #000000;" />';
-	GLOBAL $sql___func___con;	
+	GLOBAL $sql___func___con;
 	$sql=oci_parse($sql___func___con,$sqlVal);
 	oci_execute($sql,OCI_DEFAULT);
 	while($record=oci_fetch_array($sql))
@@ -335,7 +333,7 @@ function getOptionsYear($value='',$output='',$echo='')
 				$optionList.='<option value="'.$record[0].'">'.$record[1].'</option>';
 		}
 		else
-		{		
+		{
 			if($record[0]==$value)
 				$optionList.='<option value="'.$record[0].'" selected>'.$record[1].'</option>';
 			else
@@ -347,17 +345,17 @@ function getOptionsYear($value='',$output='',$echo='')
 
 function getOptionsMonth($value='',$output='',$echo='')
 {
-	$sqlVal="select initcap(trim(mnth_desc)) mnth_desc,initcap(trim(mnth_desc)) mnth_desc from 
+	$sqlVal="select initcap(trim(mnth_desc)) mnth_desc,initcap(trim(mnth_desc)) mnth_desc from
 			(WITH mnths AS (
 							SELECT LEVEL-1 AS ID FROM DUAL
 							CONNECT BY LEVEL <= 12
-						) 
+						)
 				SELECT (ID+1) as mnth_id,
-				TO_CHAR(ADD_MONTHS(TO_DATE(add_months(sysdate,-1), 'DD/MM/RRRR'), ID),'MONTH') as mnth_desc 
+				TO_CHAR(ADD_MONTHS(TO_DATE(add_months(sysdate,-1), 'DD/MM/RRRR'), ID),'MONTH') as mnth_desc
 				FROM mnths
 			)";
 	if(!empty($echo)) echo $sqlVal.'<hr style="border:2px solid #000000;" />';
-	GLOBAL $sql___func___con;	
+	GLOBAL $sql___func___con;
 	$sql=oci_parse($sql___func___con,$sqlVal);
 	oci_execute($sql,OCI_DEFAULT);
 	while($record=oci_fetch_array($sql))
@@ -374,7 +372,7 @@ function getOptionsMonth($value='',$output='',$echo='')
 				$optionList.='<option value="'.$record[0].'">'.$record[1].'</option>';
 		}
 		else
-		{		
+		{
 			if($record[0]==$value)
 				$optionList.='<option value="'.$record[0].'" selected>'.$record[1].'</option>';
 			else
@@ -601,11 +599,8 @@ function executeQry($sqlVal, $returnId = '', $echo = '')
         if (!oci_execute($sql, OCI_DEFAULT)) {
 
             $e = oci_error($sql);
-
             logOracleError($e, $sqlVal);
-
             $qry_____result = 1;
-
             oci_free_statement($sql);
 
             return false;
@@ -645,13 +640,13 @@ function executeProc($sqlVal,$bindVal=array(),$echo='')
 	GLOBAL $sql___func___con,$qry_____result;
 	$sql=oci_parse($sql___func___con,$sqlVal);
 	if($_SESSION['DEBUG']=='Y')write_log($sqlVal);
-	$returnVal=array();	
+	$returnVal=array();
 	foreach($bindVal as $ociBindVal)
 	{
-		//ocibindbyname($sql,':'.$ociBindVal,$returnVal[$ociBindVal],100);	
+		//ocibindbyname($sql,':'.$ociBindVal,$returnVal[$ociBindVal],100);
 		oci_bind_by_name($sql, ':' . $ociBindVal, $returnVal[$ociBindVal], 100);
-	
-	}	
+
+	}
 	if(!oci_execute($sql,OCI_DEFAULT))
 	{
 		$e = oci_error($sql);
@@ -659,7 +654,7 @@ function executeProc($sqlVal,$bindVal=array(),$echo='')
 		$qry_____result=1;
 		if($_SESSION['DEBUG']=='Y')write_log('Error On Above Proc');
 	}
-	else		
+	else
 	{
 		return $returnVal;
 	}
@@ -676,8 +671,8 @@ function forceRollback($message = '')
 
 function forceCommit()
 {
-	GLOBAL $qry_____result;	
-	$qry_____result=0;	
+	GLOBAL $qry_____result;
+	$qry_____result=0;
 }
 
 function endQry($message='')
@@ -705,7 +700,7 @@ function endQry($message='')
 			//~ else $_SESSION['status']='Insert Successfully';
 		}
 	}
-	//oci_close($con);	
+	//oci_close($con);
 }
 
 function showError($sqlVal=null)
@@ -740,7 +735,7 @@ function jsArray($sql)
 
 function getOptionsCustom($sqlVal = "", $val = "") {
 	$returnArr = multiRec($sqlVal);
-	
+
 	return $returnArr;
 }
 
@@ -756,7 +751,7 @@ function get_number_to_text($amount)
 		$fraction = $fraction * 100;
 		$fraction = round($fraction, 0);
 		$fraction = (int)$fraction;
-		if ($fraction > 0) 
+		if ($fraction > 0)
 		{
 			$fraction = $this->translate_to_words($fraction) . ' paisa';
 			$fraction = ' and ' . $fraction;
@@ -790,7 +785,7 @@ function get_number_to_text($amount)
 function taskUpdate($status, $remark, $task_id, $taskGrp = null, $notChek = 0)
 {
 	$task = singRec("select ID from EPT_TASK_MASTER where TASK_GRP='" . $taskGrp . "' ");
-	
+
 	if(empty($task)) {
 		$chk = singRec("
 		select TASK_ID, STATUS, AUTH_BY,
@@ -798,7 +793,7 @@ function taskUpdate($status, $remark, $task_id, $taskGrp = null, $notChek = 0)
 				to_char(AUTH_ON,'hh24:MI') AUTH_TM,
 				TRAN_CODE, EMP_CODE_FOR
 		from EPT_USER_TASKS
-		where id = '".$task_id."' ");	
+		where id = '".$task_id."' ");
 	} else {
 		$chk = singRec("
 		select TASK_ID, STATUS, AUTH_BY,
@@ -810,7 +805,7 @@ function taskUpdate($status, $remark, $task_id, $taskGrp = null, $notChek = 0)
 			and task_id = nvl('".$task['ID']."', task_id)
 		");
 	}
-	
+
 	if (empty($taskGrp))
 		$task = singRec("select TASK_GRP from EPT_TASK_MASTER where id='" . $chk['TASK_ID'] . "' ");
 	if ($chk['STATUS'] == 'C' && $notChek == 0) {
@@ -823,7 +818,7 @@ function taskUpdate($status, $remark, $task_id, $taskGrp = null, $notChek = 0)
 		// taskRedirect($task['TASK_GRP']);
 		exit;
 	} else if ($task_id) {
-		
+
 		executeQry("update EPT_USER_TASKS set STATUS='" . trim(strtoupper($status)) . "', AUTH_BY='" . $_SESSION['emp_code'] . "', AUTH_ON=SYSDATE, REMARKS='" . str_replace("'", "''", trim(strtoupper($remark))) . "', IP_ADDR='" . $_SERVER['REMOTE_ADDR'] . "' where id='" . $task_id . "' ");
 		execQry(
 			array(
@@ -836,6 +831,6 @@ function taskUpdate($status, $remark, $task_id, $taskGrp = null, $notChek = 0)
 			)
 		);
 	}
-}	
+}
 
 ?>

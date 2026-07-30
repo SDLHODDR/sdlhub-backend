@@ -1,82 +1,156 @@
 <?php
+
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
 
 $sql___func___con = db_eportal();
+
 require_once __DIR__ . "/../../config/functions.php";
-require_once __DIR__ ."/../../config/utils.php";
+require_once __DIR__ . "/../../config/utils.php";
 
-header('Content-Type: application/json');
+header("Content-Type: application/json");
 
-session_start();
+try {
 
-$empCode = $_SESSION['emp_code'] ?? null;
+    /*
+    |--------------------------------------------------------------------------
+    | METHOD CHECK
+    |--------------------------------------------------------------------------
+    */
 
-/* RELEASE LOCK */
-session_write_close();
+    if ($_SERVER["REQUEST_METHOD"] !== "GET") {
+        apiResponse(false, "Invalid request method.", null, 405);
+    }
 
-if (!$empCode) {   
-	apiResponse(false,"Unauthorized Access",null,401);
+    /*
+    |--------------------------------------------------------------------------
+    | SESSION CHECK
+    |--------------------------------------------------------------------------
+    */
+
+    if (!isset($_SESSION["emp_code"])) {
+        apiResponse(false, "Unauthorized Access.", null, 401);
+    }
+
+    $empCode = trim($_SESSION["emp_code"]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | VERIFY EMPLOYEE
+    |--------------------------------------------------------------------------
+    */
+
+    $employee = singRec("
+        SELECT ID
+        FROM EPT_BCS_EMPLOYEE
+        WHERE EMP_CODE = '".$empCode."'
+    ");
+
+    $empId = $employee["ID"] ?? null;
+
+    if (!$empId) {
+        apiResponse(false, "Profile not found.", null, 404);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | RELEASE SESSION LOCK
+    |--------------------------------------------------------------------------
+    */
+
+    session_write_close();
+
+    /*
+    |--------------------------------------------------------------------------
+    | CURRENT FINANCIAL YEAR
+    |--------------------------------------------------------------------------
+    */
+
+    $year  = date("Y");
+    $month = date("m");
+
+    $fy = ($month >= 4)
+        ? $year . "-" . substr($year + 1, -2)
+        : ($year - 1) . "-" . substr($year, -2);
+
+    /*
+    |--------------------------------------------------------------------------
+    | FETCH LATEST REMARK
+    |--------------------------------------------------------------------------
+    */
+
+    $row = singRec("
+        SELECT
+            REMARKS,
+            EPT_GET_EMP_NAME(ACTIONED_BY) AS ACCT_NAME
+        FROM (
+            SELECT
+                REMARKS,
+                ACTIONED_BY
+            FROM EPT_BCS_ITAX_EMP_REGIME
+            WHERE FY = '".$fy."'
+            AND EMP_ID = '".$empId."'
+            AND REMARKS IS NOT NULL
+            ORDER BY ID DESC
+        )
+        WHERE ROWNUM = 1
+    ");
+
+    /*
+    |--------------------------------------------------------------------------
+    | FORMAT RESPONSE
+    |--------------------------------------------------------------------------
+    */
+
+    $data = null;
+
+    if (!empty($row)) {
+        $data = [
+            "remarks" => $row["REMARKS"],
+            "by"       => $row["ACCT_NAME"]
+        ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SUCCESS RESPONSE
+    |--------------------------------------------------------------------------
+    */
+
+    apiResponse(
+        true,
+        "Remarks fetched successfully.",
+        $data
+    );
+
+} catch (Throwable $e) {
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOG ERROR
+    |--------------------------------------------------------------------------
+    */
+
+    logOracleError($e);
+
+    apiResponse(
+        false,
+        "Unable to fetch remarks.",
+        null,
+        500
+    );
+
+} finally {
+
+    /*
+    |--------------------------------------------------------------------------
+    | CLOSE CONNECTION
+    |--------------------------------------------------------------------------
+    */
+
+    if ($sql___func___con) {
+        oci_close($sql___func___con);
+    }
+
 }
-
-/* ---------------------------
-   GET EMP ID
----------------------------- */
-$empId = singRec("
-    SELECT ID 
-    FROM EPT_BCS_EMPLOYEE 
-    WHERE emp_code = '".$empCode."'
-")['ID'] ?? null;
-
-if (!$empId) {
-    echo json_encode(['status' => false, 'message' => 'Profile Not Found']);
-    exit;
-}
-
-/* ---------------------------
-   CORRECT FY
----------------------------- */
-$year = date('Y');
-$month = date('m');
-
-$fy = ($month >= 4)
-    ? $year . '-' . substr($year + 1, -2)
-    : ($year - 1) . '-' . substr($year, -2);
-
-/* ---------------------------
-   FETCH LATEST REMARK
----------------------------- */
-$row = singRec("
-    SELECT remarks,
-           ept_get_emp_name(actioned_by) AS acct_name
-    FROM (
-        SELECT remarks, actioned_by
-        FROM ept_bcs_itax_emp_regime
-        WHERE fy = '$fy'
-        AND emp_id = '$empId'
-        AND remarks IS NOT NULL
-        ORDER BY id DESC
-    )
-    WHERE ROWNUM = 1
-");
-
-/* ---------------------------
-   RESPONSE
----------------------------- */
-echo json_encode([
-    'status' => true,
-    'data' => $row ? [
-        'remarks' => $row['REMARKS'],
-        'by' => $row['ACCT_NAME']
-    ] : null
-]);
-
-
-/*echo json_encode([
-    'status' => true,
-    'data' => [
-        'remarks' => "Testing is going on....",
-        'by' => "savita jagtap"
-    ]
-]);*/

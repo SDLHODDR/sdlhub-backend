@@ -1,8 +1,4 @@
 <?php
-
-error_reporting(E_ALL);
-ini_set("display_errors", 1);
-
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
@@ -14,127 +10,95 @@ require_once __DIR__ . "/../../config/utils.php";
 
 header("Content-Type: application/json");
 
-/*
-|--------------------------------------------------------------------------
-| METHOD CHECK
-|--------------------------------------------------------------------------
-*/
+try {
 
-if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-    echo json_encode([
-        "status" => false,
-        "message" => "Invalid request method"
-    ]);
-    exit;
-}
+    /* =====================================================
+       METHOD VALIDATION
+    ===================================================== */
 
-/*
-|--------------------------------------------------------------------------
-| SESSION CHECK
-|--------------------------------------------------------------------------
-*/
+    if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+        apiResponse(false, "Invalid request method.", null, 405);
+    }
 
-if (!isset($_SESSION["emp_code"])) {
-    apiResponse(false, "Unauthorized Access", null, 401);
-    exit;
-}
+    /* =====================================================
+       SESSION VALIDATION
+    ===================================================== */
 
-$empCode = $_SESSION["emp_code"] ?? "";
+    $empCode = $_SESSION["emp_code"] ?? "";
 
-/*
-|--------------------------------------------------------------------------
-| READ INPUT
-|--------------------------------------------------------------------------
-*/
+    if (empty($empCode)) {
+        apiResponse(false, "Unauthorized access.", null, 401);
+    }
 
-$data = json_decode(file_get_contents("php://input"), true);
+    /* =====================================================
+       READ INPUT
+    ===================================================== */
 
-$exemptionId = $data["exemption_id"] ?? "";
+    $data = json_decode(file_get_contents("php://input"), true);
 
-/*
-|--------------------------------------------------------------------------
-| VALIDATION
-|--------------------------------------------------------------------------
-*/
+    if (!is_array($data)) {
+        apiResponse(false, "Invalid request payload.");
+    }
 
-if (empty($exemptionId)) {
-    echo json_encode([
-        "status" => false,
-        "message" => "Exemption ID is required"
-    ]);
-    exit;
-}
+    $exemptionId = trim($data["exemption_id"] ?? "");
 
-/*
-|--------------------------------------------------------------------------
-| GET EMPLOYEE ID
-|--------------------------------------------------------------------------
-*/
+    if (empty($exemptionId)) {
+        apiResponse(false, "Exemption ID is required.");
+    }
 
-$empId = singRec("
-    SELECT ID
-    FROM EPT_BCS_EMPLOYEE
-    WHERE EMP_CODE = '".$empCode."'
-")["ID"] ?? null;
+    /* =====================================================
+       GET EMPLOYEE ID
+    ===================================================== */
 
-if (!$empId) {
-    echo json_encode([
-        "status" => false,
-        "message" => "Employee not found"
-    ]);
-    exit;
-}
+    $employee = singRec("
+        SELECT ID
+        FROM EPT_BCS_EMPLOYEE
+        WHERE EMP_CODE = '$empCode'
+    ");
 
-/*
-|--------------------------------------------------------------------------
-| VERIFY RECORD BELONGS TO EMPLOYEE
-|--------------------------------------------------------------------------
-*/
+    $empId = $employee["ID"] ?? null;
 
-$existingRecord = singRec("
-    SELECT ID
-    FROM EPT_BCS_ITAX_EXEMPTION
-    WHERE ID = '".$exemptionId."'
-    AND EMP_ID = '".$empId."'
-");
+    if (empty($empId)) {
+        apiResponse(false, "Employee not found.");
+    }
 
-if (!$existingRecord) {
-    echo json_encode([
-        "status" => false,
-        "message" => "Exemption record not found"
-    ]);
-    exit;
-}
+    /* =====================================================
+       VERIFY RECORD
+    ===================================================== */
 
-/*
-|--------------------------------------------------------------------------
-| DELETE RECORD
-|--------------------------------------------------------------------------
-*/
+    $existingRecord = singRec("
+        SELECT ID
+        FROM EPT_BCS_ITAX_EXEMPTION
+        WHERE ID = '$exemptionId'
+        AND EMP_ID = '$empId'
+    ");
 
-$deleteQuery = "
-    DELETE FROM EPT_BCS_ITAX_EXEMPTION
-    WHERE ID = '".$exemptionId."'
-    AND EMP_ID = '".$empId."'
-";
-startQry();
-$result = executeQry($deleteQuery);
-endQry('Exemption Deleted');
+    if (empty($existingRecord)) {
+        apiResponse(false, "Exemption record not found.");
+    }
 
-/*
-|--------------------------------------------------------------------------
-| RESPONSE
-|--------------------------------------------------------------------------
-*/
+    /* =====================================================
+       DELETE RECORD
+    ===================================================== */
 
-if ($result) {
-    echo json_encode([
-        "status" => true,
-        "message" => "Exemption record deleted successfully"
-    ]);
-} else {
-    echo json_encode([
-        "status" => false,
-        "message" => "Failed to delete exemption record"
-    ]);
+    startQry();
+
+    executeQry("
+        DELETE FROM EPT_BCS_ITAX_EXEMPTION
+        WHERE ID = '$exemptionId'
+        AND EMP_ID = '$empId'
+    ");
+
+    endQry("Exemption Deleted");
+
+    /* =====================================================
+       SUCCESS RESPONSE
+    ===================================================== */
+
+    apiResponse(true, "Exemption record deleted successfully.");
+
+} catch (Throwable $e) {
+
+    logOracleError($e);
+    apiResponse(false, "Unable to delete exemption record.", null, 500);
 }

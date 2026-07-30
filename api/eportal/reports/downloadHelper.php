@@ -84,9 +84,9 @@ function createZipFile(
 
     // Create temp directory if required
     ensureDirectoryExists(TEMP_ZIP_PATH);
-    
+
     $zipFileName = generateZipFileName($category, $type, $financialYear, $empCode);
-   
+
     $zipFilePath = rtrim(TEMP_ZIP_PATH, "/") . "/" . $zipFileName;
 
     // Create ZIP
@@ -155,7 +155,7 @@ function processDocumentDownload(
     string $type,
     string $empCode = ""
 ): void {
-	
+
     /*
     =====================================================
     SINGLE EMPLOYEE
@@ -169,17 +169,17 @@ function processDocumentDownload(
 			$financialYear,
 			$empCode
 		);
-       
-        if (!is_dir($empFolder)) {           
+
+        if (!is_dir($empFolder)) {
             responseError("Employee folder not found.");
         }
-              
+
        foreach(getDirectoryFiles($empFolder) as $file){
 
             if ($file->isDir()) {
                 continue;
             }
-          
+
 			$relativePath = substr(
 				$file->getRealPath(),
 				strlen($empFolder) + 1
@@ -264,15 +264,22 @@ string $requestedBy
     oci_bind_by_name($stmt, ":requested_by", $requestedBy);
     oci_bind_by_name($stmt, ":job_id", $jobId, 32);
 
-    if (!oci_execute($stmt)) {
-        $e = oci_error($stmt);
-        responseError("Failed to create download job : " . $e["message"]);
-    }
+    if (!oci_execute($stmt, OCI_DEFAULT)) {
+
+		$e = oci_error($stmt);
+		logOracleError($e, $sql);
+		apiResponse(
+			false,
+			"Failed to create download job.",
+			null,
+			500
+		);
+	}
 
     oci_commit($con);
-    
+
     return $jobId;
-    
+
 }
 
 
@@ -330,24 +337,24 @@ function processDeclarationDownload(
 
         return;
     }
-       
+
     $jobId = createDeclarationDownloadJob(
 		$con,
 		$financialYear,
 		$requestedBy
 	);
-    
+
     /*
     =====================================================
     START BACKGROUND WORKER
     =====================================================
     */
-    
+
     startDeclarationWorker(
 		$jobId,
 		$financialYear
-	);    
-	
+	);
+
     responseSuccess("Your request has been submitted successfully. A download link will be emailed once processing is completed.");
 }
 
@@ -356,7 +363,7 @@ function startDeclarationWorker(
     string $financialYear
 ): void
 {
-	
+
 	$workerFile = __DIR__ . "/../jobs/processDeclarationDownload.php";
 
     if (!file_exists($workerFile)) {
@@ -431,19 +438,19 @@ function logDownload(
     string $publicZipPath
 ): void
 {
-		
+
 	$ipAddress = $_SERVER['REMOTE_ADDR'] ?? '';
 	$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 
 	$browserName = getBrowserName($userAgent);
 	//$fileSizeMb = round(filesize($publicZipPath) / 1024 / 1024, 2);
-	
+
 	$fileSizeMb = file_exists($publicZipPath)
     ? round(filesize($publicZipPath) / 1024 / 1024, 2)
     : 0;
 
 	$targetEmp = $type === "single" ? $empCode : "ALL";
-        
+
 	$logSql = "
 	INSERT INTO EPT_ITR_DOWNLOAD_LOG
 	(
@@ -483,7 +490,13 @@ function logDownload(
 
 	if (!$logStmt) {
 		$e = oci_error($con);
-		error_log("ITR Download Log Parse Error: " . $e['message']);
+		logOracleError($e, $logSql);
+		apiResponse(
+			false,
+			"ITR Download Log Parse Error:".$e['message'],
+			null,
+			500
+		);
 		return;
 	}
 
@@ -498,9 +511,16 @@ function logDownload(
 	oci_bind_by_name($logStmt, ":user_agent", $userAgent);
 	oci_bind_by_name($logStmt, ":browser_name", $browserName);
 
-	if (!oci_execute($logStmt)) {
+	if (!oci_execute($logStmt, OCI_DEFAULT)) {
 		$e = oci_error($logStmt);
-		error_log("ITR Download Log Error: " . $e['message']);
+		logOracleError($e, $logSql);
+		apiResponse(
+			false,
+			"ITR Download Log Error:".$e['message'],
+			null,
+			500
+		);
+
 	} else {
 		oci_commit($con);
 	}

@@ -1,7 +1,7 @@
 <?php
 
-error_reporting(E_ALL);
-ini_set("display_errors", 1);
+//error_reporting(E_ALL);
+//ini_set("display_errors", 1);
 
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
@@ -9,6 +9,7 @@ require_once __DIR__ . "/../../config/db.php";
 $sql___func___con = db_eportal();
 
 require_once __DIR__ . "/../../config/functions.php";
+require_once __DIR__ . "/../../config/utils.php";
 
 header("Content-Type: application/json");
 
@@ -18,12 +19,8 @@ header("Content-Type: application/json");
 |--------------------------------------------------------------------------
 */
 
-if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-    echo json_encode([
-        "status" => false,
-        "message" => "Invalid request method"
-    ]);
-    exit;
+if ($_SERVER["REQUEST_METHOD"] !== "POST") {    
+    apiResponse(false, "Invalid request method", null, 405);
 }
 
 /*
@@ -34,7 +31,6 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
 
 if (!isset($_SESSION['emp_code'])) {
     apiResponse(false, "Unauthorized Access", null, 401);
-    exit;
 }
 
 $empCode = $_SESSION['emp_code'] ?? '';
@@ -49,8 +45,7 @@ $empId = singRec("
 ")['ID'] ?? null;
 
 if (!$empId) {
-    echo json_encode(['status' => false, 'message' => 'Profile Not Found']);
-    exit;
+    apiResponse(false, "Profile Not Found", null, 404);
 }
 
 /*
@@ -61,12 +56,8 @@ if (!$empId) {
 
 $input = json_decode(file_get_contents("php://input"), true);
 
-if (!$input) {
-    echo json_encode([
-        "status" => false,
-        "message" => "Invalid input data"
-    ]);
-    exit;
+if (!is_array($input)) {
+    apiResponse(false, "Invalid input data.");
 }
 
 /*
@@ -76,6 +67,10 @@ if (!$input) {
 */
 
 $id = trim($input["id"] ?? "");
+
+if ($id !== "" && !ctype_digit($id)) {
+    apiResponse(false, "Invalid record id.");
+}
 
 $previousEmployerName    = trim($input["previousEmployerName"] ?? "");
 $previousEmployerAddress = trim($input["previousEmployerAddress"] ?? "");
@@ -112,12 +107,51 @@ if (
     $total === "" ||
     $insurance === "" ||
     $tds === ""
-) {
-    echo json_encode([
-        "status" => false,
-        "message" => "Please fill all required fields"
-    ]);
-    exit;
+) {   
+    apiResponse(false, "Please fill all required fields.");
+}
+
+$fromObj = DateTime::createFromFormat('Y-m-d', $fromDate);
+$toObj   = DateTime::createFromFormat('Y-m-d', $toDate);
+
+if (!$fromObj || $fromObj->format('Y-m-d') !== $fromDate) {
+    apiResponse(false, "Invalid From Date.");
+}
+
+if (!$toObj || $toObj->format('Y-m-d') !== $toDate) {
+    apiResponse(false, "Invalid To Date.");
+}
+
+if (strtotime($fromDate) > strtotime($toDate)) {
+    apiResponse(false, "From Date cannot be greater than To Date.");
+}
+
+if (!preg_match('/^[A-Z]{5}[0-9]{4}[A-Z]$/i', $panNumber)) {
+    apiResponse(false, "Invalid PAN number.");
+}
+
+if (!preg_match('/^[A-Z]{4}[0-9]{5}[A-Z]$/i', $tanNumber)) {
+    apiResponse(false, "Invalid TAN number.");
+}
+
+$numericFields = [
+    "Total Salary" => $totalSalary,
+    "HRA" => $hra,
+    "Perquisites" => $perquisites,
+    "Total" => $total,
+    "Insurance" => $insurance,
+    "TDS" => $tds
+];
+
+foreach ($numericFields as $label => $value) {
+
+    if (
+        !is_numeric($value) ||
+        $value < 0 ||
+        $value > 999999999
+    ) {
+        apiResponse(false, "$label is invalid.");
+    }
 }
 
 try {
@@ -128,25 +162,36 @@ try {
     |--------------------------------------------------------------------------
     */
 
-    $checkSql = "s
+    $checkSql = "
         SELECT ID
         FROM EPT_BCS_ITAX_12B
         WHERE EMP_ID = :emp_id
     ";
 
     $checkStmt = oci_parse($sql___func___con, $checkSql);
+
+    if (!$checkStmt) {
+        $e = oci_error($sql___func___con);
+        throw new Exception($e["message"]);
+    }
+
     oci_bind_by_name($checkStmt, ":emp_id", $empId);
-    oci_execute($checkStmt);
+
+    if (!oci_execute($checkStmt)) {
+        $e = oci_error($checkStmt);
+        throw new Exception($e["message"]);
+    }
 
     $existing = oci_fetch_assoc($checkStmt);
+    oci_free_statement($checkStmt);
 
     /*
     |--------------------------------------------------------------------------
     | UPDATE
     |--------------------------------------------------------------------------
     */
-
-    if ($existing || !empty($id)) {
+  
+    if (!empty($existing) || !empty($id)) {
 
         $recordId = !empty($id)
             ? $id
@@ -178,6 +223,11 @@ try {
         ";
 
         $stmt = oci_parse($sql___func___con, $updateSql);
+
+        if (!$stmt) {
+            $e = oci_error($sql___func___con);
+            throw new Exception($e["message"]);
+        }
 
         oci_bind_by_name($stmt, ":previousEmployerName", $previousEmployerName);
         oci_bind_by_name($stmt, ":previousEmployerAddress", $previousEmployerAddress);
@@ -260,6 +310,11 @@ try {
 
         $stmt = oci_parse($sql___func___con, $insertSql);
 
+        if (!$stmt) {
+            $e = oci_error($sql___func___con);
+            throw new Exception($e["message"]);
+        }
+
         oci_bind_by_name($stmt, ":emp_id", $empId);
 
         oci_bind_by_name($stmt, ":previousEmployerName", $previousEmployerName);
@@ -289,32 +344,28 @@ try {
     |--------------------------------------------------------------------------
     */
 
-    $result = oci_execute($stmt, OCI_NO_AUTO_COMMIT);
-
-    if ($result) {
-        oci_commit($sql___func___con);
-
-        echo json_encode([
-            "status" => true,
-            "message" => $message
-        ]);
-    } else {
+    if (!oci_execute($stmt, OCI_NO_AUTO_COMMIT)) {
         $e = oci_error($stmt);
-
-        oci_rollback($sql___func___con);
-
-        echo json_encode([
-            "status" => false,
-            "message" => $e["message"]
-        ]);
+        throw new Exception($e["message"]);
     }
 
-} catch (Exception $e) {
+    oci_commit($sql___func___con);
+    apiResponse(true, $message);
+
+} catch (Throwable $e) {
 
     oci_rollback($sql___func___con);
+    logOracleError($e);
+    apiResponse(false, "Unable to save Form 12B.", null, 500);
 
-    echo json_encode([
-        "status" => false,
-        "message" => $e->getMessage()
-    ]);
+}finally {
+
+    if (isset($checkStmt) && $checkStmt) {
+        oci_free_statement($checkStmt);
+    }
+
+    if (isset($stmt) && $stmt) {
+        oci_free_statement($stmt);
+    }
+
 }
