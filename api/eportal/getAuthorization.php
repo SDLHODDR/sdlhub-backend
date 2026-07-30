@@ -49,7 +49,8 @@ foreach($myTasksCounts as $res)
         'TASK_DESC'  => $res['TASK_DESC'],
         'TOTAL'      => $res['TOTAL'],
     ];
-}          
+}
+         
 /*
     |--------------------------------------------------------------------------
     | RESPONSE
@@ -66,7 +67,7 @@ foreach($myTasksCounts as $res)
             ]
         );
     } else {
-        apiResponse(false, "Unable to fetch authorization duty data.", null, 404);
+        apiResponse(false, "Unable to fetch authorization duty data.", null, 200);
     }
 } catch (Throwable $e) {
     logOracleError($e);

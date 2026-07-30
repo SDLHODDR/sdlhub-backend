@@ -6,140 +6,131 @@ $currency_object = new Currency;
 
 $data = json_decode(file_get_contents("php://input"), true);
 
-// $page   = $data['page'] ?? 1;
-// $limit  = $data['limit'] ?? 10;
-// $status = $data['status'] ?? 'ALL';
-// $search = strtolower($data['search'] ?? '');
 
-// $offset = ($page - 1) * $limit;
+try {
+   // $page   = $data['page'] ?? 1;
+   // $limit  = $data['limit'] ?? 10;
+   // $status = $data['status'] ?? 'ALL';
+   // $search = strtolower($data['search'] ?? '');
 
-$first_date = date('d-M-Y', strtotime('first day of January last year'));
-$last_date  = date('d-M-Y', strtotime('last day of December last year'));
+   // $offset = ($page - 1) * $limit;
 
-$decodeStat = [
-    'A' => 'Approved',
-    'N' => 'Pending from Admin',
-    'R' => 'Rejected',
-    'T' => 'In Process'
-];
+   $first_date = date('d-M-Y', strtotime('first day of January last year'));
+   $last_date  = date('d-M-Y', strtotime('last day of December last year'));
 
-$result = [];
-$cnt = 1;
+   $decodeStat = [
+      'A' => 'Approved',
+      'N' => 'Pending from Admin',
+      'R' => 'Rejected',
+      'T' => 'In Process'
+   ];
 
-/* =========================
-   BUILD STATUS CONDITION
-========================= */
-// $statusConditionTemp = "AND STATUS IN ('T','R')";
-// $statusConditionMain = "AND STATUS IN ('A','N')";
+   $result = [];
+   $cnt = 1;
 
-// if ($status !== 'ALL') {
-//     if (in_array($status, ['T','R'])) {
-//         $statusConditionTemp = "AND STATUS = '".$status."'";
-//         $statusConditionMain = "AND 1=0"; // skip main table
-//     } else {
-//         $statusConditionTemp = "AND 1=0"; // skip temp
-//         $statusConditionMain = "AND STATUS = '".$status."'";
-//     }
-// }
+   /* =========================
+      FETCH UNAPPROVED
+   ========================= */
+   $tourDetail_unapproved = multiRec("
+   SELECT * FROM EPT_BCS_EMP_LEAVES_TEMP 
+   WHERE EMP_CODE = '".$empCode."'
+   AND STATUS IN ('T','R') 
+   AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
+   AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')
+   ORDER BY LVE_DATE_FR DESC, ID DESC
+   ");
 
-/* =========================
-   SEARCH CONDITION
-========================= */
-// $searchCondition = "";
-// if (!empty($search)) {
-//     $searchCondition = " AND (
-//         LOWER(LVE_CODE) LIKE '%".$search."%' OR
-//         LOWER(REMARKS) LIKE '%".$search."%'
-//     )";
-// }
+   if (!empty($tourDetail_unapproved)) {
+   foreach ($tourDetail_unapproved as $tour) {
 
-/* =========================
-   FETCH UNAPPROVED
-========================= */
-$tourDetail_unapproved = multiRec("
-  SELECT * FROM EPT_BCS_EMP_LEAVES_TEMP 
-  WHERE EMP_CODE = '".$empCode."'
-  AND STATUS IN ('T','R') 
-  AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
-  AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')
-  ORDER BY LVE_DATE_FR DESC, ID DESC
-");
+      $no_of_days_text = ($tour['TOTAL_DAYS'] == 0.5)
+         ? 'Half Day'
+         : $currency_object->get_number_to_text($tour['TOTAL_DAYS']);
 
-if (!empty($tourDetail_unapproved)) {
-  foreach ($tourDetail_unapproved as $tour) {
+      $result[] = [
+         "ID" => $tour['ID'] ?? '',
+         "LVE_CODE" => ucwords(trim($tour['LVE_CODE'] ?? '')),
+         "NO_DAYS" => $no_of_days_text,
+         "LVE_DATE_FR" => date('d-M-Y', strtotime($tour['LVE_DATE_FR'])),
+         "LVE_DATE_TO" => date('d-M-Y', strtotime($tour['LVE_DATE_TO'])),
+         "REMARKS" => $tour['REASON'] ?? '',
+         "status" => $tour['STATUS'],
+         "STATUS" => $decodeStat[$tour['STATUS']] ?? '',
+         "statusColor" => $statusColorMap[$tour['STATUS']] ?? "secondary",
+         "type" => "unapproved",
+         "cnt" => $cnt++
+      ];
+   }
+   }
 
-    $no_of_days_text = ($tour['TOTAL_DAYS'] == 0.5)
-        ? 'Half Day'
-        : $currency_object->get_number_to_text($tour['TOTAL_DAYS']);
+   /* =========================
+      FETCH APPROVED
+   ========================= */
+   $tourDetail_approved = multiRec("
+   SELECT * FROM EPT_BCS_EMP_LEAVES
+   WHERE EMP_CODE = '".$empCode."'
+   AND STATUS IN('A', 'N')
+   AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
+   AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')
+   ORDER BY ID DESC, LVE_DATE_FR DESC
+   ");
 
-    $result[] = [
-        "ID" => $tour['ID'] ?? '',
-        "LVE_CODE" => ucwords(trim($tour['LVE_CODE'] ?? '')),
-        "NO_DAYS" => $no_of_days_text,
-        "LVE_DATE_FR" => date('d-M-Y', strtotime($tour['LVE_DATE_FR'])),
-        "LVE_DATE_TO" => date('d-M-Y', strtotime($tour['LVE_DATE_TO'])),
-        "REMARKS" => $tour['REASON'] ?? '',
-        "status" => $tour['STATUS'],
-        "STATUS" => $decodeStat[$tour['STATUS']] ?? '',
-        "statusColor" => $statusColorMap[$tour['STATUS']] ?? "secondary",
-        "type" => "unapproved",
-        "cnt" => $cnt++
-    ];
-  }
+   if (!empty($tourDetail_approved)) {
+   foreach ($tourDetail_approved as $tour) {
+
+      $no_of_days_text = ($tour['NO_DAYS'] == 0.5)
+         ? 'Half Day'
+         : $currency_object->get_number_to_text($tour['NO_DAYS']);
+
+      $result[] = [
+         "ID" => $tour['ID'] ?? '',
+         "LVE_CODE" => ucwords(trim($tour['LVE_CODE'] ?? '')),
+         "NO_DAYS" => $no_of_days_text,
+         "LVE_DATE_FR" => date('d-M-Y', strtotime($tour['LVE_DATE_FR'])),
+         "LVE_DATE_TO" => date('d-M-Y', strtotime($tour['LVE_DATE_TO'])),
+         "REMARKS" => $tour['REMARKS'] ?? '',
+         "status" => $tour['STATUS'],
+         "STATUS" => $decodeStat[$tour['STATUS']] ?? '',
+         "statusColor" => $statusColorMap[$tour['STATUS']] ?? "secondary",
+         "type" => "approved",
+         "cnt" => $cnt++
+      ];
+   }
+   }
+
+   /* =========================
+      TOTAL COUNT
+   ========================= */
+   $totalRecords = count($result);
+
+   /* =========================
+      PAGINATION (IMPORTANT)
+   ========================= */
+   //$paginatedData = array_slice($result, $offset, $limit);
+
+   /* =========================
+      RESPONSE
+   ========================= */
+
+   if($result || !empty($result)){
+      apiResponse(
+         true,
+         "Leave Request fetched successfully.",
+         [
+            "data"   => $result,
+            "total"  => $totalRecords
+         ]
+      );
+   } else {
+      apiResponse(false, "Unable to fetch leaves request  data.", null, 200);
+   }
+   
+   exit;
+} catch (Throwable $e) {
+    logOracleError($e);
+    apiResponse(false, "Unable to fetch leave request data.", null, 200);
+} finally {
+    if ($sql___func___con) {
+        oci_close($sql___func___con);
+    }
 }
-
-/* =========================
-   FETCH APPROVED
-========================= */
-$tourDetail_approved = multiRec("
-  SELECT * FROM EPT_BCS_EMP_LEAVES
-  WHERE EMP_CODE = '".$empCode."'
-  AND STATUS IN('A', 'N')
-  AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
-  AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')
-  ORDER BY ID DESC, LVE_DATE_FR DESC
-");
-
-if (!empty($tourDetail_approved)) {
-  foreach ($tourDetail_approved as $tour) {
-
-    $no_of_days_text = ($tour['NO_DAYS'] == 0.5)
-        ? 'Half Day'
-        : $currency_object->get_number_to_text($tour['NO_DAYS']);
-
-    $result[] = [
-        "ID" => $tour['ID'] ?? '',
-        "LVE_CODE" => ucwords(trim($tour['LVE_CODE'] ?? '')),
-        "NO_DAYS" => $no_of_days_text,
-        "LVE_DATE_FR" => date('d-M-Y', strtotime($tour['LVE_DATE_FR'])),
-        "LVE_DATE_TO" => date('d-M-Y', strtotime($tour['LVE_DATE_TO'])),
-        "REMARKS" => $tour['REMARKS'] ?? '',
-        "status" => $tour['STATUS'],
-        "STATUS" => $decodeStat[$tour['STATUS']] ?? '',
-        "statusColor" => $statusColorMap[$tour['STATUS']] ?? "secondary",
-        "type" => "approved",
-        "cnt" => $cnt++
-    ];
-  }
-}
-
-/* =========================
-   TOTAL COUNT
-========================= */
-$totalRecords = count($result);
-
-/* =========================
-   PAGINATION (IMPORTANT)
-========================= */
-//$paginatedData = array_slice($result, $offset, $limit);
-
-/* =========================
-   RESPONSE
-========================= */
-echo json_encode([
-    "status" => true,
-    "success" => true,
-    "data"   => $result,
-    "total"  => $totalRecords
-]);
-exit;
