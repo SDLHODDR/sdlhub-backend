@@ -7,6 +7,8 @@ if($data['saveTbrData']==true)
 {
     startQry();
    
+    
+
     if($data['TRVL_EMP']=='E'){
         $pn = singRec("select EPT_GET_EMP_NAME('".$data['EMP_CODE']."')pn from dual");
     }
@@ -14,19 +16,35 @@ if($data['saveTbrData']==true)
         $pn['PN'] = $data['PERSON_NAME'];
         $data['EMP_CODE'] = null;
     }
-    if($data['TTNT_ARVL_TIME'] < $data['TTNT_DEPR_TIME']){
-        $arr_date= date('d-M-Y', strtotime($data['TRVL_DATE']. ' + 1 days'));
-        echo json_encode([
-            "status" => false,
-            "task_id" => null,
-            "status_code" => 200,
-            "data" => $arr_date,
-            "message" => "Arrival Date"
-        ]);
+    // if($data['TTNT_ARVL_TIME'] < $data['TTNT_DEPR_TIME']){
+    //     $arr_date= date('d-M-Y', strtotime($data['TRVL_DATE']. ' + 1 days'));
+    //     echo json_encode([
+    //         "status" => false,
+    //         "task_id" => null,
+    //         "status_code" => 200,
+    //         "data" => $arr_date,
+    //         "message" => "Arrival Date"
+    //     ]);
+    // }
+    // else {
+    //     $arr_date=$data['TRVL_DATE'];
+    // }    
+    $arr_date=$data['TRVL_DATE'];
+
+    if($data['TRVL_EMP']=='E'){
+        $checkTicket = singRec("select * from EPT_BCS_TRVLTKT_REQUEST where EMP_CODE='".$data['EMP_CODE']."' and TRVL_DATE = '". $data['TRVL_DATE'] ."' ");
+
+        if(!empty($checkTicket) || isset($checkTicket["ID"])) {
+            endQry("");
+            echo json_encode([
+                "status" => false,
+                "status_code" => 200,
+                "message" => "Ticket Booking for this date ".$data['TRVL_DATE']." is alreay exits"
+            ]);
+            exit;
+        }
     }
-    else {
-        $arr_date=$data['TRVL_DATE'];
-    }    
+
     $insert_id=executeQry("INSERT INTO EPT_BCS_TRVLTKT_REQUEST
     (ID, REQ_DATE, REQ_BY, SITE_CODE, TRVL_EMP, EMP_CODE, PERSON_NAME, TRVL_MODE, TRVL_CLASS , TRVL_DATE, TRVL_FROM_LOC, TRVL_TO_LOC, TRVL_FT_NAME, TRVL_FT_NO ,EVENT_ID, TTNT_DEPR_TIME, TTNT_ARVL_TIME, REMARKS, STATUS, CHG_ON, CHG_BY)
         values( 													
@@ -77,6 +95,7 @@ if($data['saveTbrData']==true)
             executeQry("update EPT_BCS_TRVLTKT_REQUEST set status='T' where id='".$insert_id."'") ;
             
             if($task_id){
+                 endQry("Sent for Authorization!");
                 echo json_encode([
                     "status" => true,
                     "status_code" => 200,
@@ -84,16 +103,18 @@ if($data['saveTbrData']==true)
                     "task_id" => $task_id,
                     "message" => "Request sent for Authorization"
                 ]);
-                endQry("Sent for Authorization!");
+               
             }
             else{
-                echo json_encode([
-                    "status" => false,
-                    "status_code" => 500,
-                    "message" => "Some Error occured"
-                ]);
+                //echo json_encode([
+                //     "status" => false,
+                //     "status_code" => 500,
+                //     "message" => "Some Error occured"
+                // ]);
+                apiResponse(false,"Some Error occured",null,500,$e->getMessage());
             }
         } else {
+             endQry();
             echo json_encode([
                 "status" => true,
                 "task_id" => $insert_id,
@@ -103,11 +124,12 @@ if($data['saveTbrData']==true)
         }
         
     } else {
-        echo json_encode([
-            "status" => false,
-            "status_code" => 500,
-            "message" => "Some Error occured"
-        ]);
+        // echo json_encode([
+        //     "status" => false,
+        //     "status_code" => 500,
+        //     "message" => "Some Error occured"
+        // ]);
+        apiResponse(false,"Failed to update ticket booking",null,500,$e->getMessage());
     }
     endQry();
     //}
@@ -116,7 +138,7 @@ if($data['saveTbrData']==true)
     startQry();
     
     if($data['TRVL_EMP']=='E'){
-        //$pn = singRec("select epplive.get_emp_name('".$data['EMP_CODE']."') PN from dual");
+        //$pn = singRec("select EPT_get_emp_name('".$data['EMP_CODE']."') PN from dual");
         $pn = singRec("select EPT_GET_EMP_NAME('".$data['EMP_CODE']."') PN from dual");
     }
     else {
@@ -156,53 +178,59 @@ if($data['saveTbrData']==true)
     STATUS='N'
     where ID='".$data['ID']."'";
 
+    //echo $qry;
+
     try {
-        $ok = executeQry($qry); 
-        apiResponse(true,"Ticking booking updated successfully");
-        
+        $ok = executeQry($qry);
+        endQry(); 
+        if($ok) {
+            apiResponse(true,"Ticking booking updated successfully");
+        }
     } catch(Exception $e){
         apiResponse(false,"Failed to update ticket booking",null,500,$e->getMessage());
         
 
     }
     
-    endQry();
+    //endQry();
 } else if($data['deleteTB']==true)
 {
     startQry();
     if($data["delteId"]) {
-        executeQry("DELETE FROM epplive.bcs_trvltkt_request WHERE ID in (".$data['delteId'].")");
+        executeQry("DELETE FROM EPT_bcs_trvltkt_request WHERE ID in (".$data['delteId'].")");
     }
-    echo json_encode([
-        "status" => true,
-        "status_code" => 200,
-        "message" => "Ticket deleted successfully"
-    ]);
+    // echo json_encode([
+    //     "status" => true,
+    //     "status_code" => 200,
+    //     "message" => "Ticket deleted successfully"
+    // ]);
     endQry();
+    apiResponse(true,"Ticket deleted successfully");
+    
 } else if($data['closeTicket']==true)
 {
   startQry();
   if($data['ID'] != "") {
-    executeQry("update epplive.BCS_TRVLTKT_REQUEST set status='X' where id='".$data['ID']."' ");
+    executeQry("update EPT_BCS_TRVLTKT_REQUEST set status='X' where id='".$data['ID']."' ");
 
-    $tickdets = singRec("select a.*, decode(a.TRVL_MODE, 'F', 'Flight', 'T', 'Train', 'B', 'Bus')TRVLMODE, to_char(a.TTNT_DEPR_TIME, 'hh24:mi')TTNT_DEPR_TIME, to_char(a.TTNT_ARVL_TIME, 'hh24:mi')TTNT_ARVL_TIME, ddmonyyyy(a.TRVL_DATE)DT from epplive.BCS_TRVLTKT_REQUEST a where a.id='".$data['ID']."'");
+    $tickdets = singRec("select a.*, decode(a.TRVL_MODE, 'F', 'Flight', 'T', 'Train', 'B', 'Bus')TRVLMODE, to_char(a.TTNT_DEPR_TIME, 'hh24:mi')TTNT_DEPR_TIME, to_char(a.TTNT_ARVL_TIME, 'hh24:mi')TTNT_ARVL_TIME, ddmonyyyy(a.TRVL_DATE)DT from EPT_BCS_TRVLTKT_REQUEST a where a.id='".$data['ID']."'");
     
-    $t2 = singRec("select * from epplive.bcs_user_tasks where task_id='347' and tran_code='".$data['ID']."'");
+    $t2 = singRec("select * from EPT_bcs_user_tasks where task_id='347' and tran_code='".$data['ID']."'");
     
     if($tickdets['TRVL_TKT_ID']!='')
     {
-      $task_id2 = executeQry("insert into epplive.bcs_user_tasks (ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, AUTH_BY, AUTH_ON, REMARKS, TRAN_CODE, REF_TASK_ID, TASK_TYPE, UDF_1, TRAN_DESC, SITE_CODE, EMP_CODE_FOR, CHG_ON, UDF_2, TASK_GRP_DESC, IP_ADDR) values (null, '347', sysdate,'".$empCode."' , (sysdate+2), 'O', null, null, null, '".$data['ID']."', null, 'A', null, 'Ticket Cancellation Request From ".$tickdets['TRVL_FROM_LOC']." To ".$tickdets['TRVL_TO_LOC']." Dated ".$tickdets['TRVL_DATE']."', '".$t2['SITE_CODE']."', '".$t2['EMP_CODE_FOR']."', sysdate, '', '".$t2['TASK_GRP_DESC']."', '')");
+      $task_id2 = executeQry("insert into EPT_bcs_user_tasks (ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, AUTH_BY, AUTH_ON, REMARKS, TRAN_CODE, REF_TASK_ID, TASK_TYPE, UDF_1, TRAN_DESC, SITE_CODE, EMP_CODE_FOR, CHG_ON, UDF_2, TASK_GRP_DESC, IP_ADDR) values (null, '347', sysdate,'".$empCode."' , (sysdate+2), 'O', null, null, null, '".$data['ID']."', null, 'A', null, 'Ticket Cancellation Request From ".$tickdets['TRVL_FROM_LOC']." To ".$tickdets['TRVL_TO_LOC']." Dated ".$tickdets['TRVL_DATE']."', '".$t2['SITE_CODE']."', '".$t2['EMP_CODE_FOR']."', sysdate, '', '".$t2['TASK_GRP_DESC']."', '')");
     } else {
         executeQry("update ept_user_tasks set status='C' , REMARKS='Auto Closed , Cancelled Ticket' where tran_code='".$data['ID']."' and task_id =346 ") ;
     }
     
      if($tickdets['EMP_CODE'] != "" || !empty($tickdets['EMP_CODE'])) {
-        $name = singRec("SELECT epplive.hr_get_emp_mgr('".$data['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
+        $name = singRec("SELECT EPT_hr_get_emp_mgr('".$data['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
         $name1 = findParentOrgEmp($data['EMP_CODE']);        
         $Manager = $name['EMP_CODE'] ? $name['EMP_CODE'] : $name1;
 
-        $empemail = singRec("select EMAIL_ID_OFF as empemail from epplive.bcs_employee WHERE emp_code = '".$tickdets['EMP_CODE']."'");
-        $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from epplive.bcs_employee WHERE emp_code = '".$Manager."'");
+        $empemail = singRec("select EMAIL_ID_OFF as empemail from EPT_bcs_employee WHERE emp_code = '".$tickdets['EMP_CODE']."'");
+        $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from EPT_bcs_employee WHERE emp_code = '".$Manager."'");
 
         if($manageremail['COM_EMAIL'] != 'rap@sdlindia.com'){
             $mailBody='Hi
@@ -218,20 +246,23 @@ if($data['saveTbrData']==true)
                     <b>  Cancelled By :</b>'.(getEmpInfoByCode($tickdets['REQ_BY'])).'<br><br>
             <br><br> Regards<br> Admin';
             
-            $maild = executeQry("INSERT INTO EPT_BCS_MAILBOX_EPP(ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS, CHG_ON,CHG_BY,MAIL_DESCR) values(null,'  Ticket Cancellation : ".getEmpInfoByCode($tickdets['EMP_CODE'])." dated ".$tickdets['TRVL_DATE']."', '".trim($mailBody)."',null,'N',SYSDATE, '".$empCode."','Ticket Booking')  returning ID into :mid",'mid',1);
+            $maild = executeQry("INSERT INTO EPT_BCS_MAILBOX_EPP(ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS, CHG_ON,CHG_BY,MAIL_DESCR) values(null,'  Ticket Cancellation : ".getEmpInfoByCode($tickdets['EMP_CODE'])." dated ".$tickdets['TRVL_DATE']."', '".trim($mailBody)."',null,'N',SYSDATE, '".$empCode."','Ticket Booking')  returning ID into :mid",'mid');
 
             executeQry("INSERT INTO EPT_BCS_MAILBOX_EPP_DETAILS(ID,MAIL_ID,EMAIL_TO,EMAIL_CC,EMAIL_BCC) values(null,'".$maild."', '".strtolower($empemail['EMPEMAIL'])." ','attendance@sdlindia.com,".$manageremail['COM_EMAIL']."',null)");
 
             
         }
     }
-    echo json_encode([
-        "status" => true,
-        "status_code" => 200,
-        "message" => "Ticket cancelled successfully"
-    ]);
-
+    // echo json_encode([
+    //     "status" => true,
+    //     "status_code" => 200,
+    //     "message" => "Ticket cancelled successfully"
+    // ]);
     endQry("Ticket has been cancelled!");
+    apiResponse(true,"Ticket cancelled successfully");
+
+
+    
 
   }
 }

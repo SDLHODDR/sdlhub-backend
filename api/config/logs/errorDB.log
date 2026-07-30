@@ -1,0 +1,49 @@
+[2026-07-24 10:48:48] [ == get_temp_leave] {"ID":"8268","EMP_CODE":"02617","LVE_DATE_FR":"19-FEB-25","LVE_DATE_TO":"21-FEB-25","LVE_START_ON":"B","LVE_END_ON":"E","LVE_CODE":"PL ","TOTAL_DAYS":"3","REASON":"z","APRVR_ID":"575","CHG_BY":"","CHG_ON":"24-JUL-26","RAISED_BY":"02617","STATUS":"T"}
+[2026-07-24 10:48:48] [ == empmail] {"COM_EMAIL":"stm@sdlindia.com"}
+[2026-07-24 10:48:48] [ == empmail_self] {"COM_EMAIL":"sanjay.mankumbare@teamsdl.in"}
+[2026-07-24 10:48:48] [ == consume_days] "3"
+[2026-07-24 10:48:48] [ == dateArr] ["19-Feb-2025","20-Feb-2025","21-Feb-2025"]
+[2026-07-24 10:48:49] [ == already_lv] []
+[2026-07-24 10:48:49] [ == no_days] 1
+[2026-07-24 10:48:49] [ == in loop consume_days] 2
+[2026-07-24 10:48:49] [ == prd] {"CODE":"202502"}
+[2026-07-24 10:48:49] [ == newId] "656016"
+[2026-07-24 10:48:49] [ == updtEPT_blb] true
+[2026-07-24 10:48:49] [ == already_lv] []
+[2026-07-24 10:48:49] [ == no_days] 1
+[2026-07-24 10:48:49] [ == in loop consume_days] 1
+[2026-07-24 10:48:49] [ == prd] {"CODE":"202502"}
+[2026-07-24 10:48:49] [ == newId] "656017"
+[2026-07-24 10:48:49] [ == updtEPT_blb] true
+[2026-07-24 10:48:49] [ == already_lv] []
+[2026-07-24 10:48:49] [ == no_days] 1
+[2026-07-24 10:48:49] [ == in loop consume_days] 0
+[2026-07-24 10:48:49] [ == prd] {"CODE":"202502"}
+[2026-07-24 10:48:49] [ == newId] "656018"
+[2026-07-24 10:48:49] [ == updtEPT_blb] true
+[2026-07-24 10:48:49] [ == updtEPT_blbcnt] true
+[2026-07-24 10:48:50] [ == uptEPT_belt] true
+[2026-07-24 10:48:50] [ == uptept_bmed] true
+[2026-07-24 11:03:32] [ == get_temp_leave] {"ID":"8269","EMP_CODE":"01148","LVE_DATE_FR":"17-FEB-25","LVE_DATE_TO":"19-FEB-25","LVE_START_ON":"B","LVE_END_ON":"E","LVE_CODE":"PL ","TOTAL_DAYS":"3","REASON":"z","APRVR_ID":"575","CHG_BY":"","CHG_ON":"24-JUL-26","RAISED_BY":"01148","STATUS":"T"}
+[2026-07-24 11:03:32] [ == empmail] {"COM_EMAIL":"stm@sdlindia.com"}
+[2026-07-24 11:03:32] [ == empmail_self] {"COM_EMAIL":"bsm@teamsdl.in"}
+[2026-07-24 11:03:32] [ == consume_days] "3"
+[2026-07-24 11:03:32] [ == dateArr] ["17-Feb-2025","18-Feb-2025","19-Feb-2025"]
+[2026-07-24 11:03:32] [ == already_lv] []
+[2026-07-24 11:03:32] [ == no_days] 1
+[2026-07-24 11:03:32] [ == in loop consume_days] 2
+[2026-07-24 11:03:32] [ == prd] {"CODE":"202502"}
+[2026-07-24 11:03:32] [ == updtEPT_blb] true
+[2026-07-24 11:03:32] [ == already_lv] []
+[2026-07-24 11:03:32] [ == no_days] 1
+[2026-07-24 11:03:32] [ == in loop consume_days] 1
+[2026-07-24 11:03:33] [ == prd] {"CODE":"202502"}
+[2026-07-24 11:03:33] [ == updtEPT_blb] true
+[2026-07-24 11:03:33] [ == already_lv] []
+[2026-07-24 11:03:33] [ == no_days] 1
+[2026-07-24 11:03:33] [ == in loop consume_days] 0
+[2026-07-24 11:03:33] [ == prd] {"CODE":"202502"}
+[2026-07-24 11:03:33] [ == updtEPT_blb] true
+[2026-07-24 11:03:33] [ == updtEPT_blbcnt] true
+[2026-07-24 11:03:34] [ == uptEPT_belt] true
+[2026-07-24 11:03:34] [ == uptept_bmed] true

@@ -202,7 +202,7 @@ try {
 //    FETCH UNAPPROVED
 // ========================= */
 // $tourDetail_unapproved = multiRec("
-//   SELECT * FROM epplive.BCS_EMP_LEAVES_TEMP 
+//   SELECT * FROM EPT_BCS_EMP_LEAVES_TEMP 
 //   WHERE EMP_CODE = '".$empCode."'
 //   AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
 //   AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')
@@ -237,7 +237,7 @@ try {
 //    FETCH APPROVED
 // ========================= */
 // $tourDetail_approved = multiRec("
-//   SELECT * FROM epplive.BCS_EMP_LEAVES
+//   SELECT * FROM EPT_BCS_EMP_LEAVES
 //   WHERE EMP_CODE = '".$empCode."'
 //   AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
 //   AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')

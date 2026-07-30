@@ -41,7 +41,7 @@ if (!empty($search)) {
 // // ============================
 $totalCountData = singRec("
     SELECT COUNT(*) AS CNT 
-    FROM epplive.BCS_TRVLTKT_REQUEST
+    FROM EPT_BCS_TRVLTKT_REQUEST
     $where
 ");
 
@@ -64,7 +64,7 @@ SELECT
     to_char(TTNT_DEPR_TIME,'hh24:mi') TTNT_DEPR_TIME,
     to_char(TTNT_ARVL_TIME,'hh24:mi') TTNT_ARVL_TIME,
     REMARKS, STATUS, TRVL_TKT_ID
-FROM epplive.BCS_TRVLTKT_REQUEST
+FROM EPT_BCS_TRVLTKT_REQUEST
 $where
 ORDER BY ID DESC
 OFFSET $offset ROWS FETCH NEXT $limit ROWS ONLY
@@ -76,7 +76,7 @@ $TbrDetails = multiRec($query);
 //   SELECT * FROM (
 //     SELECT a.*, ROWNUM rnum FROM (
 //       SELECT * 
-//       FROM epplive.BCS_TRVLTKT_REQUEST
+//       FROM EPT_BCS_TRVLTKT_REQUEST
 //       WHERE REQ_BY='". $empCode ."'
 //       ORDER BY TRVL_DATE DESC
 //     ) a

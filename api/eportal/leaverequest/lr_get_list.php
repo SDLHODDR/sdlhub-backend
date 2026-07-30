@@ -13,8 +13,8 @@ $data = json_decode(file_get_contents("php://input"), true);
 
 // $offset = ($page - 1) * $limit;
 
-$first_date = date('d-M-Y', strtotime('first day of January'));
-$last_date  = date('d-M-Y', strtotime('last day of December'));
+$first_date = date('d-M-Y', strtotime('first day of January last year'));
+$last_date  = date('d-M-Y', strtotime('last day of December last year'));
 
 $decodeStat = [
     'A' => 'Approved',
@@ -57,7 +57,7 @@ $cnt = 1;
    FETCH UNAPPROVED
 ========================= */
 $tourDetail_unapproved = multiRec("
-  SELECT * FROM epplive.BCS_EMP_LEAVES_TEMP 
+  SELECT * FROM EPT_BCS_EMP_LEAVES_TEMP 
   WHERE EMP_CODE = '".$empCode."'
   AND STATUS IN ('T','R') 
   AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
@@ -92,7 +92,7 @@ if (!empty($tourDetail_unapproved)) {
    FETCH APPROVED
 ========================= */
 $tourDetail_approved = multiRec("
-  SELECT * FROM epplive.BCS_EMP_LEAVES
+  SELECT * FROM EPT_BCS_EMP_LEAVES
   WHERE EMP_CODE = '".$empCode."'
   AND STATUS IN('A', 'N')
   AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')

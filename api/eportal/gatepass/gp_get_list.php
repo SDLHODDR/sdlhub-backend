@@ -25,6 +25,7 @@ SELECT * FROM (
         GP.STATUS,
         GP.REMARKS,
         GP.POST_REMARKS,
+        GP.CHG_ON as created_on,
         UT.REMARKS AS AUTH_REMARKS,
 
         ROW_NUMBER() OVER (
@@ -60,13 +61,15 @@ $result = [];
 
 $currentDate = date('d-M-y');
 
+//print_r($GpDetails);
+
 foreach ($GpDetails as $gp) {
 
     $gpassDate = $gp['GPASS_DATE'] ?? '';
 
     // minimal date formatting
     $formattedDate = $gpassDate 
-        ? date('d M Y', strtotime($gpassDate)) 
+        ? date('d-M-Y', strtotime($gpassDate)) 
         : '';
 
     $diff = strtotime($gpassDate) - strtotime($currentDate);
@@ -83,6 +86,7 @@ foreach ($GpDetails as $gp) {
         "statusColor" => $statusColorMap[$gp['STATUS']] ?? "secondary",
         "remarks" => $gp['REMARKS'] ?? '',
         "status" => $gp['STATUS'],
+        "created_on" => $gp['CREATED_ON'],
         "dateTimePass" => $diff,
         "postremarks" => $gp["POST_REMARKS"] ?? '',
         "cancel" => $closeTicket,

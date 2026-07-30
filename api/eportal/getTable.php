@@ -49,7 +49,7 @@ foreach($myTasksData as $res)
             //         to_char(TTNT_DEPR_TIME , 'hh24:mi') AS TTNT_DEPR_TIME,
             //         to_char(TTNT_ARVL_TIME , 'hh24:mi') AS TTNT_ARVL_TIME,
             //         REMARKS, STATUS, TRVL_TKT_ID
-            //     FROM epplive.BCS_TRVLTKT_REQUEST
+            //     FROM EPT_BCS_TRVLTKT_REQUEST
             //         WHERE REQ_BY = '".$empCode."'
             //         AND ID = '".$res['TRAN_CODE']."'
             // ");
@@ -60,7 +60,7 @@ foreach($myTasksData as $res)
                     to_char(TTNT_DEPR_TIME , 'hh24:mi') AS TTNT_DEPR_TIME,
                     to_char(TTNT_ARVL_TIME , 'hh24:mi') AS TTNT_ARVL_TIME,
                     REMARKS, STATUS, TRVL_TKT_ID
-                FROM epplive.BCS_TRVLTKT_REQUEST
+                FROM EPT_BCS_TRVLTKT_REQUEST
                     WHERE ID = '".$res['TRAN_CODE']."'
             ");
         }
@@ -78,13 +78,13 @@ foreach($myTasksData as $res)
         else if ($taskId == 109) {
             // $details = singRec("
             //     SELECT * 
-            //         FROM epplive.BCS_EMP_LEAVES_TEMP
+            //         FROM EPT_BCS_EMP_LEAVES_TEMP
             //             WHERE EMP_CODE = '".$empCode."'
             //                 AND ID = '".$res['TRAN_CODE']."'
             // ");
             $details = singRec("
                 SELECT * 
-                    FROM epplive.BCS_EMP_LEAVES_TEMP
+                    FROM EPT_BCS_EMP_LEAVES_TEMP
                         WHERE ID = '".$res['TRAN_CODE']."'
             ");
         }

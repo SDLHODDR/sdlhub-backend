@@ -17,10 +17,10 @@ $sqlHoliday=multiRec("select
     to_char(HOL_DATE,'mm') MONTH, 
     hol_type, 
     initcap(descr) descr
-    from epplive.bcs_holidays 
+    from EPT_bcs_holidays 
     where hol_grp=(
         select hol_tblno 
-        from epplive.bcs_employee 
+        from EPT_bcs_employee 
         where emp_code='".$empCode."' )
         and HOL_DATE between to_date('01-Jan-".date('Y')."') and to_date('31-Dec-".date('Y')."') ");
 

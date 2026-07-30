@@ -11,16 +11,16 @@ if($data['getLrdata']==true)
     }
      $data['start_date'] = '2025-05-01'; 
 
-    $pl_count = singRec("select epplive.get_leave_apply_cnt('".$empCode."', 'PL') CNT from dual");
+    $pl_count = singRec("select EPT_get_leave_apply_cnt('".$empCode."', 'PL') CNT from dual");
     //printDetails($pl_count);
 
-    $totalBalLeaves = multiRec("select lve_code,AVAIL_DAYS,BAL_DAYS from epplive.bcs_leave_balance where emp_code='" . $empCode . "' and to_date('".$data['start_date']."','YYYY-MM-DD') between EFF_DATE and UPTO_DATE");
+    $totalBalLeaves = multiRec("select lve_code,AVAIL_DAYS,BAL_DAYS from EPT_bcs_leave_balance where emp_code='" . $empCode . "' and to_date('".$data['start_date']."','YYYY-MM-DD') between EFF_DATE and UPTO_DATE");
 
-    $totalBalLeaves_unapproved = multiRec("select emp_code , sum(total_days)td  , trim(lve_code)lve_code , 1 as T from epplive.bcs_emp_leaves_temp where emp_code='" . $empCode . "' and status= 'T' group by emp_code , lve_code");
+    $totalBalLeaves_unapproved = multiRec("select emp_code , sum(total_days)td  , trim(lve_code)lve_code , 1 as T from EPT_bcs_emp_leaves_temp where emp_code='" . $empCode . "' and status= 'T' group by emp_code , lve_code");
 
-    $lve_from_to = singRec("select * from epplive.bcs_leave_balance where emp_code='" . $empCode . "' and status='A' and lve_code!='LWP' AND to_date('".$data['start_date']."','YYYY-MM-DD') BETWEEN EFF_DATE AND UPTO_DATE");
+    $lve_from_to = singRec("select * from EPT_bcs_leave_balance where emp_code='" . $empCode . "' and status='A' and lve_code!='LWP' AND to_date('".$data['start_date']."','YYYY-MM-DD') BETWEEN EFF_DATE AND UPTO_DATE");
 
-    $leave_res = singRec("select epplive.GET_EMP_NAME(emp_code) emp_name , belt.*  from epplive.bcs_emp_leaves_temp belt where id='" . $idd . "'");
+    $leave_res = singRec("select EPT_GET_EMP_NAME(emp_code) emp_name , belt.*  from EPT_bcs_emp_leaves_temp belt where id='" . $idd . "'");
 
     $leave_bal_array  = array();
     foreach ($totalBalLeaves as $temp) {
@@ -65,7 +65,7 @@ if($data['getLrdata']==true)
     // $sqlCheckLeave = "SELECT SUM(leaveCnt) AS LeaveCnt
     //     FROM (
     //         SELECT COUNT(*) AS leaveCnt 
-    //         FROM epplive.BCS_EMP_LEAVES 
+    //         FROM EPT_BCS_EMP_LEAVES 
     //         WHERE emp_code = '".$empCode."'
     //         AND lve_date_fr <= TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
     //         AND lve_date_to  >= TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
@@ -73,7 +73,7 @@ if($data['getLrdata']==true)
     //         UNION ALL
 
     //         SELECT COUNT(*) AS leaveCnt 
-    //         FROM epplive.BCS_EMP_LEAVES_TEMP 
+    //         FROM EPT_BCS_EMP_LEAVES_TEMP 
     //         WHERE EMP_CODE = '".$empCode."'
     //         AND TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
     //             BETWEEN lve_date_fr AND lve_date_to 
@@ -82,7 +82,7 @@ if($data['getLrdata']==true)
     //         UNION ALL
 
     //         SELECT COUNT(*) AS leaveCnt 
-    //         FROM epplive.BCS_EMP_LEAVES_TEMP 
+    //         FROM EPT_BCS_EMP_LEAVES_TEMP 
     //         WHERE EMP_CODE = '".$empCode."'
     //         AND TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
     //             BETWEEN lve_date_fr AND lve_date_to 
@@ -91,7 +91,7 @@ if($data['getLrdata']==true)
     //         UNION ALL
 
     //         SELECT COUNT(*) AS leaveCnt 
-    //         FROM epplive.BCS_ATTD_REGULARIZE
+    //         FROM EPT_BCS_ATTD_REGULARIZE
     //         WHERE EMP_CODE = '".$empCode."'
     //         AND REG_TYPE = 'T'
     //         AND STATUS = 'A'
@@ -102,14 +102,14 @@ if($data['getLrdata']==true)
     $sqlCheckLeave = "SELECT empcode, lveFrm, lveTO 
         FROM (
             SELECT EMP_CODE as empcode, lve_date_fr as lveFrm, lve_date_to as lveTO 
-            FROM epplive.BCS_EMP_LEAVES 
+            FROM EPT_BCS_EMP_LEAVES 
             WHERE emp_code = '".$empCode."'
             AND lve_date_fr = TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
 
             UNION ALL
 
             SELECT EMP_CODE as empcode, lve_date_fr as lveFrm, lve_date_to as lveTO  
-            FROM epplive.BCS_EMP_LEAVES_TEMP 
+            FROM EPT_BCS_EMP_LEAVES_TEMP 
             WHERE EMP_CODE = '".$empCode."'
             AND lve_date_fr = TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS') 
             AND STATUS NOT IN ('R','X')
@@ -117,7 +117,7 @@ if($data['getLrdata']==true)
             UNION ALL
 
             SELECT EMP_CODE as empcode, lve_date_fr as lveFrm, lve_date_to as lveTO  
-            FROM epplive.BCS_EMP_LEAVES_TEMP 
+            FROM EPT_BCS_EMP_LEAVES_TEMP 
             WHERE EMP_CODE = '".$empCode."'
             AND lve_date_fr = TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS') 
             AND STATUS IS NULL 
@@ -125,7 +125,7 @@ if($data['getLrdata']==true)
             UNION ALL
 
             SELECT EMP_CODE as empcode, TIME_FR as lveFrm,TIME_TO as lveTO  
-            FROM epplive.BCS_ATTD_REGULARIZE
+            FROM EPT_BCS_ATTD_REGULARIZE
             WHERE EMP_CODE = '".$empCode."'
             AND REG_TYPE = 'T'
             AND STATUS = 'A'
@@ -330,8 +330,8 @@ if($data['getLrdata']==true)
             "isRequired" => "Yes",
             "options" => getOptionsCustom("
                 select LVE_CODE, (LVE_CODE||' - '||LVE_DESC) as lved
-                    from epplive.bcs_leaves
-                    where trim(lve_code) in(select lve_code from epplive.bcs_leave_balance where emp_code='" . $empCode . "' and status='A'  AND to_date('".$data['start_date']."','YYYY-MM-DD') BETWEEN EFF_DATE AND UPTO_DATE+1) AND trim(lve_code) not in (select trim(lve_code) from epplive.bcs_emp_leaves_temp where emp_code='" . $empCode . "' and lve_code='PL' and status='T' ) UNION
+                    from EPT_bcs_leaves
+                    where trim(lve_code) in(select lve_code from EPT_bcs_leave_balance where emp_code='" . $empCode . "' and status='A'  AND to_date('".$data['start_date']."','YYYY-MM-DD') BETWEEN EFF_DATE AND UPTO_DATE+1) AND trim(lve_code) not in (select trim(lve_code) from EPT_bcs_emp_leaves_temp where emp_code='" . $empCode . "' and lve_code='PL' and status='T' ) UNION
                 SELECT 'LWP' , 'LWP' || ' - '||  'LEAVE WITHOUT PAY' FROM DUAL")
         ],
         "LEAVE_STARTS" => [
@@ -394,14 +394,14 @@ if($data['getLrdata']==true)
     $sqlCheckLeave = "SELECT empcode, lveFrm, lveTO 
         FROM (
             SELECT EMP_CODE as empcode, lve_date_fr as lveFrm, lve_date_to as lveTO 
-            FROM epplive.BCS_EMP_LEAVES 
+            FROM EPT_BCS_EMP_LEAVES 
             WHERE emp_code = '".$empCode."'
             AND lve_date_fr = TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS')
 
             UNION ALL
 
             SELECT EMP_CODE as empcode, lve_date_fr as lveFrm, lve_date_to as lveTO  
-            FROM epplive.BCS_EMP_LEAVES_TEMP 
+            FROM EPT_BCS_EMP_LEAVES_TEMP 
             WHERE EMP_CODE = '".$empCode."'
             AND lve_date_fr = TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS') 
             AND STATUS NOT IN ('R','X')
@@ -409,7 +409,7 @@ if($data['getLrdata']==true)
             UNION ALL
 
             SELECT EMP_CODE as empcode, lve_date_fr as lveFrm, lve_date_to as lveTO  
-            FROM epplive.BCS_EMP_LEAVES_TEMP 
+            FROM EPT_BCS_EMP_LEAVES_TEMP 
             WHERE EMP_CODE = '".$empCode."'
             AND lve_date_fr = TO_TIMESTAMP('".$lveDate."', 'YYYY-MM-DD HH24:MI:SS') 
             AND STATUS IS NULL 
@@ -417,7 +417,7 @@ if($data['getLrdata']==true)
             UNION ALL
 
             SELECT EMP_CODE as empcode, TIME_FR as lveFrm,TIME_TO as lveTO  
-            FROM epplive.BCS_ATTD_REGULARIZE
+            FROM EPT_BCS_ATTD_REGULARIZE
             WHERE EMP_CODE = '".$empCode."'
             AND REG_TYPE = 'T'
             AND STATUS = 'A'

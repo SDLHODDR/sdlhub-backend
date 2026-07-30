@@ -36,6 +36,7 @@ if($data['saveGpData']==true)
                     "status" => false,
                     "message" => "Only one ".$newType." entry allowed for this date"
                 ]);
+                
                 //rollbackQry();
                 exit;
             }
@@ -114,7 +115,7 @@ if($data['saveGpData']==true)
             $name = singRec("SELECT hr_get_emp_mgr('".$data['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
             $name1 = findParentOrgEmp($data['EMP_CODE']);        
             $Manager = $name['EMP_CODE'] ? $name['EMP_CODE'] : $name1;
-            $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from epplive.bcs_employee WHERE 
+            $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from EPT_bcs_employee WHERE 
                 emp_code = '".$Manager."'");
 
             $insert_id=executeQry("INSERT INTO EPT_EMPLOYEE_GPASS (ID, GPASS_NO, GPASS_DATE, EMP_CODE, OUT_TYPE,  REMARKS ,STATUS, CHG_ON, CHG_BY , auth_by)
@@ -144,7 +145,7 @@ if($data['saveGpData']==true)
                     $name1 = findParentOrgEmp($gpass['EMP_CODE']);        
                     $Manager = $name['EMP_CODE'] ? $name['EMP_CODE'] : $name1;
                     
-                    $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from epplive.bcs_employee 
+                    $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from EPT_bcs_employee 
                                         WHERE emp_code = '".$Manager."'");
 
                     $task_id = executeQry("insert into EPT_USER_TASKS (
@@ -195,11 +196,12 @@ if($data['saveGpData']==true)
 
                 
             } else {
-                echo json_encode([
-                    "status" => false,
-                    "status_code" => 500,
-                    "message" => "Some Error occured"
-                ]);
+                // echo json_encode([
+                //     "status" => false,
+                //     "status_code" => 500,
+                //     "message" => "Some Error occured"
+                // ]);
+                apiResponse(false,"Some Error occured",null,500,$e->getMessage());
             }
         }
         
@@ -227,12 +229,14 @@ else if($data['editGpData']==true)
             WHERE ID IN (".$data['ID'].")");
 
     }
-    echo json_encode([
-        "status" => true,
-        "status_code" => 200,
-        "message" => "Gatepass updated successfully"
-    ]);
+    // echo json_encode([
+    //     "status" => true,
+    //     "status_code" => 200,
+    //     "message" => "Gatepass updated successfully"
+    // ]);
     endQry();
+    apiResponse(true,"Gatepass updated successfully");
+    
 }
 else if($data['deleteOD']==true)
 {
@@ -240,12 +244,14 @@ else if($data['deleteOD']==true)
     if($data["delteId"]) {
         executeQry("DELETE FROM ept_employee_gpass WHERE ID in (".$data['delteId'].")");
     }
-    echo json_encode([
-        "status" => true,
-        "status_code" => 200,
-        "message" => "Gatepass deleted successfully"
-    ]);
-    endQry();
+    // echo json_encode([
+    //     "status" => true,
+    //     "status_code" => 200,
+    //     "message" => "Gatepass deleted successfully"
+    // ]);
+     endQry();
+    apiResponse(true,"Gatepass deleted successfully");
+   
 }else if($data['closeTicket']==true)
 {
     startQry();
@@ -253,12 +259,14 @@ else if($data['deleteOD']==true)
         executeQry("update ept_employee_gpass set status='X' where ID='".$data['ID']."' ") ;
 	    executeQry("update EPT_USER_TASKS set status='C', Remarks='Auto Closed due to Cancellation' where task_id='349' and tran_code='".$data['ID']."'");
 	}
-    echo json_encode([
-        "status" => true,
-        "status_code" => 200,
-        "message" => "Gatepass deleted successfully"
-    ]);
-    endQry();
+    // echo json_encode([
+    //     "status" => true,
+    //     "status_code" => 200,
+    //     "message" => "Gatepass deleted successfully"
+    // ]);
+     endQry();
+    apiResponse(true,"Gatepass deleted successfully");
+   
 }
 
 ob_end_flush();
