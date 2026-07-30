@@ -81,10 +81,6 @@ try {
                 $returnArr
             );
         }
-        // echo json_encode([
-        //     "status" => true,
-        //     "pass"   => $returnArr
-        // ]);
     }
 } catch (Throwable $e) {
     logOracleError($e);
