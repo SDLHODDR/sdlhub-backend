@@ -67,12 +67,13 @@ if($data['sendAuth']==true)
                         AUTH_ON=SYSDATE
                     WHERE task_id='349' AND tran_code='" . $data['ID'] . "'");          
 
-            apiResponse(true,"ReAuthorization sent successfully");
             endQry();
+            apiResponse(true,"ReAuthorization sent successfully!!");
+            
         } 
     } catch (Throwable $e) {
         logOracleError($e);
-        apiResponse(false, "Unable to resend for authorization", null, 200);
+        apiResponse(false, "Unable to resend for authorization", null, 500, $e);
     } finally {
         if ($sql___func___con) {
             oci_close($sql___func___con);
