@@ -269,7 +269,7 @@ $leaveRows = multiRec("
         REMARKS,
         LVE_DATE_FR,
         LVE_DATE_TO
-    FROM BCS_EMP_LEAVES
+    FROM EPT_BCS_EMP_LEAVES
     WHERE EMP_CODE = '$empCode'
 ");
 

@@ -50,12 +50,12 @@ try {
     executeQry("
         UPDATE EPT_HR_EMP_FAMILY_INFO
         SET
-            STATUS = 'D',
+            STATUS = 'd',
             CHG_ON = SYSDATE,
             CHG_BY = '{$empCodeEsc}'
         WHERE ID = {$id}
           AND EMP_CODE = '{$empCodeEsc}'
-    ");
+    ", 1);
 
     if ($qry_____result != 0) {
         forceRollback("Failed to delete family member.");
