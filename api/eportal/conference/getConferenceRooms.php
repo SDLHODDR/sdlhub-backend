@@ -44,8 +44,8 @@ try {
     |--------------------------------------------------------------------------
     */
 
-    $dataReq = json_decode(file_get_contents("php://input"), true);
-
+    //$dataReq = json_decode(file_get_contents("php://input"), true);
+    $dataReq = $_GET;
     /*
     |--------------------------------------------------------------------------
     | PAGINATION
