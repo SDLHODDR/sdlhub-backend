@@ -56,6 +56,7 @@ try {
                 "approval" => $statusMap[$tb['STATUS']] ?? $tb['STATUS'] ?? '',
                 "statusColor" => $statusColorMap[$tb['STATUS']] ?? "secondary",
                 "cancel" => $closeTicket,
+                "remarks" => $tb['REMARKS'] ?? '',
                 "authremarks" => $authRemarks,
 
                 // IMPORTANT: total count for pagination
