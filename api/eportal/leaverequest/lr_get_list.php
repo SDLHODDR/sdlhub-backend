@@ -31,6 +31,13 @@ try {
    /* =========================
       FETCH UNAPPROVED
    ========================= */
+   // echo "=========Unapproved========" . "SELECT * FROM EPT_BCS_EMP_LEAVES_TEMP 
+   // WHERE EMP_CODE = '".$empCode."'
+   // AND STATUS IN ('T','R') 
+   // AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
+   // AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')
+   // ORDER BY LVE_DATE_FR DESC, ID DESC";
+
    $tourDetail_unapproved = multiRec("
    SELECT * FROM EPT_BCS_EMP_LEAVES_TEMP 
    WHERE EMP_CODE = '".$empCode."'
@@ -74,6 +81,13 @@ try {
    AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')
    ORDER BY ID DESC, LVE_DATE_FR DESC
    ");
+
+   // echo "=========Approved========" . "SELECT * FROM EPT_BCS_EMP_LEAVES
+   // WHERE EMP_CODE = '".$empCode."'
+   // AND STATUS IN('A', 'N')
+   // AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
+   // AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')
+   // ORDER BY ID DESC, LVE_DATE_FR DESC";
 
    if (!empty($tourDetail_approved)) {
    foreach ($tourDetail_approved as $tour) {

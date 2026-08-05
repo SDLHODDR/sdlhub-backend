@@ -27,7 +27,7 @@ if (isset($_SESSION['emp_code'])) {
     echo json_encode([
         "logged_in" => true,
         "emp_code" => $_SESSION['emp_code'],
-        "name" => $_SESSION['name'],
+        "name" => ucfirst($_SESSION['name']),
         "profile_image" => $_SESSION['profile_image'] ?? null
     ]);
 } else {

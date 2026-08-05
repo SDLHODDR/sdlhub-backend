@@ -17,6 +17,10 @@ if($data['sendAuth']==true)
             $task_id = executeQry("insert into EPT_USER_TASKS (
                         ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, AUTH_BY, AUTH_ON, REMARKS, TRAN_CODE, REF_TASK_ID, TASK_TYPE, UDF_1, TRAN_DESC, SITE_CODE, EMP_CODE_FOR, CHG_ON, UDF_2, TASK_GRP_DESC, IP_ADDR) values (
                         null, '349', sysdate,'".$empCode."' , (sysdate+2), 'O', null, null, null, '".$data['ID']."', null, 'A', null, concat('Outdoor DATED ', '".$gpass['GPASS_DATE']."' ), '".$_SESSION['eptSiteCode']."', '".$Manager."', sysdate, '', '".getEmpInfoByCode($gpass['EMP_CODE'])."', '') returning ID into :taskId" ,'taskId');
+
+            $postremarks_task_id = executeQry("insert into EPT_USER_TASKS (
+                        ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, AUTH_BY, AUTH_ON, REMARKS, TRAN_CODE, REF_TASK_ID, TASK_TYPE, UDF_1, TRAN_DESC, SITE_CODE, EMP_CODE_FOR, CHG_ON, UDF_2, TASK_GRP_DESC, IP_ADDR) values (
+                        null, '349', sysdate,'".$empCode."' , (sysdate+2), 'O', 'null', null, null, '".$data['ID']."', null, 'UR', null, concat('Outdoor DATED ', '".$gpass['GPASS_DATE']." User task for Post Remarks' ), '".$_SESSION['eptSiteCode']."', '".$empCode."', sysdate, '', '".getEmpInfoByCode($gpass['EMP_CODE'])."', '') returning ID into :taskPMRId" ,'taskPMRId');
             
             executeQry("update ept_employee_gpass 
                         set status='T',
