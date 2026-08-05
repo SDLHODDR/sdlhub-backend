@@ -38,17 +38,17 @@ try {
     /* ===========================================
        FETCH Questions Group Master
     =========================================== */
-    $questionGrpMasterData = [];
+    $questionSubGrpMasterData = [];
 
-    $sqltemp = multiRec("SELECT QSGRP_ID, QSGRP_DESC from HR_QUESTION_SGROUP");
+    $sqltemp = multiRec("SELECT QSSGRP_ID, QSSGRP_DESC from HR_QUESTION_SSGROUP");
     foreach ($sqltemp as $temp) {
     
-        $questionGrpMasterData[] = [
-            "QSGRP_ID"         => (int)$temp["QSGRP_ID"],
-            "QSGRP_DESC" => $temp["QSGRP_DESC"]
+        $questionSubGrpMasterData[] = [
+            "QSSGRP_ID"         => (int)$temp["QSSGRP_ID"],
+            "QSSGRP_DESC" => $temp["QSSGRP_DESC"]
         ];
     }
-    apiResponse(true, "Question gROUP Master loaded successfully.", $questionGrpMasterData);
+    apiResponse(true, "Question Sub gROUP Master loaded successfully.", $questionSubGrpMasterData);
 } catch (Throwable $e) {
 
     logOracleError(
@@ -57,10 +57,10 @@ try {
             "file"    => $e->getFile(),
             "line"    => $e->getLine()
         ],
-        "getQuestionGroups.php"
+        "getQuestionSubGroups.php"
     );
 
-    apiResponse(false, "Unable to load question group master.", null, 500);
+    apiResponse(false, "Unable to load question subgroup master.", null, 500);
 
 } finally {
 
