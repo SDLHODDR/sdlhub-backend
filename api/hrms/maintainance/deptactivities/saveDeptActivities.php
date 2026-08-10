@@ -1,4 +1,6 @@
 <?php
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 
 require_once __DIR__ . "/../../../config/session.php";
 require_once __DIR__ . "/../../../cors.php";
@@ -36,7 +38,7 @@ try {
             AND ACT_TYPE = '" . $data['ACT_TYPE'] . "' 
             AND DISP_SEQ='" . $data['DISP_SEQ'] . "'"
         );
-
+       
         if (!empty($exists)) {
             endQry('Record Already Exists!');
             apiResponse(false, "Record already exists.", null, 200);
@@ -44,21 +46,22 @@ try {
         }
 
         $newActivityId = executeQry(
-            "insert into HR_DEPT_JOEX_ACTIVITY (ID, DEPT_ID, ACT_TYPE, DISP_SEQ, ACT_DESC, CHG_ON, CHG_BY, STATUS)
-             values ('', '" . $data['DEPT_ID'] . "', '" . $data['ACT_TYPE'] . "', '" . $data['DISP_SEQ'] . "', '" . $data['ACT_DESC'] . "', sysdate, '" . $empCode . "', 'A')
+            "insert into HR_DEPT_JOEX_ACTIVITY (ID, DEPT_ID, ACT_TYPE, DISP_SEQ, ACT_DESC, CHG_ON, CHG_BY)
+             values ('', '" . $data['DEPT_ID'] . "', '" . $data['ACT_TYPE'] . "', '" . $data['DISP_SEQ'] . "', '" . $data['ACT_DESC'] . "', sysdate, '" . $empCode . "')
              returning ID into :newActivityId",
             'newActivityId'
         );
 
         if ($newActivityId === false) {
-            throw new RuntimeException('Unable to insert department activity master.');
+            //throw new RuntimeException('Unable to insert department activity master.');
+            apiResponse(false, "Unable to insert department activity master", null, 200);
         }
 
         endQry('Saved Successfully');
 
         apiResponse(
             true,
-            "Activity saved successfully.",
+            "Department Activity saved successfully.",
             ["ID" => (int)$newActivityId]
         );
     //}
