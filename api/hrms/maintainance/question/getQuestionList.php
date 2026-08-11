@@ -45,7 +45,9 @@ try {
     $sqltemp = multiRec("
         SELECT * FROM HR_QUESTION_MASTER a
         INNER JOIN hr_question_sgroup b
-        ON a.qgrp_id = b.qsgrp_id 
+        ON a.qgrp_id = b.qsgrp_id
+        INNER JOIN hr_question_ssgroup c
+        ON a.qsgrp_id = c.qssgrp_id 
         WHERE a.status!='D' ORDER BY qgrp_id"
     );
 
@@ -61,6 +63,9 @@ try {
         $questionMasterData[] = [
             "ID"         => (int)$temp["ID"],
             "QSGRP_DESC" => $temp["QSGRP_DESC"],
+            "QSSGRP_DESC" => $temp["QSSGRP_DESC"],
+            "QSGRP_ID" => $temp["QSGRP_ID"],
+            "QSSGRP_ID" => $temp["QSSGRP_ID"],
             "QUESTION"   => $temp["QUESTION"],
             "RATING"     => $type[$temp['RATING_TYPE']],
             "OPTIONS"    => $optionsImpld 

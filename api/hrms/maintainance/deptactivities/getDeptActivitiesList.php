@@ -44,7 +44,7 @@ try {
 
     $sqltemp = multiRec("
         SELECT 
-            A.ID, B.DEPT_DESC, A.ACT_TYPE, A.DISP_SEQ, A.ACT_DESC 
+            A.ID, B.DEPT_DESC, B.DEPT_ID, A.ACT_TYPE, A.DISP_SEQ, A.ACT_DESC 
         FROM HR_DEPT_JOEX_ACTIVITY A
         INNER JOIN HR_DEPARTMENT B ON A.DEPT_ID = B.DEPT_ID 
         ORDER BY B.DEPT_DESC"
@@ -57,6 +57,7 @@ try {
         
         $deptActivitiesListData[] = [
             "ID"            => (int)$temp["ID"],
+            "DEPT_ID"       => $temp["DEPT_ID"],
             "DEPT_DESC"     => $temp["DEPT_DESC"],
             "DISP_SEQ"      => $temp["DISP_SEQ"],
             "ACT_TYPE"      => $temp['ACT_TYPE'],    
