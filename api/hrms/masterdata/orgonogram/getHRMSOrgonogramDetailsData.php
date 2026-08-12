@@ -37,40 +37,13 @@ try {
         exit;
     }
 
-    $organogramDetail = multiRec("SELECT * FROM HR_ORGANOGRAM WHERE ID = '" . $id . "'");
+    $organogramDetail = singRec("SELECT * FROM HR_ORGANOGRAM WHERE ID = '" . $id . "'");
     
     if ( empty($organogramDetail) ) {
         apiResponse( false, "No Data found", null, 200 );
         exit;
     }
-    print_r($organogramDetail);
-    exit;
-    
-    $results = [];
-    foreach ($organogramDetail as $org) {
-        $results[] = [
-            "ID" => (int)$org['ID'],
-            "FINENT" => $org['FINENT'],
-            "COMPANY" => $org["COMPANY"],
-            "LABEL" => $org['LABEL'],
-            "DEPT_ID" => $org["DEPT_ID"],
-            "DESI_ID" => $org["DESI_ID"],
-            "DIVSN_ID" => $org["DIVSN_ID"],
-            "OLVL_ID" => $org['OLVL_ID'],
-            "POSI_COUNT" => $org['POSI_COUNT'],
-            "FILL_COUNT" => $org['FILL_COUNT'],
-            "PARENT_ORGID" => $org['PARENT_ORGID'],
-            "JD_ID" => $org['JD_ID'],
-            "EMP_LEVEL" => $org['EMP_LEVEL'],
-            "STATUS" => $org['STATUS'],
-            "STATUSTXT" => $org['STATUS'],
-            "CHG_ON" => $org['CHG_ON'],
-            "CHG_BY" => $org['CHG_BY'],
-            "NOTICE_DAYS" => $org['NOTICE_DAYS']
-        ];
-    }
-    
-    apiResponse(true, "Organogram data fetched successfully.", $results);
+    apiResponse(true, "Organogram data fetched successfully.", $organogramDetail);
 } catch (Throwable $e) {
     logOracleError(
         [

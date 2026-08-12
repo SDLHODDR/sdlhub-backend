@@ -27,7 +27,30 @@ if (empty($data)) {
 }
 
 try {
+    $deptId = $data['DEPARTMENT_ID'] ?? null;
+    $desigId = $data['DESIGNATION_ID'] ?? null;
 
+    if (!$deptId && !$desigId) {
+        apiResponse(false, "Department Id and Designation Id is required", null, 500);
+        exit;
+    }
+
+    $organogramJDLbl = multiRec("select ID,ID || ' - ' || SH_DESC as LABEL from HR_JD where dept_id = '" . $deptId . "' and DESIG_ID = '" . $desigId . "' order by SH_DESC");
+    
+    if ( empty($organogramJDLbl) ) {
+        apiResponse( false, "No Data found", null, 200 );
+        exit;
+    }
+
+    $results = [];
+    foreach ($organogramJDLbl as $org) {
+        $results[] = [
+            "ID" => (int)$org['ID'],
+            "LABEL" => $org['LABEL']
+        ];
+    }
+    
+    apiResponse(true, "Organogram data fetched successfully.", $results);
 } catch (Throwable $e) {
     logOracleError(
         [

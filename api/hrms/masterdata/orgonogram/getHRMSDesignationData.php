@@ -45,30 +45,11 @@ try {
         exit;
     }
 
-    print_r($organogramDesign);
-    exit;
-    
     $results = [];
     foreach ($organogramDesign as $org) {
         $results[] = [
             "ID" => (int)$org['ID'],
-            "FINENT" => $org['FINENT'],
-            "COMPANY" => $org["COMPANY"],
-            "LABEL" => $org['LABEL'],
-            "DEPT_ID" => $org["DEPT_ID"],
-            "DESI_ID" => $org["DESI_ID"],
-            "DIVSN_ID" => $org["DIVSN_ID"],
-            "OLVL_ID" => $org['OLVL_ID'],
-            "POSI_COUNT" => $org['POSI_COUNT'],
-            "FILL_COUNT" => $org['FILL_COUNT'],
-            "PARENT_ORGID" => $org['PARENT_ORGID'],
-            "JD_ID" => $org['JD_ID'],
-            "EMP_LEVEL" => $org['EMP_LEVEL'],
-            "STATUS" => $org['STATUS'],
-            "STATUSTXT" => $org['STATUS'],
-            "CHG_ON" => $org['CHG_ON'],
-            "CHG_BY" => $org['CHG_BY'],
-            "NOTICE_DAYS" => $org['NOTICE_DAYS']
+            "LABEL" => $org['LABEL']
         ];
     }
     
