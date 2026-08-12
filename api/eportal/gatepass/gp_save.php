@@ -209,10 +209,14 @@ else if($data['editGpData']==true)
             POST_REMARKS = '" . str_replace("'", "''", $data['POST_REMARKS']) . "'";
         }
 
-        executeQry("UPDATE ept_employee_gpass
+        $editPRMId = executeQry("UPDATE ept_employee_gpass
             SET $updateFields
-            WHERE ID IN (".$data['ID'].")");
+            WHERE ID IN (".$data['ID'].")
+            returning ID into :editPRMId", 'editPRMId');
 
+        // if($editPRMId) {
+            
+        // }
     }
     // echo json_encode([
     //     "status" => true,
