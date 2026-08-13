@@ -18,94 +18,51 @@ require_once __DIR__ . "/../../../config/utils.php";
 
 header("Content-Type: application/json; charset=UTF-8");
 
-
 /* ==========================================================
    SESSION VALIDATION
 ========================================================== */
 
-if (
-    !isset($_SESSION['emp_code']) ||
-    empty($_SESSION['emp_code'])
-) {
-    apiResponse(
-        false,
-        "Session expired. Please login again.",
-        null,
-        401
-    );
+if (!isset($_SESSION['emp_code']) ||  empty($_SESSION['emp_code'])) {
+    apiResponse(false, "Session expired. Please login again.", null, 401);
 }
-
 
 /* ==========================================================
    REQUEST METHOD
 ========================================================== */
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-
-    apiResponse(
-        false,
-        "Invalid request method.",
-        null,
-        405
-    );
+    apiResponse(false, "Invalid request method.", null, 405);
 }
-
 
 /* ==========================================================
    READ REQUEST
 ========================================================== */
 
-$input = json_decode(
-    file_get_contents("php://input"),
-    true
-);
+$input = json_decode(file_get_contents("php://input"), true);
 
 if (!is_array($input)) {
     $input = $_POST;
 }
 
-
 /* ==========================================================
    REQUEST PARAMETERS
 ========================================================== */
 
-$tabName = strtoupper(
-    trim($input['tabName'] ?? '')
-);
-
-$id = trim(
-    $input['id'] ?? ''
-);
-
-$description = trim(
-    $input['description'] ?? ''
-);
-
+$tabName = strtoupper(trim($input['tabName'] ?? ''));
+$id = trim($input['id'] ?? '');
+$description = trim($input['description'] ?? '');
 
 /* ==========================================================
    BASIC VALIDATION
 ========================================================== */
 
 if ($tabName === '') {
-
-    apiResponse(
-        false,
-        "Master table name is required.",
-        null,
-        400
-    );
+    apiResponse(false, "Master table name is required.", null, 400);
 }
 
 if ($description === '') {
-
-    apiResponse(
-        false,
-        "Description is required.",
-        null,
-        400
-    );
+    apiResponse(false, "Description is required.", null, 400);
 }
-
 
 /* ==========================================================
    VALIDATE TABLE FROM HR_MST_TABLES
@@ -121,62 +78,31 @@ $sql = "
     ORDER BY COL_SEQ
 ";
 
-$binds = [
-    ':TAB_NAME' => $tabName
-];
-
+$binds = [':TAB_NAME' => $tabName];
 $columns = multiRec($sql, $binds);
-
 
 /* ==========================================================
    VALIDATE MASTER CONFIGURATION
 ========================================================== */
 
-if (
-    empty($columns) ||
-    count($columns) < 2
-) {
-
-    apiResponse(
-        false,
-        "Invalid master table configuration.",
-        null,
-        400
-    );
+if ( empty($columns) || count($columns) < 2) {  
+    apiResponse(false, "Invalid master table configuration.",  null, 400);
 }
-
 
 /* ==========================================================
    GET ID / DESCRIPTION COLUMNS
 ========================================================== */
 
-$idColumn = strtoupper(
-    trim($columns[0]['COL_NAME'] ?? '')
-);
+$idColumn = strtoupper(trim($columns[0]['COL_NAME'] ?? ''));
+$descColumn = strtoupper(trim($columns[1]['COL_NAME'] ?? ''));
 
-$descColumn = strtoupper(
-    trim($columns[1]['COL_NAME'] ?? '')
-);
-
-
-if (
-    $idColumn === '' ||
-    $descColumn === ''
-) {
-
-    apiResponse(
-        false,
-        "Invalid master table column configuration.",
-        null,
-        400
-    );
+if ($idColumn === '' ||    $descColumn === '' ){
+    apiResponse(false, "Invalid master table column configuration.", null, 400);
 }
-
 
 /* ==========================================================
    CHECK DUPLICATE DESCRIPTION
 ========================================================== */
-
 /*
  * Duplicate comparison is:
  *
@@ -191,7 +117,6 @@ if (
  *
  * are treated as the same value.
  */
-
 
 /* ==========================================================
    ADD
@@ -214,19 +139,10 @@ if ($id === '') {
     );
 
     $duplicateCount = (int)($duplicateRecord['CNT'] ?? 0);
-
-
     if ($duplicateCount > 0) {
-
-        apiResponse(
-            false,
-            "This description already exists.",
-            null,
-            409
-        );
+        apiResponse(false, "This description already exists.", null, 409);
     }
 }
-
 
 /* ==========================================================
    UPDATE
@@ -353,18 +269,11 @@ if ($id !== '') {
 
     } catch (Throwable $e) {
 
-        forceRollback(
-            "saveMasterData.php UPDATE : " . $e->getMessage()
-        );
+        forceRollback("saveMasterData.php UPDATE : " . $e->getMessage());
 
         endQry();
 
-        apiResponse(
-            false,
-            "Unable to update master record.",
-            null,
-            500
-        );
+        apiResponse(false, "Unable to update master record.", null, 500);
     }
 }
 
@@ -392,7 +301,6 @@ try {
         'return' => $idColumn
     ]);
 
-
     /* ======================================================
        CHECK INSERT
     ====================================================== */
@@ -401,21 +309,13 @@ try {
 
         endQry();
 
-        apiResponse(
-            false,
-            "Unable to add master record.",
-            null,
-            500
-        );
+        apiResponse(false, "Unable to add master record.", null, 500);
     }
-
 
     /* ======================================================
        COMMIT
     ====================================================== */
-
     endQry();
-
 
     /* ======================================================
        SUCCESS
@@ -433,16 +333,9 @@ try {
 
 } catch (Throwable $e) {
 
-    forceRollback(
-        "saveMasterData.php INSERT : " . $e->getMessage()
-    );
+    forceRollback("saveMasterData.php INSERT : " . $e->getMessage());
 
     endQry();
 
-    apiResponse(
-        false,
-        "Unable to add master record.",
-        null,
-        500
-    );
+    apiResponse(false, "Unable to add master record.", null, 500);
 }
