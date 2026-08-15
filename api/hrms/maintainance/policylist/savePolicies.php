@@ -1,5 +1,8 @@
 <?php
 
+// ini_set('display_errors', 1);
+// error_reporting(E_ALL);
+
 require_once __DIR__ . "/../../../config/session.php";
 require_once __DIR__ . "/../../../cors.php";
 require_once __DIR__ . "/../../../config/db.php";
@@ -23,9 +26,8 @@ if (empty($empCode)) {
 
 $data = json_decode(file_get_contents("php://input"), true);
 if (empty($data)) {
-    $data = $data;
+    $data = $_POST;
 }
-
 // ---------------------------------------------------------
 // Collect + validate input (server-side; client validation
 // in usePolicyHandler.validateForm() can be bypassed)
@@ -96,7 +98,8 @@ if ($hasUpload) {
     $safeExt = preg_replace('/[^a-z0-9]/', '', $ext);
     $generatedName = 'policy_' . bin2hex(random_bytes(8)) . ($safeExt ? '.' . $safeExt : '');
 
-    $uploadDir = __DIR__ . '/../../../input/policy_doc/';
+    //$uploadDir = __DIR__ . '/../../../input/policy_doc/';
+    $uploadDir = __DIR__ . '/../../../../input/policy_doc/';
     if (!is_dir($uploadDir)) {
         mkdir($uploadDir, 0755, true);
     }
@@ -121,8 +124,8 @@ try {
         $sql = "UPDATE HR_POLICY
                    SET COMP_NAME   = :comp_name,
                        POLICY_NAME = :policy_name,
-                       START_DATE  = :start_date,
-                       END_DATE    = :end_date,
+                       START_DATE  = TO_DATE(:start_date, 'YYYY-MM-DD'),
+                       END_DATE    = TO_DATE(:end_date, 'YYYY-MM-DD'),
                        POLICY_DESC = :policy_desc,
                        IS_MANDAT   = :is_mandat,
                        CHG_ON      = SYSDATE,
@@ -155,7 +158,7 @@ try {
         $sql = "INSERT INTO HR_POLICY
                     (COMP_NAME, POLICY_NAME, START_DATE, END_DATE, POLICY_DESC, STATUS, IS_MANDAT, CHG_ON, CHG_BY)
                 VALUES
-                    (:comp_name, :policy_name, :start_date, :end_date, :policy_desc, 'N', :is_mandat, SYSDATE, :chg_by)
+                    (:comp_name, :policy_name, TO_DATE(:start_date, 'YYYY-MM-DD'), TO_DATE(:end_date, 'YYYY-MM-DD'), :policy_desc, 'N', :is_mandat, SYSDATE, :chg_by)
                 RETURNING POLI_ID INTO :new_id";
 
         $stmt = oci_parse($sql___func___con, $sql);
