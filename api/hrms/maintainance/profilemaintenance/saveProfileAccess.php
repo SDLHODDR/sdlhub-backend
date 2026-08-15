@@ -41,33 +41,17 @@ try {
        SESSION VALIDATION
     ========================================================== */
 
-    if (
-        !isset($_SESSION["emp_code"]) ||
-        empty($_SESSION["emp_code"])
-    ) {
-        apiResponse(
-            false,
-            "Session expired. Please login again.",
-            null,
-            401
-        );
+    if (!isset($_SESSION["emp_code"]) || empty($_SESSION["emp_code"])) {
+        apiResponse(false, "Session expired. Please login again.", null, 401);
     }
-
 
     /* ==========================================================
        REQUEST METHOD VALIDATION
     ========================================================== */
 
     if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-
-        apiResponse(
-            false,
-            "Invalid request method.",
-            null,
-            405
-        );
+        apiResponse(false, "Invalid request method.", null, 405);
     }
-
 
     /* ==========================================================
        READ RAW JSON
@@ -75,83 +59,39 @@ try {
 
     $rawInput = file_get_contents("php://input");
 
-
     if ($rawInput === false || trim($rawInput) === "") {
-
-        apiResponse(
-            false,
-            "Empty request payload.",
-            null,
-            400
-        );
+        apiResponse(false, "Empty request payload.", null, 400);
     }
-
 
     /* ==========================================================
        DECODE JSON
     ========================================================== */
 
-    $request = json_decode(
-        $rawInput,
-        true
-    );
+    $request = json_decode($rawInput, true);
 
-
-    if (
-        json_last_error() !== JSON_ERROR_NONE ||
-        !is_array($request)
-    ) {
-
-        apiResponse(
-            false,
-            "Invalid JSON request payload.",
-            null,
-            400
-        );
+    if (json_last_error() !== JSON_ERROR_NONE || !is_array($request)) {
+        apiResponse(false, "Invalid JSON request payload.", null, 400);
     }
-
 
     /* ==========================================================
        PROFILE ID
     ========================================================== */
 
-    $profileId = trim(
-        (string)($request["profileId"] ?? "")
-    );
-
+    $profileId = trim((string)($request["profileId"] ?? ""));
 
     if ($profileId === "") {
-
-        apiResponse(
-            false,
-            "Profile is required.",
-            null,
-            400
-        );
+        apiResponse(false, "Profile is required.", null, 400);
     }
-
 
     if (!ctype_digit($profileId)) {
-
-        apiResponse(
-            false,
-            "Invalid profile.",
-            null,
-            400
-        );
+        apiResponse(false, "Invalid profile.", null, 400);
     }
-
 
     /* ==========================================================
        ACCESS TYPE
     ========================================================== */
 
-    $accessType = strtolower(
-        trim(
-            (string)($request["accessType"] ?? "")
-        )
-    );
-
+    $accessType = strtolower(trim((string)($request["accessType"] ?? "")));
 
     $allowedAccessTypes = [
         "menu",
@@ -161,7 +101,6 @@ try {
         "task",
         "dashboard"
     ];
-
 
     if (!in_array($accessType, $allowedAccessTypes, true)) {
 
@@ -181,26 +120,15 @@ try {
         );
     }
 
-
     /* ==========================================================
        LOGGED-IN EMPLOYEE
     ========================================================== */
 
-    $empCode = trim(
-        (string)$_SESSION["emp_code"]
-    );
-
+    $empCode = trim((string)$_SESSION["emp_code"]);
 
     if ($empCode === "") {
-
-        apiResponse(
-            false,
-            "Invalid logged-in employee.",
-            null,
-            401
-        );
+        apiResponse(false, "Invalid logged-in employee.", null, 401);
     }
-
 
     /* ==========================================================
        HELPER - GET ARRAY FROM REQUEST
