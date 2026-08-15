@@ -31,9 +31,28 @@ $questionText = trim(
         ? ($data['QUES_DESCR'][0] ?? '')
         : ($data['QUES_DESCR'] ?? '')
 );
-$ratingType = trim($data['rateyn'] ?? ($data['RATING_TYPE'] ?? ''));
+// $ratingType = trim($data['rateyn'] ?? ($data['RATING_TYPE'] ?? ''));
 
-if (empty($ratingType) && !empty($data['answer_type'])) {
+// if (empty($ratingType) && !empty($data['answer_type'])) {
+//     $answerType = strtoupper(trim($data['answer_type']));
+//     $map = [
+//         'TEXT' => 'T',
+//         'TEXT BOX' => 'T',
+//         'SELECT' => 'S',
+//         'SELECT BOX' => 'S',
+//         'RADIO' => 'R',
+//         'RADIO BUTTON' => 'R',
+//         'CHECK' => 'C',
+//         'CHECK BOX' => 'C',
+//         'CHECKBOX' => 'C',
+//         'YES/NO' => 'Y',
+//         'Y/N' => 'Y',
+//     ];
+//     $ratingType = $map[$answerType] ?? $answerType;
+// }
+$ratingType = '';
+
+if (!empty($data['answer_type'])) {
     $answerType = strtoupper(trim($data['answer_type']));
     $map = [
         'TEXT' => 'T',
@@ -49,6 +68,11 @@ if (empty($ratingType) && !empty($data['answer_type'])) {
         'Y/N' => 'Y',
     ];
     $ratingType = $map[$answerType] ?? $answerType;
+}
+
+// Fall back to the legacy field only if answer_type wasn't provided at all.
+if (empty($ratingType)) {
+    $ratingType = trim($data['rateyn'] ?? ($data['RATING_TYPE'] ?? ''));
 }
 
 $qgrpId = trim($data['QGRP_ID'] ?? '');
