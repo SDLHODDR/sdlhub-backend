@@ -1,4 +1,6 @@
 <?php
+// ini_set('display_errors', 1);
+// error_reporting(E_ALL);
 
 require_once "gp_head.php";
 
@@ -88,18 +90,17 @@ try {
         // to_char (OUT_TIME, 'HH24:MI:SS') OUT_TIM,WORK_HOUR,OT_HOUR 
         // FROM EPT_BCS_ATTD_REG
         // WHERE emp_code='" . $data['emp_code'] . "' AND attd_date = '" . $data['gpass_date'] . "' ");
-
+        
         $punchLogTbl = singRec("SELECT to_date (ATTD_DATE,'dd-mm-yyyy') AT_DATE,
         to_char (IN_TIME, 'HH24:MI:SS') IN_TIM,
         to_char (OUT_TIME, 'HH24:MI:SS') OUT_TIM,WORK_HOUR,OT_HOUR 
         FROM EPT_BCS_ATTD_REG
         WHERE emp_code='" . $data['emp_code'] . "' AND attd_date = '04-Aug-22' ");
 
-        
         $returnArr = [];
         if($punchLogTbl || !empty($punchLogTbl))
         {
-            //print_r($punchLogTbl);
+            
             if($data['out_type']=='FO')
             {
                 $returnArr['keyRt'] = "Office in time";
@@ -138,7 +139,7 @@ try {
     }
     exit;
 } catch (Throwable $e) {
-    logOracleError($e);
+    //logOracleError($e);
     apiResponse(false, "Unable to fetch outdoorduty form data.", null, 500);
 } finally {
     if ($sql___func___con) {
