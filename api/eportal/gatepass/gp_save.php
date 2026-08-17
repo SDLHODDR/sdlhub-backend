@@ -3,6 +3,10 @@
 //  error_reporting(E_ALL);
 require_once "gp_head.php";
 
+$data = json_decode(file_get_contents("php://input"), true);
+if (empty($data)) {
+    $data = $_POST;
+}
 if($data['saveGpData']==true)
 {
     startQry();
@@ -141,6 +145,11 @@ if($data['saveGpData']==true)
                     ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, AUTH_BY, AUTH_ON, REMARKS, TRAN_CODE, REF_TASK_ID, TASK_TYPE, UDF_1, TRAN_DESC, SITE_CODE, EMP_CODE_FOR, CHG_ON, UDF_2, TASK_GRP_DESC, IP_ADDR) values (
                     null, '349', sysdate,'".$empCode."' , (sysdate+2), 'O', null, null, null, '".$insert_id."', null, 'A', null, concat('Outdoor DATED ', '".$gpass['GPASS_DATE']."' ), '".$_SESSION['eptSiteCode']."', '".$Manager."', sysdate, '', '".getEmpInfoByCode($gpass['EMP_CODE'])."', '') returning ID into :taskId" ,'taskId');
 
+                    $postremarks_task_id = 0;
+                    $postremarks_task_id = executeQry("insert into EPT_USER_TASKS (
+                        ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, AUTH_BY, AUTH_ON, REMARKS, TRAN_CODE, REF_TASK_ID, TASK_TYPE, UDF_1, TRAN_DESC, SITE_CODE, EMP_CODE_FOR, CHG_ON, UDF_2, TASK_GRP_DESC, IP_ADDR) values (
+                        null, '349', sysdate,'".$empCode."' , (sysdate+2), 'O', 'null', null, null, '".$insert_id."', null, 'A', null, concat('Outdoor DATED ', '".$gpass['GPASS_DATE']." User task for Post Remarks' ), '".$_SESSION['eptSiteCode']."', '".$empCode."', sysdate, '', concat('POSTREMARKS~', '".getEmpInfoByCode($gpass['EMP_CODE'])."' ), '') returning ID into :taskPMRId" ,'taskPMRId');
+
                     executeQry("update ept_employee_gpass 
                       set status='T',
                       chg_by ='".$empCode."',
@@ -172,6 +181,7 @@ if($data['saveGpData']==true)
                       [
                         "task_id" => $task_id,
                         "gpass_id" => $insert_id,
+                        "postremarks_task_id" => $postremarks_task_id,
                       ]
                     );
                 } else {
@@ -205,24 +215,101 @@ else if($data['editGpData']==true)
 
         //Add POST_REMARKS only if present
         if (isset($data['POST_REMARKS']) && $data['POST_REMARKS'] !== "") {
-            $updateFields .= ",
-            POST_REMARKS = '" . str_replace("'", "''", $data['POST_REMARKS']) . "'";
-        }
+            if($_FILES["POST_REMARKS_DOC"]["name"])
+            {
+                $fileType = $_FILES['POST_REMARKS_DOC']['type'] ?? '';
+                $fileSize = $_FILES['POST_REMARKS_DOC']['size'] ?? 0;
+                $fileTmp  = $_FILES['POST_REMARKS_DOC']['tmp_name'];
+                $fileName = $_FILES['POST_REMARKS_DOC']['name'] ?? '';
 
+                // Generate a safe, collision-free filename instead of trusting
+                // the client-supplied name (path traversal / overwrite risk).
+                $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+                $safeExt = preg_replace('/[^a-z0-9]/', '', $ext);
+                $generatedName = 'gatepass_' . bin2hex(random_bytes(8)) . ($safeExt ? '.' . $safeExt : '');
+                
+                $uploadDir = __DIR__ . '/../../../input/gatepass/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+
+                $destPath = $uploadDir . $generatedName;
+                if (!move_uploaded_file($fileTmp, $destPath)) {
+                    apiResponse(false, "Unable to store uploaded document.", null, 500);
+                }
+
+                // Web-relative path saved to DB / returned to frontend
+                $docPath = 'input/gatepass/' . $generatedName;
+            }
+
+            $updateFields .= ",
+                POST_REMARKS = '" . str_replace("'", "''", $data['POST_REMARKS']) . "',
+                CHG_BY = '" . $empCode . "',
+                CHG_ON = SYSDATE";
+
+            if (!empty($docPath)) {
+                $updateFields .= ",
+                POST_REMARKS_DOC = '" . str_replace("'", "''", $docPath) . "'";
+            }
+        }
+        
+        // echo "UPDATE ept_employee_gpass
+        //     SET $updateFields
+        //     WHERE ID IN (".$data['ID'].")";
+
+        //     exit;
         $editPRMId = executeQry("UPDATE ept_employee_gpass
             SET $updateFields
             WHERE ID IN (".$data['ID'].")
             returning ID into :editPRMId", 'editPRMId');
 
-        // if($editPRMId) {
-            
-        // }
+        if($editPRMId) {
+            if (isset($data['POST_REMARKS']) && $data['POST_REMARKS'] !== "") {
+                $chkTask = singRec("SELECT ID FROM EPT_USER_TASKS WHERE TRAN_CODE='" . $data['ID'] . "' AND TASK_ID = '349'");    
+                if($chkTask){
+                    taskUpdate('C', '', $chkTask['ID']);
+                }
+                    
+                $gpass = singRec("select * from EPT_EMPLOYEE_GPASS where  id = '".$data['ID']."'");
+                $name = singRec("SELECT hr_get_emp_mgr('".$gpass['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
+                $name1 = findParentOrgEmp($gpass['EMP_CODE']);        
+                $Manager = $name['EMP_CODE'] ? $name['EMP_CODE'] : $name1;
+                $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from EPT_bcs_employee 
+                                    WHERE emp_code = '".$Manager."'");
+
+                $mailBody='Hi '.ucwords(strtolower(getEmpInfoByCode($Manager))). ',<br><br>' .ucwords(strtolower(getEmpInfoByCode($empCode))).' has modified the post remarks for the outdoor. 
+                <br>
+                <br><br>
+                <b>  Employee  :</b> '.getEmpInfoByCode($gpass['EMP_CODE']).'<br><br>
+                <b>  Outdoor Date :</b> '.$gpass['GPASS_DATE'].'<br><br>
+                <b>  Out Type :</b> '.$decodeOT[$gpass['OUT_TYPE']].' <br><br>
+                <b>  Remarks :</b> '.$gpass['REMARKS'].' <br><br>
+                <b>  Post OD Remarks :</b> '.$data['POST_REMARKS'].' <br>
+                <br><br> Regards<br> Admin';
+                if($_FILES["POST_REMARKS_DOC"]["name"])
+                {
+                  $mailBody='Hi '.ucwords(strtolower(getEmpInfoByCode($Manager))). ',<br><br>' .ucwords(strtolower(getEmpInfoByCode($empCode))).' has modified the post remarks for the outdoor. 
+                    <br>
+                    <br><br>
+                    <b>  Employee  :</b> '.getEmpInfoByCode($gpass['EMP_CODE']).'<br><br>
+                    <b>  Outdoor Date :</b> '.$gpass['GPASS_DATE'].'<br><br>
+                    <b>  Out Type :</b> '.$decodeOT[$gpass['OUT_TYPE']].' <br><br>
+                    <b>  Remarks :</b> '.$gpass['REMARKS'].' <br><br>
+                    <b>  Post OD Remarks :</b> '.$data['POST_REMARKS'].' <br>
+                    <b>  Post OD Document :</b> <a href="https://eportal.sdlindia.com/'.$uploadedFile.'">Click Here</a> <br>
+                    <br><br> Regards<br> Admin';
+                  if($manageremail['COM_EMAIL']!='rap@sdlindia.com') {
+                    $maild = executeQry("INSERT INTO EPT_BCS_MAILBOX_EPP(ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS, CHG_ON,CHG_BY,MAIL_DESCR) values(null,'  Outdoor Duty Request Of ".getEmpInfoByCode($gpass['EMP_CODE'])." dated ".$gpass['GPASS_DATE']."', '".trim($mailBody)."',null,'N',SYSDATE,
+                        '".$empCode."','Outdoor Duty')  returning ID into :mid",'mid');
+
+                    executeQry("INSERT INTO EPT_BCS_MAILBOX_EPP_DETAILS(ID,MAIL_ID,EMAIL_TO,EMAIL_CC,EMAIL_BCC) values(null,'".$maild."', '".strtolower($manageremail['COM_EMAIL'])." ','attendance@sdlindia.com',null)");			
+                    
+                    endQry();
+                  }
+                }
+            }
+        }
     }
-    // echo json_encode([
-    //     "status" => true,
-    //     "status_code" => 200,
-    //     "message" => "Gatepass updated successfully"
-    // ]);
     endQry();
     apiResponse(true,"Gatepass updated successfully");
     

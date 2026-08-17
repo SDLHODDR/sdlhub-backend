@@ -106,6 +106,15 @@ foreach($myTasksData as $res)
     $requestFor = "";
     if(($details || !empty($details) || count($details) > 0 || isset($details['EMP_CODE'])) && $taskId == 109){
        $requestFor = ucwords(getEmpInfoByCode($details['EMP_CODE'])); 
+    } else if($taskId == 349) {
+       $requestType = ''; 
+       $requestFor = $res['TASK_GRP_DESC'];
+        if (str_starts_with($requestFor, 'POSTREMARKS~')) {
+            //$requestFor = substr($requestFor, strlen('POSTREMARKS~'));
+            $parts = explode('~', $requestFor, 2);
+            $requestType = $parts[0] ?? '';           // "POSTREMARKS"
+            $requestFor  = $parts[1] ?? $requestFor;  // "Tanvi Kochrekar"
+        }
     } else {
        $requestFor = $res['TASK_GRP_DESC'];
     }
@@ -123,7 +132,7 @@ foreach($myTasksData as $res)
         "statusColor" => $statusAuthColorMap[$res['STATUS']] ?? "secondary",
         "statusText" => $statusAuthTextMap[$res['STATUS']] ?? "Open",
         'REQUEST_FOR'  => $requestFor,
-        // Attach details here
+        'REQUEST_TYPE'  => $requestType,
         'DETAILS'      => $details
     ];
 }         

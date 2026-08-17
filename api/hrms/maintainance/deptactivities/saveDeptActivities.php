@@ -1,6 +1,6 @@
 <?php
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+// ini_set('display_errors', 1);
+// error_reporting(E_ALL);
 
 require_once __DIR__ . "/../../../config/session.php";
 require_once __DIR__ . "/../../../cors.php";
@@ -31,7 +31,43 @@ if (empty($data)) {
 
 
 try {
-    startQry();    
+    startQry();   
+    $deptActId = trim(($data['ID'] ?? ''));
+    if (!empty($deptActId)) {
+        $deptActDesc = trim($data['ACT_DESC'] ?? '');
+        $deptActType = trim($data['ACT_TYPE'] ?? '');
+        $deptActDeptID = trim($data['DEPT_ID'] ?? '');
+        $deptActDispSeq = trim($data['DISP_SEQ'] ?? '');
+        
+        $escapedDeptActDesc = str_replace("'", "''", $deptActDesc);
+        $escapedDeptActType = str_replace("'", "''", $deptActType);
+        $escapeddeptActDeptID = str_replace("'", "''", $deptActDeptID);
+        $escapedDeptActDispSeq = str_replace("'", "''", $deptActDispSeq);
+        $escapedDeptActId = str_replace("'", "''", $deptActId);
+        $escapedEmpCode = str_replace("'", "''", $empCode);         
+
+        $updateResult = executeQry(
+            "update HR_DEPT_JOEX_ACTIVITY set
+                ACT_DESC='" . $escapedDeptActDesc . "',
+                DEPT_ID='" . $escapeddeptActDeptID . "',
+                ACT_TYPE='" . $escapedDeptActType . "',
+                DISP_SEQ='" . $escapedDeptActDispSeq . "',
+                CHG_BY='" . $escapedEmpCode . "',
+                CHG_ON=sysdate
+             where ID='" . $escapedDeptActId . "'"
+        );
+
+        if ($updateResult === false) {
+            throw new RuntimeException('Unable to update Department Activity.');
+        }
+
+        endQry('Updated Successfully!');
+
+        apiResponse(true, "Department Activity updated successfully.", [
+            "ID" => $deptActId,
+        ]);
+        exit;
+    } else {
         $exists = singRec(
             "SELECT DISP_SEQ FROM HR_DEPT_JOEX_ACTIVITY WHERE 
             DEPT_ID='" . $data['DEPT_ID'] . "'
@@ -64,7 +100,7 @@ try {
             "Department Activity saved successfully.",
             ["ID" => (int)$newActivityId]
         );
-    //}
+    }
 } catch (Throwable $e) {
     logOracleError(
         [

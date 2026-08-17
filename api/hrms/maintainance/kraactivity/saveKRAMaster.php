@@ -1,5 +1,8 @@
 <?php
 
+// ini_set('display_errors', 1);
+// error_reporting(E_ALL);
+
 require_once __DIR__ . "/../../../config/session.php";
 require_once __DIR__ . "/../../../cors.php";
 require_once __DIR__ . "/../../../config/db.php";
@@ -35,37 +38,40 @@ if (empty($empCode)) {
 $data = json_decode(file_get_contents("php://input"), true);
 
 try {
-    /* ===========================================
-       FETCH Questions
-    =========================================== */
-
-    $deptActivitiesListData = [];
-    $type = [ 'J' => 'Join', 'E' => 'Exit' ];
-
-    $sqltemp = multiRec("
-        SELECT 
-            A.ID, B.DEPT_DESC, B.DEPT_ID, A.ACT_TYPE, A.DISP_SEQ, A.ACT_DESC 
-        FROM HR_DEPT_JOEX_ACTIVITY A
-        INNER JOIN HR_DEPARTMENT B ON A.DEPT_ID = B.DEPT_ID 
-        ORDER BY B.DEPT_DESC DESC, A.ACT_TYPE DESC, A.DISP_SEQ DESC"
-    );
-
-    $cnt = 1;
-    foreach ($sqltemp as $temp) {
+    startQry();
+	if(!empty($data['KRA_DESC'])){
+        // Check if the record already exists
+        $KIdCHK = singRec("select KRA_ID from HR_KRA_MASTER where KRA_DESC='" . $data['KRA_DESC'] . "' ");
+        if ($KIdCHK) {
+            endQry("Record Already Exists!");
+            apiResponse(false, "Record Already Exists", null, 200);
+            exit;
+        } else {
+            $kraId = executeQry("insert into HR_KRA_MASTER(KRA_ID,KRA_DESC,CHG_BY,CHG_ON)
+                                values (
+                                '',
+                                '" . trim($data['KRA_DESC']) . "',
+                                '" . trim($empCode) . "',
+                                sysdate ) returning  KRA_ID into :kraId ", 'kraId');
+        }
         
-        $cnt++;
-        
-        $deptActivitiesListData[] = [
-            "ID"            => (int)$temp["ID"],
-            "DEPT_ID"       => $temp["DEPT_ID"],
-            "DEPT_DESC"     => $temp["DEPT_DESC"],
-            "DISP_SEQ"      => $temp["DISP_SEQ"],
-            "ACT_TYPE"      => $temp['ACT_TYPE'],    
-            "ACT_TYPE_TEXT" => $type[$temp['ACT_TYPE']],
-            "ACT_DESC"      => $temp["ACT_DESC"],
-        ];
+        // exit;
+        endQry('Saved Successfully');
+        if($kraId){
+            apiResponse(
+                true,
+                "KRA Master saved successfully",
+                [
+                "KRA_ID" => $kraId,
+                ]
+            );
+        } else
+        {
+            apiResponse(false, "Error occured 222", null, 200);
+        }
+    } else {
+         apiResponse(false, "KRA Description required", null, 200);
     }
-    apiResponse(true, "Department List loaded successfully.", $deptActivitiesListData);
 } catch (Throwable $e) {
 
     logOracleError(
@@ -74,10 +80,10 @@ try {
             "file"    => $e->getFile(),
             "line"    => $e->getLine()
         ],
-        "getDeptActivitiesList.php"
+        "saveKRAActivity.php"
     );
 
-    apiResponse(false, "Unable to load department activities.", null, 500);
+    apiResponse(false, "Unable to save kra activity.", null, 500);
 
 } finally {
 
