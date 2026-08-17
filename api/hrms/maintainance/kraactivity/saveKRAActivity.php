@@ -62,12 +62,12 @@ try {
         }
 	} else {
 		// Check if the record already exists
-		$KId = singRec("select KRA_ID from HR_KRA_ACTIVITY where KRA_ID='" . $data['KRA_ID'] . "' ");
-		if ($KId) {
-			endQry("Record Already Exists!");
-            apiResponse(false, "Record Already Exists", null, 200);
-            exit;
-		} else {
+		// $KId = singRec("select KRA_ID from HR_KRA_ACTIVITY where KRA_ID='" . $data['KRA_ID'] . "' ");
+		// if ($KId) {
+		// 	endQry("Record Already Exists!");
+        //     apiResponse(false, "Record Already Exists", null, 200);
+        //     exit;
+		// } else {
 			$kra = executeQry("insert into HR_KRA_ACTIVITY(ID,KRA_ID,ACTT_DESC,CHG_BY,CHG_ON,status)
 								values (
 								'',
@@ -75,7 +75,7 @@ try {
 								'" . trim($data['ACTT_DESC']) . "',
 								'" . trim($empCode) . "',
 								sysdate , 'A') returning  ID into :kra ", 'kra');
-		}
+		//}
 	}
 	// exit;
 	endQry('Saved Successfully');

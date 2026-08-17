@@ -1,13 +1,16 @@
 <?php
 //  ini_set('display_errors', 1);
 //  error_reporting(E_ALL);
+
 require_once "gp_head.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 if (empty($data)) {
     $data = $_POST;
 }
-if($data['saveGpData']==true)
+$isSave = isset($data['saveGpData']) && $data['saveGpData'] == true;
+$isEdit = isset($data['editGpData']) && $data['editGpData'] == true;
+if($isSave)
 {
     startQry();
     if($data['ID'] != "") {
@@ -203,11 +206,11 @@ if($data['saveGpData']==true)
         endQry();
     }
 } 
-else if($data['editGpData']==true)
+else if($isEdit)
 {
     startQry();
     if($data["ID"]) {
-
+        
         $updateFields = "
             OUT_TYPE = '".$data['OUT_TYPE']."',
             REMARKS = '" . str_replace("'", "''", $data['REMARKS']) . "'
@@ -257,7 +260,7 @@ else if($data['editGpData']==true)
         //     SET $updateFields
         //     WHERE ID IN (".$data['ID'].")";
 
-        //     exit;
+        // exit;
         $editPRMId = executeQry("UPDATE ept_employee_gpass
             SET $updateFields
             WHERE ID IN (".$data['ID'].")
@@ -265,11 +268,12 @@ else if($data['editGpData']==true)
 
         if($editPRMId) {
             if (isset($data['POST_REMARKS']) && $data['POST_REMARKS'] !== "") {
-                $chkTask = singRec("SELECT ID FROM EPT_USER_TASKS WHERE TRAN_CODE='" . $data['ID'] . "' AND TASK_ID = '349'");    
-                if($chkTask){
+                $chkTask = singRec("SELECT ID FROM EPT_USER_TASKS WHERE TRAN_CODE='" . $data['ID'] . "' AND TASK_ID = '349' and EMP_CODE_FOR = '" . $empCode . "' "); 
+                 
+                if(isset($chkTask['ID']) && $chkTask['ID'] !== ""){
                     taskUpdate('C', '', $chkTask['ID']);
                 }
-                    
+                
                 $gpass = singRec("select * from EPT_EMPLOYEE_GPASS where  id = '".$data['ID']."'");
                 $name = singRec("SELECT hr_get_emp_mgr('".$gpass['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
                 $name1 = findParentOrgEmp($gpass['EMP_CODE']);        
@@ -277,6 +281,7 @@ else if($data['editGpData']==true)
                 $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from EPT_bcs_employee 
                                     WHERE emp_code = '".$Manager."'");
 
+               
                 $mailBody='Hi '.ucwords(strtolower(getEmpInfoByCode($Manager))). ',<br><br>' .ucwords(strtolower(getEmpInfoByCode($empCode))).' has modified the post remarks for the outdoor. 
                 <br>
                 <br><br>

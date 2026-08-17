@@ -80,23 +80,23 @@ function generateTask(
 	));
 	return $newId;
 }
-function taskUpdate($status, $remark, $task_id, $taskGrp = null, $notChek = 0)
-{
-	$task = singRec("select ID from HR_TASK_MASTER where TASK_GRP='" . $taskGrp . "' ");
-	$chk = singRec("select TASK_ID, STATUS, AUTH_BY, to_char(AUTH_ON,'dd-Mon-yyyy') AUTH_ON, to_char(AUTH_ON,'hh24:MI') AUTH_TM, TRAN_CODE,EMP_CODE_FOR
-							from HR_USER_TASKS where id='" . $task_id . "' and task_id = nvl('" . $task['ID'] . "',task_id) ");
-	if (empty($taskGrp))
-		$task = singRec("select TASK_GRP from HR_TASK_MASTER where id='" . $chk['TASK_ID'] . "' ");
-	if ($task_id) {
-		executeQry("update HR_USER_TASKS set 
-							STATUS='" . trim(strtoupper($status)) . "',
-							AUTH_BY='" . trim(strtoupper($_SESSION['EmpCode'])) . "',
-							AUTH_ON=SYSDATE,
-							REMARKS='" . trim(strtoupper($remark)) . "',
-							IP_ADDR='" . $_SERVER['REMOTE_ADDR'] . "'
-						where id='" . $task_id . "' ");
-	}
-}
+// function taskUpdate($status, $remark, $task_id, $taskGrp = null, $notChek = 0)
+// {
+// 	$task = singRec("select ID from HR_TASK_MASTER where TASK_GRP='" . $taskGrp . "' ");
+// 	$chk = singRec("select TASK_ID, STATUS, AUTH_BY, to_char(AUTH_ON,'dd-Mon-yyyy') AUTH_ON, to_char(AUTH_ON,'hh24:MI') AUTH_TM, TRAN_CODE,EMP_CODE_FOR
+// 							from HR_USER_TASKS where id='" . $task_id . "' and task_id = nvl('" . $task['ID'] . "',task_id) ");
+// 	if (empty($taskGrp))
+// 		$task = singRec("select TASK_GRP from HR_TASK_MASTER where id='" . $chk['TASK_ID'] . "' ");
+// 	if ($task_id) {
+// 		executeQry("update HR_USER_TASKS set 
+// 							STATUS='" . trim(strtoupper($status)) . "',
+// 							AUTH_BY='" . trim(strtoupper($_SESSION['EmpCode'])) . "',
+// 							AUTH_ON=SYSDATE,
+// 							REMARKS='" . trim(strtoupper($remark)) . "',
+// 							IP_ADDR='" . $_SERVER['REMOTE_ADDR'] . "'
+// 						where id='" . $task_id . "' ");
+// 	}
+// }
 function getCompfromReq($reqid)
 {
 	$comp = singRec("select ho.company from hr_organogram ho inner join hr_recruitment hr on hr.org_id=ho.id WHERE hr.ID='" . $reqid . "'");
