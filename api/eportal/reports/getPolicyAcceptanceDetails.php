@@ -51,8 +51,8 @@ try {
             POLICY_NAME,
             IS_MANDAT,
             STATUS,
-            START_DATE,
-            END_DATE
+            TO_CHAR(START_DATE,'dd-Mon-yyyy') START_DATE,
+            TO_CHAR(END_DATE,'dd-Mon-yyyy') END_DATE
         FROM EPT_HR_POLICY
         WHERE POLI_ID = :policy_id
     ";
@@ -188,7 +188,7 @@ try {
 
 		TO_CHAR(
 			A.ACCEPTED_ON,
-			'DD-MON-YYYY HH24:MI:SS'
+			'dd-Mon-yyyy HH24:MI:SS'
 		) AS ACCEPTED_ON,
 
 		A.IP_ADDR,

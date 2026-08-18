@@ -40,8 +40,8 @@ try {
             POLICY_NAME,
             DOC_PATH,
             POLICY_DESC,
-            TO_CHAR(START_DATE,'DD-MON-YYYY') STARTDATE,
-            TO_CHAR(END_DATE,'DD-MON-YYYY') ENDDATE
+            TO_CHAR(START_DATE,'dd-Mon-yyyy') STARTDATE,
+            TO_CHAR(END_DATE,'dd-Mon-yyyy') ENDDATE
         FROM EPT_HR_POLICY
         WHERE STATUS = 'A'
 

@@ -118,7 +118,7 @@ try {
             C.ROOM_ID,
             R.ROOM_LABEL,
 
-            TO_CHAR(C.START_TIME,'DD-MON-YYYY') DT,
+            TO_CHAR(C.START_TIME,'dd-Mon-yyyy') DT,
             TO_CHAR(C.START_TIME,'HH24:MI') STARTTIME,
             TO_CHAR(C.END_TIME,'HH24:MI') ENDTIME,
 
@@ -128,7 +128,7 @@ try {
             C.NOOF_ATTD,
             C.REMARKS,
 
-            TO_CHAR(C.CHG_ON,'DD-MON-YYYY') CHG_ON,
+            TO_CHAR(C.CHG_ON,'dd-Mon-yyyy') CHG_ON,
 
             C.ROOM_FACL1,
             C.ROOM_FACL2,

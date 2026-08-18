@@ -89,10 +89,11 @@ while ($row = oci_fetch_assoc($stid2)) {
         ];
     }
 
-    $leave_bal_array[$code]['unapproved'] echo json_encode([
-    "status" => true,
-    "data"   => $leave_bal_array
-]);= (float)$row['TD'];
+    $leave_bal_array[$code]['unapproved']= (float)$row['TD'];
+    echo json_encode([
+        "status" => true,
+        "data"   => $leave_bal_array
+    ]);
 }
 
 oci_free_statement($stid2);
