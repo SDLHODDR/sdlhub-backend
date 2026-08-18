@@ -27,7 +27,55 @@ if (empty($data)) {
 }
 
 try {
-
+    print_r($data);
+    exit;
+    
+    startQry();
+    if(!empty($data)) {
+       $chk = singRec("select id from HR_ORGANOGRAM where 
+            COMPANY = '" . trim($data['COMPANY_ID']) . "'  
+		    and DEPT_ID= '" . trim($data['DEPARTMENT_ID']) . "'
+			and DESI_ID = '" . trim($data['DESIGNATION_ID']) . "'
+			and DIVSN_ID= '" . trim($data['DIVISION_ID']) . "' 
+			and JD_ID=	'" . trim($data['JD_LABEL_ID']) . "' ");
+        
+        if($chk['ID'] == ""){
+            
+            $OrgId = executeQry("insert into HR_ORGANOGRAM (FINENT,COMPANY,DEPT_ID,DESI_ID,DIVSN_ID,OLVL_ID,POSI_COUNT,FILL_COUNT,EMP_LEVEL,CHG_BY,CHG_ON, JD_ID)
+				values ('" . trim($data['FIN_ENTITY_ID']) . "',
+						'" . trim($data['COMPANY_ID']) . "',
+						'" . trim($data['DEPARTMENT_ID']) . "',
+						'" . trim($data['DESIGNATION_ID']) . "',
+						'" . trim($data['DIVISION_ID']) . "',
+						'" . trim($data['ORG_LEVEL_ID']) . "',
+						'" . trim($data['POSITION_COUNT']) . "',
+						'" . trim($data['POSITION_OCCUPIED']) . "',
+						'" . trim($data['EMP_LEVEL_ID']) . "',
+						'" . $empCode . "',
+						sysdate,
+						'" . trim($data['JD_LABEL_ID']) . "'
+				) returning  ID into :orgId ", 'OrgId');
+                endQry('Saved Successfully!');
+                if($OrgId){
+                    apiResponse(
+                        true,
+                        "Organogram added successfully",
+                        [
+                            "OrgId" => $OrgId,
+                        ]
+                    );
+                } else
+                {
+                    apiResponse(false, "Error occured", null, 200);
+                }
+        } else {
+            apiResponse(false, "Organogram already exists.", null, 200);
+            endQry('Organogram already Exists');
+        }
+        
+    } else {
+        apiResponse(false, "Form data is empty.", null, 200);       
+    }
 } catch (Throwable $e) {
     logOracleError(
         [
