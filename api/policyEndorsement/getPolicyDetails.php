@@ -25,8 +25,8 @@ try {
             POLICY_NAME,
             DOC_PATH,
             POLICY_DESC,
-            TO_CHAR(START_DATE, 'DD-MON-YYYY') START_DATE,
-            TO_CHAR(END_DATE, 'DD-MON-YYYY') END_DATE,
+            TO_CHAR(START_DATE, 'dd-Mon-yyyy') START_DATE,
+            TO_CHAR(END_DATE, 'dd-Mon-yyyy') END_DATE,
             IS_MANDATORY,
             PUBLISH
         FROM EPT_HR_POLICY

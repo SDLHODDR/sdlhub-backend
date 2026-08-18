@@ -54,8 +54,8 @@ try {
             P.POLICY_NAME,
             P.DOC_PATH,
             P.POLICY_DESC,
-            TO_CHAR(P.START_DATE,'DD-MON-YYYY') START_DATE,
-            TO_CHAR(P.END_DATE,'DD-MON-YYYY') END_DATE
+            TO_CHAR(P.START_DATE,'dd-Mon-yyyy') START_DATE,
+            TO_CHAR(P.END_DATE,'dd-Mon-yyyy') END_DATE
         FROM EPT_HR_POLICY P
         WHERE P.IS_MANDAT = 'Y'
 

@@ -44,7 +44,7 @@ try {
             HED.EMP_ID,
             HED.DOC_PATH,
             HED.DOC_REF,
-            HED.CHG_ON,
+            TO_CHAR(HED.CHG_ON,'dd-Mon-yyyy') CHG_ON,
             HDT.DOCTYP_DESC,
             HDT.DOCTYP_CODE,
             HED.ID AS DOCID
