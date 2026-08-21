@@ -1,150 +1,501 @@
 <?php
+
 require_once "lr_head.php";
 include_once('numbertoword.php');
 
 $currency_object = new Currency;
 
-$data = json_decode(file_get_contents("php://input"), true);
-
+$data = json_decode(
+    file_get_contents("php://input"),
+    true
+);
 
 try {
-   // $page   = $data['page'] ?? 1;
-   // $limit  = $data['limit'] ?? 10;
-   // $status = $data['status'] ?? 'ALL';
-   // $search = strtolower($data['search'] ?? '');
 
-   // $offset = ($page - 1) * $limit;
+    /* ============================================================
+       STATUS MAP
+    ============================================================ */
 
-   $first_date = date('d-M-Y', strtotime('first day of January last year'));
-   $last_date  = date('d-M-Y', strtotime('last day of December last year'));
+    $decodeStat = [
+        'A' => 'Approved',
+        'N' => 'Pending from Admin',
+        'R' => 'Rejected',
+        'T' => 'In Process',
+        'X' => 'Cancelled'
+    ];
 
-   $decodeStat = [
-      'A' => 'Approved',
-      'N' => 'Pending from Admin',
-      'R' => 'Rejected',
-      'T' => 'In Process'
-   ];
 
-   $result = [];
-   $cnt = 1;
+    /* ============================================================
+       STATUS COLOR MAP
+    ============================================================ */
 
-   /* =========================
-      FETCH UNAPPROVED
-   ========================= */
-   // echo "=========Unapproved========" . "SELECT * FROM EPT_BCS_EMP_LEAVES_TEMP 
-   // WHERE EMP_CODE = '".$empCode."'
-   // AND STATUS IN ('T','R') 
-   // AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
-   // AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')
-   // ORDER BY LVE_DATE_FR DESC, ID DESC";
+    $statusColorMap = [
+        'A' => 'success',
+        'N' => 'warning',
+        'R' => 'danger',
+        'T' => 'info',
+        'X' => 'secondary'
+    ];
 
-   $tourDetail_unapproved = multiRec("
-   SELECT * FROM EPT_BCS_EMP_LEAVES_TEMP 
-   WHERE EMP_CODE = '".$empCode."'
-   AND STATUS IN ('T','R') 
-   AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
-   AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')
-   ORDER BY LVE_DATE_FR DESC, ID DESC
-   ");
 
-   if (!empty($tourDetail_unapproved)) {
-   foreach ($tourDetail_unapproved as $tour) {
+    /* ============================================================
+       RESULT
+    ============================================================ */
 
-      $no_of_days_text = ($tour['TOTAL_DAYS'] == 0.5)
-         ? 'Half Day'
-         : $currency_object->get_number_to_text($tour['TOTAL_DAYS']);
+    $result = [];
 
-      $result[] = [
-         "ID" => $tour['ID'] ?? '',
-         "LVE_CODE" => ucwords(trim($tour['LVE_CODE'] ?? '')),
-         "NO_DAYS" => $no_of_days_text,
-         "LVE_DATE_FR" => date('d-M-Y', strtotime($tour['LVE_DATE_FR'])),
-         "LVE_DATE_TO" => date('d-M-Y', strtotime($tour['LVE_DATE_TO'])),
-         "REMARKS" => $tour['REASON'] ?? '',
-         "status" => $tour['STATUS'],
-         "STATUS" => $decodeStat[$tour['STATUS']] ?? '',
-         "statusColor" => $statusColorMap[$tour['STATUS']] ?? "secondary",
-         "type" => "unapproved",
-         "cnt" => $cnt++
-      ];
-   }
-   }
+    $cnt = 1;
 
-   /* =========================
-      FETCH APPROVED
-   ========================= */
-   $tourDetail_approved = multiRec("
-   SELECT * FROM EPT_BCS_EMP_LEAVES
-   WHERE EMP_CODE = '".$empCode."'
-   AND STATUS IN('A', 'N')
-   AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
-   AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')
-   ORDER BY ID DESC, LVE_DATE_FR DESC
-   ");
 
-   // echo "=========Approved========" . "SELECT * FROM EPT_BCS_EMP_LEAVES
-   // WHERE EMP_CODE = '".$empCode."'
-   // AND STATUS IN('A', 'N')
-   // AND LVE_DATE_FR >= TO_DATE('".$first_date."','dd-Mon-yy')
-   // AND LVE_DATE_TO <= TO_DATE('".$last_date."','dd-Mon-yy')
-   // ORDER BY ID DESC, LVE_DATE_FR DESC";
+    /* ============================================================
+       LEAVE YEAR RANGE
+       
+       Current year + previous year
 
-   if (!empty($tourDetail_approved)) {
-   foreach ($tourDetail_approved as $tour) {
+       Example:
+       Current year = 2026
 
-      $no_of_days_text = ($tour['NO_DAYS'] == 0.5)
-         ? 'Half Day'
-         : $currency_object->get_number_to_text($tour['NO_DAYS']);
+       From = 01-Jan-2025
+       To   = 01-Jan-2027
 
-      $result[] = [
-         "ID" => $tour['ID'] ?? '',
-         "LVE_CODE" => ucwords(trim($tour['LVE_CODE'] ?? '')),
-         "NO_DAYS" => $no_of_days_text,
-         "LVE_DATE_FR" => date('d-M-Y', strtotime($tour['LVE_DATE_FR'])),
-         "LVE_DATE_TO" => date('d-M-Y', strtotime($tour['LVE_DATE_TO'])),
-         "REMARKS" => $tour['REMARKS'] ?? '',
-         "status" => $tour['STATUS'],
-         "STATUS" => $decodeStat[$tour['STATUS']] ?? '',
-         "statusColor" => $statusColorMap[$tour['STATUS']] ?? "secondary",
-         "type" => "approved",
-         "cnt" => $cnt++
-      ];
-   }
-   }
+       Therefore:
+       2025 + 2026 records are included.
+    ============================================================ */
 
-   /* =========================
-      TOTAL COUNT
-   ========================= */
-   $totalRecords = count($result);
+    $currentYear = (int)date('Y');
 
-   /* =========================
-      PAGINATION (IMPORTANT)
-   ========================= */
-   //$paginatedData = array_slice($result, $offset, $limit);
+    $fromYear = $currentYear - 1;
 
-   /* =========================
-      RESPONSE
-   ========================= */
+    $toYear = $currentYear + 1;
 
-   if($result || !empty($result)){
-      apiResponse(
-         true,
-         "Leave Request fetched successfully.",
-         [
-            "data"   => $result,
-            "total"  => $totalRecords
-         ]
-      );
-   } else {
-      apiResponse(false, "Unable to fetch leaves request  data.", null, 200);
-   }
-   
-   exit;
-} catch (Throwable $e) {
-    logOracleError($e);
-    apiResponse(false, "Unable to fetch leave request data.", null, 200);
-} finally {
-    if ($sql___func___con) {
-        oci_close($sql___func___con);
+
+    $leaveFromDate =
+        "01-01-" . $fromYear;
+
+    $leaveToDate =
+        "01-01-" . $toYear;
+
+
+    /* ============================================================
+       FETCH TEMP / UNAPPROVED LEAVES
+       
+       STATUS:
+       T = In Process
+       R = Rejected
+
+       Only previous year + current year
+    ============================================================ */
+
+    $tourDetail_unapproved = multiRec("
+        SELECT *
+        FROM EPT_BCS_EMP_LEAVES_TEMP
+        WHERE EMP_CODE = '" . addslashes($empCode) . "'
+          AND STATUS IN ('T', 'R')
+          AND LVE_DATE_FR >= TO_DATE(
+              '" . $leaveFromDate . "',
+              'DD-MM-YYYY'
+          )
+          AND LVE_DATE_FR < TO_DATE(
+              '" . $leaveToDate . "',
+              'DD-MM-YYYY'
+          )
+        ORDER BY
+            LVE_DATE_FR DESC,
+            ID DESC
+    ");
+
+
+    /* ============================================================
+       PROCESS TEMP / UNAPPROVED LEAVES
+    ============================================================ */
+
+    if (!empty($tourDetail_unapproved)) {
+
+        foreach ($tourDetail_unapproved as $tour) {
+
+            $totalDays =
+                (float)($tour['TOTAL_DAYS'] ?? 0);
+
+
+            $no_of_days_text =
+                ($totalDays == 0.5)
+                    ? 'Half Day'
+                    : $currency_object
+                        ->get_number_to_text(
+                            $totalDays
+                        );
+
+
+            $rawStatus =
+                strtoupper(
+                    trim(
+                        $tour['STATUS'] ?? ''
+                    )
+                );
+
+
+            $result[] = [
+
+                "ID" =>
+                    $tour['ID'] ?? '',
+
+
+                "LVE_CODE" =>
+                    ucwords(
+                        trim(
+                            $tour['LVE_CODE'] ?? ''
+                        )
+                    ),
+
+
+                "NO_DAYS" =>
+                    $no_of_days_text,
+
+
+                "LVE_DATE_FR" =>
+                    !empty($tour['LVE_DATE_FR'])
+                        ? date(
+                            'd-M-Y',
+                            strtotime(
+                                $tour['LVE_DATE_FR']
+                            )
+                        )
+                        : '',
+
+
+                "LVE_DATE_TO" =>
+                    !empty($tour['LVE_DATE_TO'])
+                        ? date(
+                            'd-M-Y',
+                            strtotime(
+                                $tour['LVE_DATE_TO']
+                            )
+                        )
+                        : '',
+
+
+                "REMARKS" =>
+                    $tour['REASON'] ?? '',
+
+
+                /*
+                 * Raw status
+                 *
+                 * A = Approved
+                 * N = Pending from Admin
+                 * R = Rejected
+                 * T = In Process
+                 */
+                "status" =>
+                    $rawStatus,
+
+
+                /*
+                 * Human-readable status
+                 */
+                "STATUS" =>
+                    $decodeStat[$rawStatus]
+                    ?? $rawStatus,
+
+
+                "statusColor" =>
+                    $statusColorMap[$rawStatus]
+                    ?? "secondary",
+
+
+                "type" =>
+                    "unapproved",
+
+
+                "cnt" =>
+                    $cnt++
+
+            ];
+        }
     }
+
+
+    /* ============================================================
+       FETCH APPROVED / PROCESSED LEAVES
+       
+       STATUS:
+       A = Approved
+       N = Pending from Admin
+
+       Only previous year + current year
+    ============================================================ */
+
+    $tourDetail_approved = multiRec("
+        SELECT *
+        FROM EPT_BCS_EMP_LEAVES
+        WHERE EMP_CODE = '" . addslashes($empCode) . "'
+          AND STATUS IN ('A', 'N')
+          AND LVE_DATE_FR >= TO_DATE(
+              '" . $leaveFromDate . "',
+              'DD-MM-YYYY'
+          )
+          AND LVE_DATE_FR < TO_DATE(
+              '" . $leaveToDate . "',
+              'DD-MM-YYYY'
+          )
+        ORDER BY
+            LVE_DATE_FR DESC,
+            ID DESC
+    ");
+
+
+    /* ============================================================
+       PROCESS APPROVED / PROCESSED LEAVES
+    ============================================================ */
+
+    if (!empty($tourDetail_approved)) {
+
+        foreach ($tourDetail_approved as $tour) {
+
+            $totalDays =
+                (float)($tour['NO_DAYS'] ?? 0);
+
+
+            $no_of_days_text =
+                ($totalDays == 0.5)
+                    ? 'Half Day'
+                    : $currency_object
+                        ->get_number_to_text(
+                            $totalDays
+                        );
+
+
+            $rawStatus =
+                strtoupper(
+                    trim(
+                        $tour['STATUS'] ?? ''
+                    )
+                );
+
+
+            $result[] = [
+
+                "ID" =>
+                    $tour['ID'] ?? '',
+
+
+                "LVE_CODE" =>
+                    ucwords(
+                        trim(
+                            $tour['LVE_CODE'] ?? ''
+                        )
+                    ),
+
+
+                "NO_DAYS" =>
+                    $no_of_days_text,
+
+
+                "LVE_DATE_FR" =>
+                    !empty($tour['LVE_DATE_FR'])
+                        ? date(
+                            'd-M-Y',
+                            strtotime(
+                                $tour['LVE_DATE_FR']
+                            )
+                        )
+                        : '',
+
+
+                "LVE_DATE_TO" =>
+                    !empty($tour['LVE_DATE_TO'])
+                        ? date(
+                            'd-M-Y',
+                            strtotime(
+                                $tour['LVE_DATE_TO']
+                            )
+                        )
+                        : '',
+
+
+                /*
+                 * Existing table appears to use
+                 * REMARKS for approved records.
+                 */
+                "REMARKS" =>
+                    $tour['REMARKS']
+                    ?? $tour['REASON']
+                    ?? '',
+
+
+                /*
+                 * Raw status
+                 */
+                "status" =>
+                    $rawStatus,
+
+
+                /*
+                 * Human-readable status
+                 */
+                "STATUS" =>
+                    $decodeStat[$rawStatus]
+                    ?? $rawStatus,
+
+
+                "statusColor" =>
+                    $statusColorMap[$rawStatus]
+                    ?? "secondary",
+
+
+                "type" =>
+                    "approved",
+
+
+                "cnt" =>
+                    $cnt++
+
+            ];
+        }
+    }
+
+
+    /* ============================================================
+       SORT ALL RECORDS
+       
+       Since records are coming from two different tables,
+       sort the final combined result again.
+       
+       Newest leave date first.
+    ============================================================ */
+
+    usort(
+        $result,
+        function ($a, $b) {
+
+            $dateA =
+                strtotime(
+                    $a['LVE_DATE_FR'] ?? ''
+                );
+
+
+            $dateB =
+                strtotime(
+                    $b['LVE_DATE_FR'] ?? ''
+                );
+
+
+            /*
+             * If dates are same,
+             * sort by ID descending.
+             */
+            if ($dateA === $dateB) {
+
+                return
+                    ((int)($b['ID'] ?? 0))
+                    <=>
+                    ((int)($a['ID'] ?? 0));
+            }
+
+
+            /*
+             * Newest first
+             */
+            return $dateB <=> $dateA;
+
+        }
+    );
+
+
+    /* ============================================================
+       RE-CREATE COUNT AFTER SORT
+    ============================================================ */
+
+    foreach (
+        $result as $index => &$row
+    ) {
+
+        $row['cnt'] =
+            $index + 1;
+
+    }
+
+    unset($row);
+
+
+    /* ============================================================
+       TOTAL RECORDS
+    ============================================================ */
+
+    $totalRecords =
+        count($result);
+
+
+    /* ============================================================
+       RESPONSE
+    ============================================================ */
+
+    if (!empty($result)) {
+
+        apiResponse(
+            true,
+            "Leave Request fetched successfully.",
+            [
+                "data" =>
+                    $result,
+
+                "total" =>
+                    $totalRecords
+            ]
+        );
+
+    } else {
+
+        /*
+         * Empty result is still a successful API request.
+         */
+        apiResponse(
+            true,
+            "No leave requests found.",
+            [
+                "data" => [],
+
+                "total" => 0
+            ]
+        );
+    }
+
+
+    exit;
+
+
+} catch (Throwable $e) {
+
+    /* ============================================================
+       ERROR HANDLING
+    ============================================================ */
+
+    logOracleError($e);
+
+
+    apiResponse(
+        false,
+        "Unable to fetch leave request data.",
+        null,
+        500
+    );
+
+
+} finally {
+
+    /* ============================================================
+       CLOSE ORACLE CONNECTION
+    ============================================================ */
+
+    if (
+        isset($sql___func___con) &&
+        $sql___func___con
+    ) {
+
+        oci_close(
+            $sql___func___con
+        );
+
+    }
+
 }
