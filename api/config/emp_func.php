@@ -9,6 +9,15 @@
 		return ucwords(strtolower($name));
 	}
 
+	function getEmpInfoByCodeHR($id)
+	{
+		$EmpName = singRec("SELECT FNAME,LNAME 
+							FROM HR_EMPLOYEE_INFO
+							WHERE EMP_CODE = '" . $id . "'");
+		$name = $EmpName['FNAME'] . ' ' . $EmpName['LNAME'];
+		return ucwords(strtolower($name));
+	}
+
 	function findParentOrgEmp($empCode)
 	{
 		$office = singRec("SELECT  ORG_ID,ORG_LOC_ID FROM 
