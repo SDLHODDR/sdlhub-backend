@@ -111,15 +111,43 @@ try {
                 $returnArr['valRt'] = $punchLogTbl['OUT_TIM'];
             } else if($data['out_type']=='OI')
             {
-                $offDesk=singRec("select 
-                to_char(to_date(EPT_GET_OFFDESK_TIME('".$data['emp_code']."',
-                to_date('".$data['gpass_date']."')) - GET_OFFDESKTERRACE_TIME@EPPLIVE_LINK('".$data['emp_code']."',
-                to_date('".$data['gpass_date']."')), 'sssss') ,'hh24:mi') tm from dual ");
+                // $offDesk=singRec("select 
+                // to_char(to_date(EPT_GET_OFFDESK_TIME('".$data['emp_code']."',
+                // to_date('".$data['gpass_date']."')) - GET_OFFDESKTERRACE_TIME@EPPLIVE_LINK('".$data['emp_code']."',
+                // to_date('".$data['gpass_date']."')), 'sssss') ,'hh24:mi') tm from dual ");
 
-                $terrace=singRec("select 
-                to_char(to_date(EPT_GET_TERRACE_TIME('".$data['emp_code']."',
-                to_date('".$data['gpass_date']."')) + GET_OFFDESKTERRACE_TIME@EPPLIVE_LINK('".$data['emp_code']."',
-                to_date('".$data['gpass_date']."')), 'sssss') ,'hh24:mi') tm from dual ");
+                // $terrace=singRec("select 
+                // to_char(to_date(EPT_GET_TERRACE_TIME('".$data['emp_code']."',
+                // to_date('".$data['gpass_date']."')) + GET_OFFDESKTERRACE_TIME@EPPLIVE_LINK('".$data['emp_code']."',
+                // to_date('".$data['gpass_date']."')), 'sssss') ,'hh24:mi') tm from dual ");
+                
+                $offDesk = singRec("
+                    SELECT to_char(to_date(sum(time_diff_sec),'sssss'),'hh24:mi') tm 
+                    FROM EPT_bcs_attd_daily 
+                    WHERE machine_no in (4,7,8,12)  
+                    AND ason_date = TO_DATE('".$data['gpass_date']."','DD-MON-YYYY')
+                    AND emp_code='".$data['emp_code']."'");
+
+                $terrace = singRec("
+                    SELECT to_char(to_date(sum(time_diff_sec),'sssss'),'hh24:mi') tm 
+                    FROM EPT_bcs_attd_daily 
+                    WHERE machine_no in (13) 
+                    AND ason_date = TO_DATE('".$data['gpass_date']."','DD-MON-YYYY')
+                    AND emp_code='".$data['emp_code']."'");
+
+                $offDesk = singRec("
+                    SELECT to_char(to_date(sum(time_diff_sec),'sssss'),'hh24:mi') tm 
+                    FROM EPT_bcs_attd_daily 
+                    WHERE machine_no in (4,7,8,12)  
+                    AND ason_date = ADD_MONTHS(TO_DATE('".$data['gpass_date']."', 'DD-MON-YY'), -12)
+                    AND emp_code='00575'"); //Remove this query in Production
+
+                $terrace = singRec("
+                    SELECT to_char(to_date(sum(time_diff_sec),'sssss'),'hh24:mi') tm 
+                    FROM EPT_bcs_attd_daily 
+                    WHERE machine_no in (13) 
+                    AND ason_date = ADD_MONTHS(TO_DATE('".$data['gpass_date']."','DD-MON-YY'), -12)
+                    AND emp_code='00575'"); //Remove this query in Production
                                                                 
                 $tmOffDesk = sum_the_time($offDesk['TM'].':00',$terrace['TM'].':00');
 
