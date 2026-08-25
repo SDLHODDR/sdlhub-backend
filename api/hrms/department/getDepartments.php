@@ -44,12 +44,22 @@ try {
 
 if ($action === 'accounts') {
 
+    // $sql = "
+    //     SELECT ACCT_CODE, DESCR
+    //     FROM HR_BCS_ACCOUNTS
+    //     WHERE ACTIVE = 'Y'
+    //     ORDER BY ACCT_CODE
+    // ";
+
     $sql = "
-        SELECT ACCT_CODE, DESCR
-        FROM HR_BCS_ACCOUNTS
-        WHERE ACTIVE = 'Y'
-        ORDER BY ACCT_CODE
-    ";
+        SELECT DISTINCT
+        m.ACCT_CODE,
+        a.DESCR
+        FROM HR_BCS_ACCT_CCTR m
+        JOIN HR_BCS_ACCOUNTS a
+        ON a.ACCT_CODE = m.ACCT_CODE
+        WHERE m.STATUS = 'A'
+        ORDER BY m.ACCT_CODE";
 
     $rows = multiRec($sql, $conn);
 
@@ -65,11 +75,21 @@ if ($action === 'accounts') {
 
 if ($action === 'costcenters') {
 
+    // $sql = "
+    //     SELECT CCTR_CODE, DESCR, DEPT_CODE
+    //     FROM HR_BCS_COSTCTR
+    //     ORDER BY CCTR_CODE
+    // ";
+
     $sql = "
-        SELECT CCTR_CODE, DESCR, DEPT_CODE
-        FROM HR_BCS_COSTCTR
-        ORDER BY CCTR_CODE
-    ";
+        SELECT DISTINCT
+        m.CCTR_CODE,
+        c.DESCR
+        FROM HR_BCS_ACCT_CCTR m
+        JOIN HR_BCS_COSTCTR c
+        ON c.CCTR_CODE = m.CCTR_CODE
+        WHERE m.STATUS = 'A'
+        ORDER BY m.CCTR_CODE";
 
     $rows = multiRec($sql, $conn);
 
