@@ -5,11 +5,11 @@ ini_set('display_errors', '1');
 ini_set('display_startup_errors', '1');
 
 ob_start();
-
+define('CURRENT_PORTAL', 'hrms');
 /* ==========================================================
    CONFIG
 ========================================================== */
-
+define('CURRENT_PORTAL', 'hrms');
 require_once __DIR__ . "/../../../config/session.php";
 require_once __DIR__ . "/../../../cors.php";
 require_once __DIR__ . "/../../../config/db.php";
