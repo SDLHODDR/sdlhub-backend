@@ -23,7 +23,55 @@ if (empty($empCode)) {
     apiResponse(false, "Unauthorized access.", null, 401);
 }
 
+$data = json_decode(file_get_contents("php://input"), true);
+
 try {
+    $authTasksData = [];
+    $taskIdd = $data['task_id'];
+
+    $sanitizedCompIds = array_map('intval', $_SESSION['compId']);
+    $sanitizedDivIds = array_map('intval', $_SESSION['divId']);
+    $sanitizedDeptCodes = array_map('intval', $_SESSION['deptId']);
+    if(isset($_SESSION['taskId'])) {
+        $sanitizedTaskIds = array_map('intval', $_SESSION['taskId']);
+        $taskIdsString = "'" . implode("','", $sanitizedTaskIds) . "'";
+    } else {
+        $taskIdsString = "";
+    }
+    $compIdsString = "'" . implode("','", $sanitizedCompIds) . "'";
+    $divIdsString = "'" . implode("','", $sanitizedDivIds) . "'";
+    $deptCodesString = "'" . implode("','", $sanitizedDeptCodes) . "'";
+    
+    
+    //$conditions = [];
+    $conditionsDT = [];
+
+    if (!empty($compIdsString)) {
+        //$conditions[] = "COMP_ID IN ($compIdsString)";
+        $conditionsDT[] = " TA.COMP_ID IN ($compIdsString)";
+    }
+
+    if (!empty($divIdsString)) {
+        //$conditions[] = "DIVSN_ID IN ($divIdsString)";
+        $conditionsDT[] = " TA.DIVSN_ID IN ($divIdsString)";
+    }
+
+    if (!empty($deptCodesString)) {
+        //$conditions[] = "DEPT_ID IN ($deptCodesString)";
+        $conditionsDT[] = " TA.DEPT_ID IN ($deptCodesString)";
+    }
+
+    if (!empty($taskIdsString)) {
+        //$conditions[] = "TASK_ID IN ($taskIdsString)";
+        $conditionsDT[] = " TA.TASK_ID IN ($taskIdsString)";
+    }
+
+    $additionalWhereDT = '';
+
+    if (!empty($conditionsDT)) {
+        $additionalWhereDT = implode(' AND ', $conditionsDT);
+    }
+
     $taskarr= array('J'=>'Joining' , 'E'=> 'Exit' , 'R'=>'Recruitment' , 'C'=> 'Others','T'=>'Tenure Change' ,'A' => 'Appraisal' , 'S' => 'Employee Transfer');
 
     $joining_taskarr = [4,13,35,36,37,38,39,41,42,43,44,45,50,51];
@@ -31,15 +79,18 @@ try {
 
     $taskGrpFilter  = !empty($data['TASK_GRP']) ? "AND TM.ID IN (" . $data['TASK_GRP'] . ")" : "";
     $exclude46      = "AND TA.TASK_ID != '46'";
-    $is_special_exc = ($emCode=== '00152') ? $exclude46 : "";
-
+    $is_special_exc = ($empCode=== '00152') ? $exclude46 : "";
+    
+    $authTasksData['exit_task_ids'] = $exit_task_ids;
+    $authTasksData['joining_taskarr'] = $joining_taskarr;
+    
     $distinct_tasks = multiRec("SELECT 
                     TASK_ID, DISP_SEQ, TASK_TYPE, COUNT(TASK_ID) AS CNT
                     FROM (
                             SELECT TA.TASK_ID, TM.DISP_SEQ, TM.TASK_TYPE
                             FROM HR_USER_TASKS TA
                             INNER JOIN HR_TASK_MASTER TM ON TM.ID = TA.TASK_ID
-                            WHERE TA.EMP_CODE_FOR = '{$_SESSION['EmpCode']}'
+                            WHERE TA.EMP_CODE_FOR = '" . $empCode . "'
                             AND TA.STATUS = 'O'
                             $taskGrpFilter $is_special_exc
 
@@ -48,10 +99,7 @@ try {
                             SELECT TA.TASK_ID, TM.DISP_SEQ, TM.TASK_TYPE
                             FROM HR_USER_TASKS TA
                             INNER JOIN HR_TASK_MASTER TM ON TM.ID = TA.TASK_ID
-                            WHERE TA.COMP_ID   IN ($compIdsString)
-                            AND TA.DIVSN_ID  IN ($divIdsString)
-                            AND TA.DEPT_ID   IN ($deptCodesString)
-                            AND TA.TASK_ID   IN ($taskIdsString)
+                            WHERE $additionalWhereDT
                             AND TA.EMP_CODE_FOR IS NULL
                             AND TA.STATUS = 'O'
                             $taskGrpFilter $is_special_exc
@@ -95,7 +143,7 @@ try {
                             TM.DISP_SEQ
                     FROM HR_USER_TASKS TA
                     INNER JOIN HR_TASK_MASTER TM ON TM.ID = TA.TASK_ID
-                    WHERE TA.EMP_CODE_FOR = '{$_SESSION['EmpCode']}'
+                    WHERE TA.EMP_CODE_FOR = '" . $empCode . "'
                     AND TA.STATUS = 'O'
                     AND TA.TASK_ID IN ($taskIdsIn)
                     $is_special_exc
@@ -147,18 +195,9 @@ try {
     $tasktype = null;
     $finalArr = [];
     foreach ($distinct_tasks as $task_id){
-        $tid       = (string)$task_id['TASK_ID'];
-        $task_desc = $task_master_map[$tid] ?? [];
-        $mytasks   = $tasks_grouped[$tid]   ?? [];
-
-        if ($task_id['TASK_TYPE'] !== $tasktype){
-            $finalArr[$taskarr[$task_id['TASK_TYPE']]][] = htmlspecialchars($task_desc['TASK_DESC'] ?? '') . ' ( ' . $task_id['CNT'] . ' )';
-        }
+        $authTasksData['mytask'] = $tasks_grouped[$taskIdd]   ?? [];
     }
-
-    print_r($finalArr);
-    exit;
-    apiResponse(true, "Authorization cound loaded successfully.", $finalArr);
+    apiResponse(true, "Authorization data loaded successfully.", $authTasksData);
 } catch (Throwable $e) {
     logOracleError(
         [
