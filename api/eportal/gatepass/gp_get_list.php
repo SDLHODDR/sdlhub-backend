@@ -28,6 +28,7 @@ try {
             GP.REMARKS,
             GP.POST_REMARKS,
             GP.CHG_ON as created_on,
+            UT.TRAN_CODE as TRNCD,
             UT.REMARKS AS AUTH_REMARKS,
 
             ROW_NUMBER() OVER (
@@ -46,6 +47,7 @@ try {
                     ORDER BY ID DESC
                 ) RN
             FROM EPT_USER_TASKS
+            WHERE EMP_CODE_FOR <> '" . $empCode . "' and ID <> '21'
         ) UT 
             ON UT.TRAN_CODE = TO_CHAR(GP.ID)  -- Fix for ORA-01722
         AND UT.RN = 1
