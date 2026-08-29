@@ -8,6 +8,18 @@ $authTasksData = [];
 
 $taskId = $data['task_id'];
 
+$whereCdn = "";
+
+if($taskId == "349") {
+    //$taskId .= ", 21"; 
+    $whereCdn = " t.TASK_ID in (" . $taskId . ", 21)";
+} else {
+    $whereCdn = " t.TASK_ID = " . $taskId;   
+}
+
+//$whereCdn = " t.TASK_ID = " . $taskId;   
+
+
 $base_query = "
             SELECT distinct * 
                 FROM (
@@ -30,10 +42,17 @@ $myTasksData = multiRec("
                 FROM (" . $base_query . ") t
                 INNER JOIN ept_task_master etm 
                    ON etm.id = t.TASK_ID
-                WHERE t.TASK_ID = " . $taskId . "
+                WHERE " . $whereCdn . "
                 ORDER BY t.CREATED_ON DESC");
 
-
+// echo "
+//                 SELECT 
+//                     t.*, etm.task_desc as TASK_DESC
+//                 FROM (" . $base_query . ") t
+//                 INNER JOIN ept_task_master etm 
+//                    ON etm.id = t.TASK_ID
+//                 WHERE " . $whereCdn . "
+//                 ORDER BY t.CREATED_ON DESC";
 
 foreach($myTasksData as $res)
 {
