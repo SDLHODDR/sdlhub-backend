@@ -65,51 +65,110 @@ CHILD TAB DATA
 
 $responsibilities = trim($input['responsibilities'] ?? '');
 
-$kraData = json_decode(
+// $kraData = json_decode(
+//     $input['kra'] ?? '[]',
+//     true
+// );
+
+// $educationData = json_decode(
+//     $input['education'] ?? '{}',
+//     true
+// );
+
+// $skillsData = json_decode(
+//     $input['skills'] ?? '[]',
+//     true
+// );
+
+// $allowancesData = json_decode(
+//     $input['allowances'] ?? '[]',
+//     true
+// );
+
+// $ctcHeadsData = json_decode(
+//     $input['ctc_heads'] ?? '[]',
+//     true
+// );
+
+// $questionTemplateData = json_decode(
+//     $input['question_template'] ?? '[]',
+//     true
+// );
+
+// $deptReferencesData = json_decode(
+//     $input['dept_references'] ?? '[]',
+//     true
+// );
+
+// $divisionMappingData = json_decode(
+//     $input['division_mapping'] ?? '[]',
+//     true
+// );
+
+// $inductionData = json_decode(
+//     $input['induction'] ?? '{}',
+//     true
+// );
+
+function parseJsonOrArray($value, $default = [])
+{
+    if (is_array($value)) {
+        return $value;
+    }
+
+    if ($value === null || $value === '') {
+        return $default;
+    }
+
+    $decoded = json_decode($value, true);
+
+    return is_array($decoded) ? $decoded : $default;
+}
+
+$kraData = parseJsonOrArray(
     $input['kra'] ?? '[]',
-    true
+    []
 );
 
-$educationData = json_decode(
+$educationData = parseJsonOrArray(
     $input['education'] ?? '{}',
-    true
+    []
 );
 
-$skillsData = json_decode(
+$skillsData = parseJsonOrArray(
     $input['skills'] ?? '[]',
-    true
+    []
 );
 
-$allowancesData = json_decode(
+$allowancesData = parseJsonOrArray(
     $input['allowances'] ?? '[]',
-    true
+    []
 );
 
-$ctcHeadsData = json_decode(
+$ctcHeadsData = parseJsonOrArray(
     $input['ctc_heads'] ?? '[]',
-    true
+    []
 );
 
-$questionTemplateData = json_decode(
+$questionTemplateData = parseJsonOrArray(
     $input['question_template'] ?? '[]',
-    true
+    []
 );
 
-$deptReferencesData = json_decode(
+$deptReferencesData = parseJsonOrArray(
     $input['dept_references'] ?? '[]',
-    true
+    []
 );
 
-$divisionMappingData = json_decode(
+$divisionMappingData = parseJsonOrArray(
     $input['division_mapping'] ?? '[]',
-    true
+    []
 );
 
-$inductionData = json_decode(
+$inductionData = parseJsonOrArray(
     $input['induction'] ?? '{}',
-    true
+    []
 );
-
 
 /*
 Make sure invalid JSON doesn't become NULL.
@@ -258,15 +317,33 @@ KRA
 
 foreach ($kraData as $row) {
 
-    $kraId = $row['KRA_ID']
-        ?? $row['kra_id']
-        ?? $row['value']
-        ?? '';
+    // $kraId = $row['KRA_ID']
+    //     ?? $row['kra_id']
+    //     ?? $row['value']
+    //     ?? '';
 
-    $respPerc = $row['RESP_PERC']
-        ?? $row['resp_perc']
-        ?? $row['RESP_PERC']
-        ?? '';
+    // $respPerc = $row['RESP_PERC']
+    //     ?? $row['resp_perc']
+    //     ?? $row['RESP_PERC']
+    //     ?? '';
+
+    // MultiSelect sends only KRA IDs:
+    // ["1127", "1128"]
+
+    // Keep backward compatibility if an object is sent.
+    if (is_array($row)) {
+        $kraId = $row['KRA_ID']
+            ?? $row['kra_id']
+            ?? $row['value']
+            ?? '';
+
+        $respPerc = $row['RESP_PERC']
+            ?? $row['resp_perc']
+            ?? '';
+    } else {
+        $kraId = $row;
+        $respPerc = '';
+    }
 
     if ($kraId === '') {
         continue;
@@ -686,6 +763,7 @@ foreach ($deptReferencesData as $row) {
     $deptId =
         $row['DEPT_ID']
         ?? $row['dept_id']
+                ?? $row['deptId']
         ?? $row['value']
         ?? '';
 
@@ -718,6 +796,21 @@ foreach ($deptReferencesData as $row) {
         )
     ";
 
+    if (!$ok) {
+        endQry();
+
+        apiResponse(
+            false,
+            "Unable to insert department reference.",
+            [
+                'sql' => $sql,
+                'dept_id' => $deptId,
+                'jd_id' => $jobId
+            ],
+            500
+        );
+    }
+
     executeQry($sql);
 }
 
@@ -730,11 +823,15 @@ DIVISION MAPPING
 
 foreach ($divisionMappingData as $row) {
 
-    $divisionId =
-        $row['DIVSN_ID']
-        ?? $row['divsn_id']
-        ?? $row['value']
-        ?? '';
+    // $divisionId =
+    //     $row['DIVSN_ID']
+    //     ?? $row['divsn_id']
+    //     ?? $row['value']
+    //     ?? '';
+
+    $divisionId = is_array($row)
+    ? ($row['DIVSN_ID'] ?? $row['divsn_id'] ?? $row['value'] ?? '')
+    : trim($row);
 
     if ($divisionId === '') {
         continue;
@@ -913,16 +1010,36 @@ KRA
 */
 foreach ($kraData as $row) {
 
-    $kraId =
-        $row['KRA_ID']
-        ?? $row['kra_id']
-        ?? $row['value']
-        ?? '';
+    // $kraId =
+    //     $row['KRA_ID']
+    //     ?? $row['kra_id']
+    //     ?? $row['value']
+    //     ?? '';
 
-    $respPerc =
-        $row['RESP_PERC']
-        ?? $row['resp_perc']
-        ?? '';
+    // $respPerc =
+    //     $row['RESP_PERC']
+    //     ?? $row['resp_perc']
+    //     ?? '';
+
+    // MultiSelect sends only KRA IDs:
+    // ["1127", "1128"]
+
+    // Keep backward compatibility if an object is sent.
+    if (is_array($row)) {
+        $kraId =
+            $row['KRA_ID']
+            ?? $row['kra_id']
+            ?? $row['value']
+            ?? '';
+
+        $respPerc =
+            $row['RESP_PERC']
+            ?? $row['resp_perc']
+            ?? '';
+    } else {
+        $kraId = $row;
+        $respPerc = '';
+    }
 
     if ($kraId === '') {
         continue;
@@ -1430,7 +1547,25 @@ apiResponse(
 
 exit;
 
+// } catch (Throwable $e) {
+//     logOracleError($e);
+//     apiResponse(false, "Unable to process request.", null, 500);
+// }
+
 } catch (Throwable $e) {
-    logOracleError($e);
-    apiResponse(false, "Unable to process request.", null, 500);
+    error_log(
+        "saveJobDescription.php ERROR: " .
+        $e->getMessage() .
+        " | File: " .
+        $e->getFile() .
+        " | Line: " .
+        $e->getLine()
+    );
+
+    apiResponse(
+        false,
+        "Unable to process request: " . $e->getMessage(),
+        null,
+        500
+    );
 }
