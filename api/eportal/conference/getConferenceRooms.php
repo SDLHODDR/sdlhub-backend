@@ -62,6 +62,20 @@ try {
     $offset = ($page - 1) * $limit;
 
     /*
+    --------------------------------------------------------------------------
+    DATE RANGE
+    --------------------------------------------------------------------------
+
+        Fetch only records from one month before today onward.
+
+        Example:
+        Today = 31-Aug-2026
+        From = 31-Jul-2026
+
+        TRUNC(SYSDATE) removes the current time portion.
+    */
+
+    /*
     |--------------------------------------------------------------------------
     | TOTAL RECORDS
     |--------------------------------------------------------------------------
@@ -76,6 +90,7 @@ try {
                 OR C.BOOK_BY_EMP = :emp_code
             )
         AND C.STATUS IN ('A','X','N','T','R')
+        AND C.START_TIME >= ADD_MONTHS( TRUNC(SYSDATE), -1 )
     ";
 
     $checkStmt = oci_parse(
@@ -152,6 +167,8 @@ try {
                 OR C.BOOK_BY_EMP = :emp_code
             )
         AND C.STATUS IN ('A','X','N','T','R')
+
+        AND C.START_TIME >= ADD_MONTHS( TRUNC(SYSDATE), -1 )
 
         ORDER BY C.START_TIME DESC
 
