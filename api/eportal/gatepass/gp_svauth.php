@@ -80,6 +80,14 @@ if($data['authForm']==true)
         //executeQry("update ept_employee_gpass set STATUS='X', auth_by='".$empCode."', auth_on=sysdate, gpass_no='".$gpass_no['GPNO']."' where ID='".$data['ID']."' ");	
 
         executeQry("update ept_employee_gpass set STATUS='A', auth_by='".$empCode."', auth_on=sysdate, gpass_no='".$gpass_no['GPNO']."' where ID='".$data['ID']."' ");	
+
+       
+
+        $review_pm_task_id = 0;
+
+        $review_pm_task_id = executeQry("insert into EPT_USER_TASKS (
+        ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, AUTH_BY, AUTH_ON, REMARKS, TRAN_CODE, REF_TASK_ID, TASK_TYPE, UDF_1, TRAN_DESC, SITE_CODE, EMP_CODE_FOR, CHG_ON, UDF_2, TASK_GRP_DESC, IP_ADDR) values (
+        null, '21', sysdate,'".$empCode."' , (sysdate+2), 'O', null, null, null, '".$data['ID']."', null, 'A', null, 'Review Outdoor Duty Post Remarks ', '".$_SESSION['eptSiteCode']."', '".$empCode."', sysdate, '', '".getEmpInfoByCode($gpass['EMP_CODE'])."', '') returning ID into :taskIdPM" ,'taskIdPM');
         
         $mailBody='Hi
 		<br><br> The Following Outdoor Duty Request has been APPROVED
@@ -111,6 +119,17 @@ if($data['authForm']==true)
         endQry('Task Approved');
         apiResponse(true,"Record Authroized successfully");
     }
+} else if($data['closeTask']) {
+    startQry();
+    $chk = singRec("select * from EPT_USER_TASKS where id='" . $data['TASK_ID'] . "'");
+    if($chk && !empty($chk)){
+        taskUpdate('C', "OUtDuty Progress and POST Remarks reviewed", $data['TASK_ID']);
+        if($data["TRAN_CODE"]) {
+            executeQry("update ept_employee_gpass set status='X' where ID='".$data['TRAN_CODE']."' ") ;
+	    }
+    }
+    endQry('Task Clossed');
+    apiResponse(true,"Record Clossed successfully");
 }
 
 ob_end_flush();
