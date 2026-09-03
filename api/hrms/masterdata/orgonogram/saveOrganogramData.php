@@ -29,17 +29,16 @@ if (empty($data)) {
 }
 
 try {
-    print_r($data);
-    exit;
-    
     startQry();
     if(!empty($data)) {
-       $chk = singRec("select id from HR_ORGANOGRAM where 
+       $chk = singRec("SELECT
+        ID FROM HR_ORGANOGRAM 
+        WHERE 
             COMPANY = '" . trim($data['COMPANY_ID']) . "'  
-		    and DEPT_ID= '" . trim($data['DEPARTMENT_ID']) . "'
-			and DESI_ID = '" . trim($data['DESIGNATION_ID']) . "'
-			and DIVSN_ID= '" . trim($data['DIVISION_ID']) . "' 
-			and JD_ID=	'" . trim($data['JD_LABEL_ID']) . "' ");
+		    AND DEPT_ID= '" . trim($data['DEPARTMENT_ID']) . "'
+			AND DESI_ID = '" . trim($data['DESIGNATION_ID']) . "'
+			AND DIVSN_ID= '" . trim($data['DIVISION_ID']) . "' 
+			AND JD_ID=	'" . trim($data['JD_LABEL_ID']) . "' ");
         
         if($chk['ID'] == ""){
             

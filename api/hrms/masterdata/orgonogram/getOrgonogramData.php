@@ -34,7 +34,34 @@ if (empty($data)) {
 try {
     $compIdsString = $data["COMP_ID"];
     $divIdsString = $data["DIVISION_ID"];
-    $deptCodesString = $data["DEPT_ID"];
+    $deptCodesString = $data["DEPT_ID"] . ", 42";
+
+    // echo "SELECT 
+    //         ID, 
+    //         GET_SHCOMP_NAME(COMPANY)|| ' - ' || GET_DIVISION_NAME(DIVSN_ID)|| ' - ' || GET_DEPT_NAME(DEPT_ID)|| ' - ' || GET_DESIGN_NAME(DESI_ID) as ORGNGM_OPTIONS,
+    //         FINENT, 
+    //         COMPANY, 
+    //         LABEL, 
+    //         DEPT_ID, 
+    //         DESI_ID, 
+    //         DIVSN_ID, 
+    //         OLVL_ID, 
+    //         POSI_COUNT, 
+    //         FILL_COUNT,
+    //         PARENT_ORGID, 
+    //         JD_ID, 
+    //         EMP_LEVEL, 
+    //         STATUS, 
+    //         CHG_ON, 
+    //         CHG_BY, 
+    //         NOTICE_DAYS
+    //     FROM HR_ORGANOGRAM 
+    //     WHERE 
+    //     COMPANY IN ($compIdsString)
+    //     AND DIVSN_ID in ($divIdsString)
+    //     AND DEPT_ID in ($deptCodesString)
+    //     ORDER BY ID DESC";
+    // exit;
 
     $organograms = multiRec(
         "SELECT 
