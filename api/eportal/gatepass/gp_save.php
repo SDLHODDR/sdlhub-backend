@@ -281,11 +281,11 @@ else if($isEdit)
                 $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from EPT_bcs_employee 
                                     WHERE emp_code = '".$Manager."'");
 
-                $review_pm_task_id = 0;
+    //             $review_pm_task_id = 0;
                 
-                $review_pm_task_id = executeQry("insert into EPT_USER_TASKS (
-    ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, AUTH_BY, AUTH_ON, REMARKS, TRAN_CODE, REF_TASK_ID, TASK_TYPE, UDF_1, TRAN_DESC, SITE_CODE, EMP_CODE_FOR, CHG_ON, UDF_2, TASK_GRP_DESC, IP_ADDR) values (
-    null, '21', sysdate,'".$empCode."' , (sysdate+2), 'O', null, null, null, '".$data['ID']."', null, 'A', null, concat('Review Outdoor Duty Post Remarks DATED ', '".$gpass['GPASS_DATE']."' ), '".$_SESSION['eptSiteCode']."', '".$Manager."', sysdate, '', '".getEmpInfoByCode($gpass['EMP_CODE'])."', '') returning ID into :taskIdPM" ,'taskIdPM');
+    //             $review_pm_task_id = executeQry("insert into EPT_USER_TASKS (
+    // ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, AUTH_BY, AUTH_ON, REMARKS, TRAN_CODE, REF_TASK_ID, TASK_TYPE, UDF_1, TRAN_DESC, SITE_CODE, EMP_CODE_FOR, CHG_ON, UDF_2, TASK_GRP_DESC, IP_ADDR) values (
+    // null, '21', sysdate,'".$empCode."' , (sysdate+2), 'O', null, null, null, '".$data['ID']."', null, 'A', null, concat('Review Outdoor Duty Post Remarks DATED ', '".$gpass['GPASS_DATE']."' ), '".$_SESSION['eptSiteCode']."', '".$Manager."', sysdate, '', '".getEmpInfoByCode($gpass['EMP_CODE'])."', '') returning ID into :taskIdPM" ,'taskIdPM');
                
                 $mailBody='Hi '.ucwords(strtolower(getEmpInfoByCode($Manager))). ',<br><br>' .ucwords(strtolower(getEmpInfoByCode($empCode))).' has modified the post remarks for the outdoor. 
                 <br>

@@ -223,17 +223,33 @@ $item['ALLOWANCES_LIST'] = multiRec($allowanceSql);
 CTC HEADS
 =========================================================
 */
+// $ctcSql = "
+//     SELECT
+//         ID,
+//         JD_ID,
+//         AD_ID,
+//         AD_CODE,
+//         EFFEC_FROM,
+//         EFFEC_TO,
+//         KEY,
+//         TEMPVAL,
+//         VAL
+//     FROM HR_JD_CTC_HEADS
+//     WHERE JD_ID = '" . addslashes($jobId) . "'
+//     ORDER BY ID
+// ";
+
 $ctcSql = "
     SELECT
         ID,
         JD_ID,
         AD_ID,
         AD_CODE,
-        EFFEC_FROM,
-        EFFEC_TO,
         KEY,
         TEMPVAL,
-        VAL
+        VAL,
+        TO_CHAR(EFFEC_FROM, 'YYYY-MM-DD') AS EFFEC_FROM,
+        TO_CHAR(EFFEC_TO, 'YYYY-MM-DD') AS EFFEC_TO
     FROM HR_JD_CTC_HEADS
     WHERE JD_ID = '" . addslashes($jobId) . "'
     ORDER BY ID
