@@ -841,4 +841,69 @@ function taskUpdate($status, $remark, $task_id, $taskGrp = null, $notChek = 0)
 	}
 }
 
+
+function executeSelectQry($sqlVal)
+{
+    global $sql___func___con;
+
+    /* ==========================
+       PARSE QUERY
+    ========================== */
+
+    $sql = oci_parse($sql___func___con, $sqlVal);
+
+    if (!$sql) {
+
+        $e = oci_error($sql___func___con);
+
+        logOracleError($e, $sqlVal);
+
+        return false;
+    }
+
+
+    /* ==========================
+       DEBUG LOG
+    ========================== */
+
+    if (!empty($_SESSION['DEBUG']) && $_SESSION['DEBUG'] == 'Y') {
+        write_log($sqlVal);
+    }
+
+
+    /* ==========================
+       EXECUTE
+    ========================== */
+
+    if (!oci_execute($sql, OCI_DEFAULT)) {
+
+        $e = oci_error($sql);
+
+        logOracleError($e, $sqlVal);
+
+        oci_free_statement($sql);
+
+        return false;
+    }
+
+
+    /* ==========================
+       FETCH DATA
+    ========================== */
+
+    $rows = [];
+
+    while ($row = oci_fetch_assoc($sql)) {
+        $rows[] = $row;
+    }
+
+
+    /* ==========================
+       FREE STATEMENT
+    ========================== */
+
+    oci_free_statement($sql);
+
+    return $rows;
+}
 ?>
