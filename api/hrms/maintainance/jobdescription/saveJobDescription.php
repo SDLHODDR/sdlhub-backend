@@ -67,6 +67,7 @@ if ($action === 'save_responsibility') {
     startQry();
 
     $loginId = $_SESSION['loginId'] ?? $_SESSION['emp_code'] ?? 'SYSTEM';
+    $loginIdSql = sqlValue($loginId);
 
     if ($responsibilityId !== '') {
 
@@ -238,51 +239,6 @@ CHILD TAB DATA
 
 $responsibilities = trim($input['responsibilities'] ?? '');
 
-// $kraData = json_decode(
-//     $input['kra'] ?? '[]',
-//     true
-// );
-
-// $educationData = json_decode(
-//     $input['education'] ?? '{}',
-//     true
-// );
-
-// $skillsData = json_decode(
-//     $input['skills'] ?? '[]',
-//     true
-// );
-
-// $allowancesData = json_decode(
-//     $input['allowances'] ?? '[]',
-//     true
-// );
-
-// $ctcHeadsData = json_decode(
-//     $input['ctc_heads'] ?? '[]',
-//     true
-// );
-
-// $questionTemplateData = json_decode(
-//     $input['question_template'] ?? '[]',
-//     true
-// );
-
-// $deptReferencesData = json_decode(
-//     $input['dept_references'] ?? '[]',
-//     true
-// );
-
-// $divisionMappingData = json_decode(
-//     $input['division_mapping'] ?? '[]',
-//     true
-// );
-
-// $inductionData = json_decode(
-//     $input['induction'] ?? '{}',
-//     true
-// );
-
 function parseJsonOrArray($value, $default = [])
 {
     if (is_array($value)) {
@@ -399,8 +355,15 @@ if (!is_array($inductionData)) {
     startQry();
 
     $loginId = $_SESSION['loginId'] ?? $_SESSION['emp_code'] ?? 'SYSTEM';
+    $loginIdSql = sqlValue($loginId);
 
-    if ($jobId !== '') {
+if ($jobId !== '') {
+
+    /*
+     * =========================================================
+     * UPDATE EXISTING JOB DESCRIPTION
+     * =========================================================
+     */
 
     $sql = "UPDATE HR_JD SET
                 SH_DESC='" . addslashes($shdesc) . "',
@@ -438,66 +401,57 @@ if (!is_array($inductionData)) {
     }
 
     /*
-    =========================================================
-    IMPORTANT:
-    For an existing JD, only update HR_JD here.
+     * =========================================================
+     * DELETE OLD CHILD RECORDS
+     *
+     * We re-insert the current tab data below.
+     * =========================================================
+     */
 
-    Child tab data such as:
-    - Responsibilities
-    - KRA
-    - Education
-    - Skills
-    - Allowances
-    - CTC Heads
-    - Question Template
-    - Department Reference
-    - Division Mapping
-    - Induction
-
-    is managed separately by their own handlers.
-    =========================================================
-    */
-
-    endQry('Updated');
-
-    apiResponse(
-        true,
-        "Job description updated successfully.",
-        ['id' => $jobId],
-        200
+    executeQry(
+        "DELETE FROM HR_JD_KRA
+         WHERE JD_ID='" . addslashes($jobId) . "'"
     );
 
-    exit;
-}
-
-    $last = singRec(
-        "SELECT NVL(MAX(ID),0)+1 AS ID FROM HR_JD_KRA"
+    executeQry(
+        "DELETE FROM HR_JD_EDU_DET
+         WHERE JD_ID='" . addslashes($jobId) . "'"
     );
 
-    $childId = $last['ID'];
+    executeQry(
+        "DELETE FROM HR_JD_CAPABILITIES
+         WHERE JD_ID='" . addslashes($jobId) . "'"
+    );
 
-    $sql = "
-        INSERT INTO HR_JD_KRA
-        (
-            ID,
-            JD_ID,
-            KRA_ID,
-            RESP_PERC,
-            CHG_BY,
-            CHG_ON
-        )
-        VALUES
-        (
-            '" . addslashes($childId) . "',
-            '" . addslashes($jobId) . "',
-            '" . addslashes($kraId) . "',
-            " . sqlValue($respPerc) . ",
-            {$loginIdSql},
-            SYSDATE
-        )
-    ";
+    executeQry(
+        "DELETE FROM HR_JD_ALLOWANCES
+         WHERE JD_ID='" . addslashes($jobId) . "'"
+    );
 
-    executeQry($sql);
+    executeQry(
+        "DELETE FROM HR_JD_CTC_HEADS
+         WHERE JD_ID='" . addslashes($jobId) . "'"
+    );
+
+    executeQry(
+        "DELETE FROM HR_JD_REF_DEPT
+         WHERE JD_ID='" . addslashes($jobId) . "'"
+    );
+
+    executeQry(
+        "DELETE FROM HR_JD_DIVSN
+         WHERE JD_ID='" . addslashes($jobId) . "'"
+    );
+
+    executeQry(
+        "DELETE FROM HR_JD_INDUCTION
+         WHERE JD_ID='" . addslashes($jobId) . "'"
+    );
+
+    /*
+     * From this point onward, the existing child INSERT
+     * blocks will execute using $jobId.
+     */
 }
 
 
@@ -507,18 +461,26 @@ EDUCATION
 -----------------------------
 */
 
-$qualificationId =
-    $educationData['QUA_ID']
-    ?? $educationData['qualification']
-    ?? $educationData['QUALIFICATION']
-    ?? '';
+foreach ($educationData as $row) {
 
-$comments =
-    $educationData['COMMENTS']
-    ?? $educationData['comments']
-    ?? '';
+    if (!is_array($row)) {
+        continue;
+    }
 
-if ($qualificationId !== '') {
+    $qualificationId =
+        $row['QUA_ID']
+        ?? $row['qualification']
+        ?? $row['QUALIFICATION']
+        ?? '';
+
+    $comments =
+        $row['COMMENTS']
+        ?? $row['comments']
+        ?? '';
+
+    if ($qualificationId === '') {
+        continue;
+    }
 
     $last = singRec(
         "SELECT NVL(MAX(ID),0)+1 AS ID FROM HR_JD_EDU_DET"
@@ -549,7 +511,6 @@ if ($qualificationId !== '') {
 
     executeQry($sql);
 }
-
 
 /*
 -----------------------------
@@ -621,14 +582,16 @@ foreach ($allowancesData as $row) {
         ?? '';
 
     $amount =
-        $row['ALLOW_AMOUNT']
-        ?? $row['allowAmount']
-        ?? '';
+    $row['ALLOW_AMOUNT']
+    ?? $row['allow_amount']
+    ?? $row['amount']
+    ?? '';
 
     $addInfo =
-        $row['ADD_INFO']
-        ?? $row['appliedLocation']
-        ?? '';
+    $row['ADD_INFO']
+    ?? $row['add_info']
+    ?? $row['frequency']
+    ?? '';
 
     $fromDate =
         $row['FROMDT']
@@ -641,9 +604,10 @@ foreach ($allowancesData as $row) {
         ?? '';
 
     $expType =
-        $row['EXP_TYPE']
-        ?? $row['frequency']
-        ?? '';
+    $row['EXP_TYPE']
+    ?? $row['exp_type']
+    ?? $row['expenseType']
+    ?? '';
 
     if ($allowId === '') {
         continue;
@@ -944,12 +908,6 @@ DIVISION MAPPING
 
 foreach ($divisionMappingData as $row) {
 
-    // $divisionId =
-    //     $row['DIVSN_ID']
-    //     ?? $row['divsn_id']
-    //     ?? $row['value']
-    //     ?? '';
-
     $divisionId = is_array($row)
     ? ($row['DIVSN_ID'] ?? $row['divsn_id'] ?? $row['value'] ?? '')
     : trim($row);
@@ -1118,6 +1076,7 @@ exit;
     );
 }
 
+$targetJobId = $jobId !== '' ? $jobId : $newId;
 
 /*
 =========================================================
@@ -1129,20 +1088,6 @@ INSERT CHILD DATA FOR NEW JD
 KRA
 */
 foreach ($kraData as $row) {
-
-    // $kraId =
-    //     $row['KRA_ID']
-    //     ?? $row['kra_id']
-    //     ?? $row['value']
-    //     ?? '';
-
-    // $respPerc =
-    //     $row['RESP_PERC']
-    //     ?? $row['resp_perc']
-    //     ?? '';
-
-    // MultiSelect sends only KRA IDs:
-    // ["1127", "1128"]
 
     // Keep backward compatibility if an object is sent.
     if (is_array($row)) {
@@ -1184,7 +1129,7 @@ foreach ($kraData as $row) {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             '" . addslashes($kraId) . "',
             " . sqlValue($respPerc) . ",
             " . sqlValue($loginId) . ",
@@ -1230,7 +1175,7 @@ if ($qualificationId !== '') {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             '" . addslashes($qualificationId) . "',
             " . sqlValue($comments) . ",
             " . sqlValue($loginId) . ",
@@ -1282,7 +1227,7 @@ foreach ($skillsData as $row) {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             '" . addslashes($capaId) . "',
             " . sqlValue($capaLevelId) . ",
             SYSDATE,
@@ -1311,14 +1256,26 @@ foreach ($allowancesData as $row) {
         ?? '';
 
     $addInfo =
-        $row['ADD_INFO']
-        ?? $row['appliedLocation']
-        ?? '';
+    $row['ADD_INFO']
+    ?? $row['add_info']
+    ?? $row['frequency']
+    ?? '';
 
-    $expType =
-        $row['EXP_TYPE']
-        ?? $row['frequency']
-        ?? '';
+$fromDate =
+    $row['FROMDT']
+    ?? $row['from']
+    ?? '';
+
+$toDate =
+    $row['TODT']
+    ?? $row['to']
+    ?? '';
+
+$expType =
+    $row['EXP_TYPE']
+    ?? $row['exp_type']
+    ?? $row['expenseType']
+    ?? '';
 
     if ($allowId === '') {
         continue;
@@ -1345,7 +1302,7 @@ foreach ($allowancesData as $row) {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             '" . addslashes($allowId) . "',
             " . sqlValue($amount) . ",
             " . sqlValue($addInfo) . ",
@@ -1417,7 +1374,7 @@ foreach ($ctcHeadsData as $row) {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             " . sqlValue($adId) . ",
             " . sqlValue($adCode) . ",
             SYSDATE,
@@ -1491,7 +1448,7 @@ foreach ($questionTemplateData as $row) {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             " . sqlValue($qgrpId) . ",
             " . sqlValue($qgrpType) . ",
             " . sqlValue($qsgrpId) . ",
@@ -1541,7 +1498,7 @@ foreach ($deptReferencesData as $row) {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             '" . addslashes($deptId) . "',
             " . sqlValue($loginId) . ",
             SYSDATE
@@ -1585,7 +1542,7 @@ foreach ($divisionMappingData as $row) {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             '" . addslashes($divisionId) . "',
             SYSDATE,
             " . sqlValue($loginId) . "
@@ -1642,7 +1599,7 @@ if ($inducId !== '') {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             '" . addslashes($inducId) . "',
             " . sqlValue($orgId) . ",
             " . sqlValue($orgLocId) . ",
