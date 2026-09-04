@@ -34,28 +34,6 @@ try {
         $where = "WHERE a.ID = '" . $jobId . "'";
     }
 
-    // $sql = "SELECT a.ID,
-    //                a.SH_DESC,
-    //                a.DESCR,
-    //                a.DEPT_ID,
-    //                get_dept_name(a.DEPT_ID) AS DEPT_NAME,
-    //                a.DESIG_ID,
-    //                get_design_name(a.DESIG_ID) AS DESIG_NAME,
-    //                a.LVL_ID,
-    //                a.MIN_SAL,
-    //                a.MAX_SAL,
-    //                a.AGE_RANGE,
-    //                a.EXP,
-    //                a.REPT_JDID,
-    //                a.STATUS,
-    //                rpt.SH_DESC AS REPORTS_TO_LABEL,
-    //                COALESCE(get_dept_name(rpt.DEPT_ID), '') AS REPORTS_TO_DEPT,
-    //                COALESCE(get_design_name(rpt.DESIG_ID), '') AS REPORTS_TO_DESIG
-    //         FROM HR_JD a
-    //         LEFT JOIN HR_JD rpt ON rpt.ID = a.REPT_JDID
-    //         " . $where . "
-    //         ORDER BY a.SH_DESC, a.ID";
-
     $sql = "SELECT a.ID,
                a.SH_DESC,
                a.DESCR,
@@ -88,6 +66,15 @@ try {
                a.REPT_JDID,
                a.STATUS,
 
+               (
+    SELECT LISTAGG(dv.DIVSN_DESC, ', ')
+           WITHIN GROUP (ORDER BY dv.DIVSN_DESC)
+    FROM HR_JD_DIVSN jdv
+    INNER JOIN HR_DIVISIONS dv
+        ON dv.DIVSN_ID = jdv.DIVSN_ID
+    WHERE jdv.JD_ID = a.ID
+) AS DIVISION_NAMES,
+
                rpt.SH_DESC AS REPORTS_TO_LABEL,
                COALESCE(get_dept_name(rpt.DEPT_ID), '') AS REPORTS_TO_DEPT,
                COALESCE(get_design_name(rpt.DESIG_ID), '') AS REPORTS_TO_DESIG
@@ -107,11 +94,6 @@ try {
         if (empty($rows)) {
             apiResponse(false, "Job description not found.", null, 404);
         }
-
-        // $item = $rows[0];
-        // $item['REPORTS_TO'] = trim($item['REPORTS_TO_LABEL'] . ' (' . $item['REPORTS_TO_DEPT'] . ' - ' . $item['REPORTS_TO_DESIG'] . ')');
-        // apiResponse(true, "Job description fetched successfully.", ['jobDescription' => $item], 200);
-        // exit;
 
         $item = $rows[0];
 
@@ -223,21 +205,6 @@ $item['ALLOWANCES_LIST'] = multiRec($allowanceSql);
 CTC HEADS
 =========================================================
 */
-// $ctcSql = "
-//     SELECT
-//         ID,
-//         JD_ID,
-//         AD_ID,
-//         AD_CODE,
-//         EFFEC_FROM,
-//         EFFEC_TO,
-//         KEY,
-//         TEMPVAL,
-//         VAL
-//     FROM HR_JD_CTC_HEADS
-//     WHERE JD_ID = '" . addslashes($jobId) . "'
-//     ORDER BY ID
-// ";
 
 $ctcSql = "
     SELECT
@@ -378,6 +345,24 @@ $inductionSql = "
 
 $item['INDUCTION_LIST'] = multiRec($inductionSql);
 
+/*
+=========================================================
+RESPONSIBILITIES
+=========================================================
+*/
+$responsibilitySql = "
+    SELECT
+        ID,
+        JD_ID,
+        DESCR,
+        CHG_ON,
+        CHG_BY
+    FROM HR_JD_DESCRIPTION
+    WHERE JD_ID = '" . addslashes($jobId) . "'
+    ORDER BY ID
+";
+
+$item['RESPONSIBILITIES_LIST'] = multiRec($responsibilitySql);
 
 /*
 =========================================================
