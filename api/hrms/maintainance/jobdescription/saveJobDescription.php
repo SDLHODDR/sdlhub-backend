@@ -1,5 +1,9 @@
 <?php
 
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+
 ob_start();
 
 ini_set('display_errors', 1);
@@ -38,6 +42,175 @@ try {
     $input = readJsonInput();
     $input = array_merge($input, $_POST);
 
+    /*
+=========================================================
+RESPONSIBILITY ACTIONS
+=========================================================
+*/
+
+$action = trim($input['action'] ?? '');
+
+if ($action === 'save_responsibility') {
+
+    $jdId = trim($input['jd_id'] ?? '');
+    $responsibilityId = trim($input['responsibility_id'] ?? '');
+    $description = trim($input['description'] ?? '');
+
+    if ($jdId === '') {
+        apiResponse(false, "Job description ID is required.", null, 400);
+    }
+
+    if ($description === '') {
+        apiResponse(false, "Responsibility is required.", null, 400);
+    }
+
+    startQry();
+
+    $loginId = $_SESSION['loginId'] ?? $_SESSION['emp_code'] ?? 'SYSTEM';
+    $loginIdSql = sqlValue($loginId);
+
+    if ($responsibilityId !== '') {
+
+        /*
+        EDIT EXISTING RESPONSIBILITY
+        */
+
+        $sql = "
+            UPDATE HR_JD_DESCRIPTION
+            SET
+                DESCR = " . sqlValue($description) . ",
+                CHG_ON = SYSDATE,
+                CHG_BY = " . sqlValue($loginId) . "
+            WHERE ID = '" . addslashes($responsibilityId) . "'
+              AND JD_ID = '" . addslashes($jdId) . "'
+        ";
+
+        $ok = executeQry($sql);
+
+        if (!$ok) {
+            endQry();
+
+            apiResponse(
+                false,
+                "Unable to update responsibility.",
+                null,
+                500
+            );
+        }
+
+        endQry();
+
+        apiResponse(
+            true,
+            "Responsibility updated successfully.",
+            [
+                'id' => $responsibilityId
+            ],
+            200
+        );
+    }
+
+    /*
+    ADD NEW RESPONSIBILITY
+    */
+
+    $last = singRec("
+        SELECT NVL(MAX(ID), 0) + 1 AS ID
+        FROM HR_JD_DESCRIPTION
+    ");
+
+    $newId = $last['ID'];
+
+    $sql = "
+        INSERT INTO HR_JD_DESCRIPTION
+        (
+            ID,
+            JD_ID,
+            DESCR,
+            CHG_ON,
+            CHG_BY
+        )
+        VALUES
+        (
+            '" . addslashes($newId) . "',
+            '" . addslashes($jdId) . "',
+            " . sqlValue($description) . ",
+            SYSDATE,
+            " . sqlValue($loginId) . "
+        )
+    ";
+
+    $ok = executeQry($sql);
+
+    if (!$ok) {
+        endQry();
+
+        apiResponse(
+            false,
+            "Unable to save responsibility.",
+            null,
+            500
+        );
+    }
+
+    endQry();
+
+    apiResponse(
+        true,
+        "Responsibility saved successfully.",
+        [
+            'id' => $newId
+        ],
+        201
+    );
+}
+
+
+if ($action === 'delete_responsibility') {
+
+    $jdId = trim($input['jd_id'] ?? '');
+    $responsibilityId = trim($input['responsibility_id'] ?? '');
+
+    if ($jdId === '' || $responsibilityId === '') {
+        apiResponse(
+            false,
+            "Job description ID and responsibility ID are required.",
+            null,
+            400
+        );
+    }
+
+    startQry();
+
+    $sql = "
+        DELETE FROM HR_JD_DESCRIPTION
+        WHERE ID = '" . addslashes($responsibilityId) . "'
+          AND JD_ID = '" . addslashes($jdId) . "'
+    ";
+
+    $ok = executeQry($sql);
+
+    if (!$ok) {
+        endQry();
+
+        apiResponse(
+            false,
+            "Unable to delete responsibility.",
+            null,
+            500
+        );
+    }
+
+    endQry();
+
+    apiResponse(
+        true,
+        "Responsibility deleted successfully.",
+        null,
+        200
+    );
+}
+
     $jobId = trim($input['id'] ?? $input['ID'] ?? '');
     $shdesc = trim($input['shdesc'] ?? $input['SH_DESC'] ?? '');
     $descr = trim($input['desc'] ?? $input['DESCR'] ?? '');
@@ -65,51 +238,6 @@ CHILD TAB DATA
 */
 
 $responsibilities = trim($input['responsibilities'] ?? '');
-
-// $kraData = json_decode(
-//     $input['kra'] ?? '[]',
-//     true
-// );
-
-// $educationData = json_decode(
-//     $input['education'] ?? '{}',
-//     true
-// );
-
-// $skillsData = json_decode(
-//     $input['skills'] ?? '[]',
-//     true
-// );
-
-// $allowancesData = json_decode(
-//     $input['allowances'] ?? '[]',
-//     true
-// );
-
-// $ctcHeadsData = json_decode(
-//     $input['ctc_heads'] ?? '[]',
-//     true
-// );
-
-// $questionTemplateData = json_decode(
-//     $input['question_template'] ?? '[]',
-//     true
-// );
-
-// $deptReferencesData = json_decode(
-//     $input['dept_references'] ?? '[]',
-//     true
-// );
-
-// $divisionMappingData = json_decode(
-//     $input['division_mapping'] ?? '[]',
-//     true
-// );
-
-// $inductionData = json_decode(
-//     $input['induction'] ?? '{}',
-//     true
-// );
 
 function parseJsonOrArray($value, $default = [])
 {
@@ -227,157 +355,103 @@ if (!is_array($inductionData)) {
     startQry();
 
     $loginId = $_SESSION['loginId'] ?? $_SESSION['emp_code'] ?? 'SYSTEM';
+    $loginIdSql = sqlValue($loginId);
 
-    if ($jobId !== '') {
-        $sql = "UPDATE HR_JD SET
-                    SH_DESC='" . addslashes($shdesc) . "',
-                    DESCR='" . addslashes($descr) . "',
-                    DEPT_ID='" . addslashes($deptId) . "',
-                    LVL_ID='" . addslashes($lvlId) . "',
-                    DESIG_ID='" . addslashes($desigId) . "',
-                    MIN_SAL='" . addslashes($minSal) . "',
-                    MAX_SAL='" . addslashes($maxSal) . "',
-                    MIN_EXP='" . addslashes($minExp) . "',
-                    MAX_EXP='" . addslashes($maxExp) . "',
-                    MIN_AGE='" . addslashes($minAge) . "',
-                    MAX_AGE='" . addslashes($maxAge) . "',
-                    MIN_QUALI='" . addslashes($minQual) . "',
-                    MAX_QUALI='" . addslashes($maxQual) . "',
-                    REPT_JDID='" . addslashes($repJdId) . "',
-                    AGE_RANGE='" . addslashes($ageRange) . "',
-                    EXP='" . addslashes($exp) . "',
-                    STATUS='" . addslashes($status) . "',
-                    CHG_ON=SYSDATE,
-                    CHG_BY='" . addslashes($loginId) . "'
-                WHERE ID='" . addslashes($jobId) . "'";
+if ($jobId !== '') {
 
-        $ok = executeQry($sql);
+    /*
+     * =========================================================
+     * UPDATE EXISTING JOB DESCRIPTION
+     * =========================================================
+     */
 
-        // if ($ok) {
-        //     endQry('Updated');
-        //     apiResponse(true, "Job description updated successfully.", ['id' => $jobId], 200);
-        // }
+    $sql = "UPDATE HR_JD SET
+                SH_DESC='" . addslashes($shdesc) . "',
+                DESCR='" . addslashes($descr) . "',
+                DEPT_ID='" . addslashes($deptId) . "',
+                LVL_ID='" . addslashes($lvlId) . "',
+                DESIG_ID='" . addslashes($desigId) . "',
+                MIN_SAL='" . addslashes($minSal) . "',
+                MAX_SAL='" . addslashes($maxSal) . "',
+                MIN_EXP='" . addslashes($minExp) . "',
+                MAX_EXP='" . addslashes($maxExp) . "',
+                MIN_AGE='" . addslashes($minAge) . "',
+                MAX_AGE='" . addslashes($maxAge) . "',
+                MIN_QUALI='" . addslashes($minQual) . "',
+                MAX_QUALI='" . addslashes($maxQual) . "',
+                REPT_JDID='" . addslashes($repJdId) . "',
+                AGE_RANGE='" . addslashes($ageRange) . "',
+                EXP='" . addslashes($exp) . "',
+                STATUS='" . addslashes($status) . "',
+                CHG_ON=SYSDATE,
+                CHG_BY='" . addslashes($loginId) . "'
+            WHERE ID='" . addslashes($jobId) . "'";
 
-        // endQry();
-        // apiResponse(false, "Unable to update job description.", null, 500);
+    $ok = executeQry($sql);
 
-        if (!$ok) {
-    endQry();
-    apiResponse(
-        false,
-        "Unable to update job description.",
-        null,
-        500
-    );
-}
+    if (!$ok) {
+        endQry();
 
-
-/*
-=========================================================
-DELETE OLD CHILD DATA
-=========================================================
-*/
-
-$deleteTables = [
-    "HR_JD_KRA",
-    "HR_JD_EDU_DET",
-    "HR_JD_CAPABILITIES",
-    "HR_JD_ALLOWANCES",
-    "HR_JD_CTC_HEADS",
-    "HR_JD_QUESTIONS",
-    "HR_JD_REF_DEPT",
-    "HR_JD_DIVSN",
-    "HR_JD_INDUCTION"
-];
-
-foreach ($deleteTables as $table) {
-
-    $deleteSql = "
-        DELETE FROM {$table}
-        WHERE JD_ID = '" . addslashes($jobId) . "'
-    ";
-
-    executeQry($deleteSql);
-}
-
-
-/*
-=========================================================
-INSERT CHILD DATA
-=========================================================
-*/
-
-$loginIdSql = sqlValue($loginId);
-
-
-/*
------------------------------
-KRA
------------------------------
-*/
-
-foreach ($kraData as $row) {
-
-    // $kraId = $row['KRA_ID']
-    //     ?? $row['kra_id']
-    //     ?? $row['value']
-    //     ?? '';
-
-    // $respPerc = $row['RESP_PERC']
-    //     ?? $row['resp_perc']
-    //     ?? $row['RESP_PERC']
-    //     ?? '';
-
-    // MultiSelect sends only KRA IDs:
-    // ["1127", "1128"]
-
-    // Keep backward compatibility if an object is sent.
-    if (is_array($row)) {
-        $kraId = $row['KRA_ID']
-            ?? $row['kra_id']
-            ?? $row['value']
-            ?? '';
-
-        $respPerc = $row['RESP_PERC']
-            ?? $row['resp_perc']
-            ?? '';
-    } else {
-        $kraId = $row;
-        $respPerc = '';
+        apiResponse(
+            false,
+            "Unable to update job description.",
+            null,
+            500
+        );
     }
 
-    if ($kraId === '') {
-        continue;
-    }
+    /*
+     * =========================================================
+     * DELETE OLD CHILD RECORDS
+     *
+     * We re-insert the current tab data below.
+     * =========================================================
+     */
 
-    $last = singRec(
-        "SELECT NVL(MAX(ID),0)+1 AS ID FROM HR_JD_KRA"
+    executeQry(
+        "DELETE FROM HR_JD_KRA
+         WHERE JD_ID='" . addslashes($jobId) . "'"
     );
 
-    $childId = $last['ID'];
+    executeQry(
+        "DELETE FROM HR_JD_EDU_DET
+         WHERE JD_ID='" . addslashes($jobId) . "'"
+    );
 
-    $sql = "
-        INSERT INTO HR_JD_KRA
-        (
-            ID,
-            JD_ID,
-            KRA_ID,
-            RESP_PERC,
-            CHG_BY,
-            CHG_ON
-        )
-        VALUES
-        (
-            '" . addslashes($childId) . "',
-            '" . addslashes($jobId) . "',
-            '" . addslashes($kraId) . "',
-            " . sqlValue($respPerc) . ",
-            {$loginIdSql},
-            SYSDATE
-        )
-    ";
+    executeQry(
+        "DELETE FROM HR_JD_CAPABILITIES
+         WHERE JD_ID='" . addslashes($jobId) . "'"
+    );
 
-    executeQry($sql);
+    executeQry(
+        "DELETE FROM HR_JD_ALLOWANCES
+         WHERE JD_ID='" . addslashes($jobId) . "'"
+    );
+
+    executeQry(
+        "DELETE FROM HR_JD_CTC_HEADS
+         WHERE JD_ID='" . addslashes($jobId) . "'"
+    );
+
+    executeQry(
+        "DELETE FROM HR_JD_REF_DEPT
+         WHERE JD_ID='" . addslashes($jobId) . "'"
+    );
+
+    executeQry(
+        "DELETE FROM HR_JD_DIVSN
+         WHERE JD_ID='" . addslashes($jobId) . "'"
+    );
+
+    executeQry(
+        "DELETE FROM HR_JD_INDUCTION
+         WHERE JD_ID='" . addslashes($jobId) . "'"
+    );
+
+    /*
+     * From this point onward, the existing child INSERT
+     * blocks will execute using $jobId.
+     */
 }
 
 
@@ -387,18 +461,26 @@ EDUCATION
 -----------------------------
 */
 
-$qualificationId =
-    $educationData['QUA_ID']
-    ?? $educationData['qualification']
-    ?? $educationData['QUALIFICATION']
-    ?? '';
+foreach ($educationData as $row) {
 
-$comments =
-    $educationData['COMMENTS']
-    ?? $educationData['comments']
-    ?? '';
+    if (!is_array($row)) {
+        continue;
+    }
 
-if ($qualificationId !== '') {
+    $qualificationId =
+        $row['QUA_ID']
+        ?? $row['qualification']
+        ?? $row['QUALIFICATION']
+        ?? '';
+
+    $comments =
+        $row['COMMENTS']
+        ?? $row['comments']
+        ?? '';
+
+    if ($qualificationId === '') {
+        continue;
+    }
 
     $last = singRec(
         "SELECT NVL(MAX(ID),0)+1 AS ID FROM HR_JD_EDU_DET"
@@ -429,7 +511,6 @@ if ($qualificationId !== '') {
 
     executeQry($sql);
 }
-
 
 /*
 -----------------------------
@@ -501,14 +582,16 @@ foreach ($allowancesData as $row) {
         ?? '';
 
     $amount =
-        $row['ALLOW_AMOUNT']
-        ?? $row['allowAmount']
-        ?? '';
+    $row['ALLOW_AMOUNT']
+    ?? $row['allow_amount']
+    ?? $row['amount']
+    ?? '';
 
     $addInfo =
-        $row['ADD_INFO']
-        ?? $row['appliedLocation']
-        ?? '';
+    $row['ADD_INFO']
+    ?? $row['add_info']
+    ?? $row['frequency']
+    ?? '';
 
     $fromDate =
         $row['FROMDT']
@@ -521,9 +604,10 @@ foreach ($allowancesData as $row) {
         ?? '';
 
     $expType =
-        $row['EXP_TYPE']
-        ?? $row['frequency']
-        ?? '';
+    $row['EXP_TYPE']
+    ?? $row['exp_type']
+    ?? $row['expenseType']
+    ?? '';
 
     if ($allowId === '') {
         continue;
@@ -824,12 +908,6 @@ DIVISION MAPPING
 
 foreach ($divisionMappingData as $row) {
 
-    // $divisionId =
-    //     $row['DIVSN_ID']
-    //     ?? $row['divsn_id']
-    //     ?? $row['value']
-    //     ?? '';
-
     $divisionId = is_array($row)
     ? ($row['DIVSN_ID'] ?? $row['divsn_id'] ?? $row['value'] ?? '')
     : trim($row);
@@ -940,7 +1018,6 @@ apiResponse(
 );
 
 exit;
-    }
 
     $last = singRec("SELECT MAX(ID) AS ID FROM HR_JD");
     $newId = '1';
@@ -999,6 +1076,7 @@ exit;
     );
 }
 
+$targetJobId = $jobId !== '' ? $jobId : $newId;
 
 /*
 =========================================================
@@ -1010,20 +1088,6 @@ INSERT CHILD DATA FOR NEW JD
 KRA
 */
 foreach ($kraData as $row) {
-
-    // $kraId =
-    //     $row['KRA_ID']
-    //     ?? $row['kra_id']
-    //     ?? $row['value']
-    //     ?? '';
-
-    // $respPerc =
-    //     $row['RESP_PERC']
-    //     ?? $row['resp_perc']
-    //     ?? '';
-
-    // MultiSelect sends only KRA IDs:
-    // ["1127", "1128"]
 
     // Keep backward compatibility if an object is sent.
     if (is_array($row)) {
@@ -1065,7 +1129,7 @@ foreach ($kraData as $row) {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             '" . addslashes($kraId) . "',
             " . sqlValue($respPerc) . ",
             " . sqlValue($loginId) . ",
@@ -1111,7 +1175,7 @@ if ($qualificationId !== '') {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             '" . addslashes($qualificationId) . "',
             " . sqlValue($comments) . ",
             " . sqlValue($loginId) . ",
@@ -1163,7 +1227,7 @@ foreach ($skillsData as $row) {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             '" . addslashes($capaId) . "',
             " . sqlValue($capaLevelId) . ",
             SYSDATE,
@@ -1192,14 +1256,26 @@ foreach ($allowancesData as $row) {
         ?? '';
 
     $addInfo =
-        $row['ADD_INFO']
-        ?? $row['appliedLocation']
-        ?? '';
+    $row['ADD_INFO']
+    ?? $row['add_info']
+    ?? $row['frequency']
+    ?? '';
 
-    $expType =
-        $row['EXP_TYPE']
-        ?? $row['frequency']
-        ?? '';
+$fromDate =
+    $row['FROMDT']
+    ?? $row['from']
+    ?? '';
+
+$toDate =
+    $row['TODT']
+    ?? $row['to']
+    ?? '';
+
+$expType =
+    $row['EXP_TYPE']
+    ?? $row['exp_type']
+    ?? $row['expenseType']
+    ?? '';
 
     if ($allowId === '') {
         continue;
@@ -1226,7 +1302,7 @@ foreach ($allowancesData as $row) {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             '" . addslashes($allowId) . "',
             " . sqlValue($amount) . ",
             " . sqlValue($addInfo) . ",
@@ -1298,7 +1374,7 @@ foreach ($ctcHeadsData as $row) {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             " . sqlValue($adId) . ",
             " . sqlValue($adCode) . ",
             SYSDATE,
@@ -1372,7 +1448,7 @@ foreach ($questionTemplateData as $row) {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             " . sqlValue($qgrpId) . ",
             " . sqlValue($qgrpType) . ",
             " . sqlValue($qsgrpId) . ",
@@ -1422,7 +1498,7 @@ foreach ($deptReferencesData as $row) {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             '" . addslashes($deptId) . "',
             " . sqlValue($loginId) . ",
             SYSDATE
@@ -1466,7 +1542,7 @@ foreach ($divisionMappingData as $row) {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             '" . addslashes($divisionId) . "',
             SYSDATE,
             " . sqlValue($loginId) . "
@@ -1523,7 +1599,7 @@ if ($inducId !== '') {
         VALUES
         (
             '" . addslashes($childId) . "',
-            '" . addslashes($newId) . "',
+            '" . addslashes($targetJobId) . "',
             '" . addslashes($inducId) . "',
             " . sqlValue($orgId) . ",
             " . sqlValue($orgLocId) . ",
@@ -1553,7 +1629,8 @@ exit;
 //     apiResponse(false, "Unable to process request.", null, 500);
 // }
 
-} catch (Throwable $e) {
+} 
+catch (Throwable $e) {
     error_log(
         "saveJobDescription.php ERROR: " .
         $e->getMessage() .

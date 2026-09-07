@@ -221,14 +221,6 @@ if ($type === 'education_level') {
     */
     if ($type === 'frequency') {
 
-        // $sql = "
-        //     SELECT DISTINCT
-        //         EXP_TYPE
-        //     FROM HR_JD_ALLOWANCES
-        //     WHERE EXP_TYPE IS NOT NULL
-        //     ORDER BY EXP_TYPE
-        // ";
-
         $sql = "
         SELECT DISTINCT
             TRIM(ADD_INFO) AS FREQUENCY
@@ -308,22 +300,6 @@ if ($type === 'education_level') {
     */
     if ($type === 'organogram') {
 
-        // $sql = "
-        //     SELECT
-        //         ID AS ORG_ID,
-        //         LABEL,
-        //         DEPT_ID,
-        //         DESI_ID,
-        //         DIVSN_ID,
-        //         JD_ID,
-        //         PARENT_ORGID,
-        //         STATUS
-        //     FROM HR_ORGANOGRAM
-        //     WHERE STATUS IS NULL
-        //        OR STATUS = 'A'
-        //     ORDER BY LABEL, ID
-        // ";
-
         $sql = "
     SELECT
         ID AS ORG_ID,
@@ -374,44 +350,6 @@ if ($type === 'education_level') {
     =========================================================
     */
     if ($type === 'question_template') {
-
-        // $sql = "
-        //     SELECT
-        //         q.ID AS QUESTION_ID,
-        //         q.QUESTION,
-        //         q.RATING_TYPE,
-
-        //         q.QGRP_ID,
-        //         g.QGRP_DESC,
-        //         g.QGRP_TYPE,
-
-        //         q.QSGRP_ID,
-        //         sg.QSGRP_DESC,
-
-        //         o.ID AS OPTION_ID,
-        //         o.OPTS_TEXT,
-        //         o.OPTS_SEQ
-
-        //     FROM HR_QUESTION_MASTER q
-
-        //     LEFT JOIN HR_QUESTION_GROUP g
-        //         ON g.QGRP_ID = q.QGRP_ID
-
-        //     LEFT JOIN HR_QUESTION_SGROUP sg
-        //         ON sg.QSGRP_ID = q.QSGRP_ID
-
-        //     LEFT JOIN HR_QUESTION_OPTS o
-        //         ON o.QUESTION_ID = q.ID
-
-        //     WHERE q.STATUS IS NULL
-        //        OR q.STATUS = 'A'
-
-        //     ORDER BY
-        //         q.QGRP_ID,
-        //         q.QSGRP_ID,
-        //         q.ID,
-        //         o.OPTS_SEQ
-        // ";
 
        $sql = "
     SELECT
@@ -505,25 +443,6 @@ if ($type === 'question_group') {
     So currently return distinct CALC_TYPE values.
     =========================================================
     */
-    // if ($type === 'formula') {
-
-    //     $sql = "
-    //         SELECT DISTINCT
-    //             CALC_TYPE
-    //         FROM HR_EMP_CTC_HEADS
-    //         WHERE CALC_TYPE IS NOT NULL
-    //         ORDER BY CALC_TYPE
-    //     ";
-
-    //     $rows = multiRec($sql);
-
-    //     apiResponse(
-    //         true,
-    //         "Formula list fetched successfully.",
-    //         ['data' => $rows],
-    //         200
-    //     );
-    // }
 
     /*
 =========================================================
