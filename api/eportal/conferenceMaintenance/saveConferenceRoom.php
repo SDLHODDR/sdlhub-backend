@@ -357,7 +357,7 @@ try {
        LOG SUCCESS
     ============================================================ */
 
-    logOracleError(
+   /* logOracleError(
         [
             "message" =>
                 "Conference room updated successfully. " .
@@ -366,7 +366,7 @@ try {
                 "Employee: {$empCode}"
         ],
         "saveConferenceRoom.php"
-    );
+    );*/
 
     /* ============================================================
        RESPONSE
