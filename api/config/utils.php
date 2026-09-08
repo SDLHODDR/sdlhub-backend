@@ -176,4 +176,37 @@ function readJsonInput()
     return [];
 }
 
+/* ===========================================
+   AGE CALCULATION FUNCTION
+=========================================== */
+
+function calculateAgeFromDob(DateTime $dob): int
+{
+    $timezone = new DateTimeZone(
+        'Asia/Kolkata'
+    );
+
+    $today = new DateTime(
+        'today',
+        $timezone
+    );
+
+    $dob = clone $dob;
+    $dob->setTime(0, 0, 0);
+
+    /*
+     * Calculate completed years.
+     */
+    $age = $dob->diff($today)->y;
+
+    /*
+     * Safety check.
+     */
+    if ($age < 0) {
+        return 0;
+    }
+
+    return $age;
+}
+
 ?>
