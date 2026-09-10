@@ -32,7 +32,49 @@ if (empty($data)) {
 }
 
 try {
+    // $parentLoc = $data['ORG_ID'];
+    // $parentLoc = array_filter($parentLoc, function($value) {
+	// 	return !is_null($value) && $value !== '';
+	// });
+    // $uniqueParentLoc = array_unique($parentLoc);
 
+    $TId = singRec("SELECT COUNT(ID)CNT FROM HR_ORG_APPR_LEVELS WHERE effec_from  >=  '".$data['EFFEC_FROM']."'
+		 and org_id = '".$data['ORG_ID']."'");
+    
+    if($TId['CNT'] != 0){
+        apiResponse(false, "Record Already Exists!", null, 500);
+        exit;
+    } else {
+        $effectiveDate = date('d-M-Y', strtotime($data['EFFEC_FROM'] .'-1 day'));
+        executeQry("UPDATE HR_ORG_APPR_LEVELS 
+            SET effec_to='".($effectiveDate)."',
+            STATUS = 'D'
+        WHERE to_date('".$data['EFFEC_FROM']."')
+        BETWEEN effec_from AND NVL(effec_to , '01-Mar-3000') AND org_id = '".$data['ORG_ID']."'");
+
+        $apprOrgId = get_descr_table('ID', 'HR_ORGANOGRAM', 'ID', $data['APPR_ORGID']);
+    
+        if ($apprOrgId !== null) {						
+            execQry(
+                array(
+                    'type' => 'insert', 'table' => 'HR_ORG_APPR_LEVELS',
+                    'data' => array(
+                        'ORG_ID' => $data['ORG_ID'],
+                        'APPR_LEVEL' => $data['APPR_LEVEL'],
+                        'APPR_ORGID' => $apprOrgId,
+                        'EFFEC_FROM' => ($data['EFFEC_FROM'] ),
+                        'STATUS' => 'N',
+                        'CHG_BY' => $empCode,
+                        'CHG_ON' => 'SYSDATE'
+                    ),
+                    'print' => 0
+                )
+            );
+        }
+    }
+    endQry("Saved Successsfully");
+    apiResponse(true, "Organogram Appraisal data Inserted/Updated successfully.");
+    
 } catch (Throwable $e) {
     logOracleError(
         [
