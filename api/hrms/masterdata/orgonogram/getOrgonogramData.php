@@ -34,14 +34,12 @@ if (empty($data)) {
 try {
     $compIdsString = $data["COMP_ID"];
     $divIdsString = $data["DIVISION_ID"];
-    $deptCodesString = $data["DEPT_ID"] . ", 42";
-
-
+    $deptCodesString = $data["DEPT_ID"];
 
     $organograms = multiRec(
         "SELECT 
             ID, 
-            GET_SHCOMP_NAME(COMPANY)|| ' - ' || GET_DIVISION_NAME(DIVSN_ID)|| ' - ' || GET_DEPT_NAME(DEPT_ID)|| ' - ' || GET_DESIGN_NAME(DESI_ID) as ORGNGM_OPTIONS,
+            ID|| ' - ' || GET_SHCOMP_NAME(COMPANY)|| ' - ' || GET_DIVISION_NAME(DIVSN_ID)|| ' - ' || GET_DEPT_NAME(DEPT_ID)|| ' - ' || GET_DESIGN_NAME(DESI_ID) as ORGNGM_OPTIONS,
             FINENT, 
             COMPANY, 
             LABEL, 
