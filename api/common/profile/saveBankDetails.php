@@ -95,6 +95,15 @@ try {
         );
     }
 
+    if (strlen($newIfsc) !== 11) {
+        apiResponse(
+            false,
+            "IFSC must be 11 characters.",
+            null,
+            400
+        );
+    }
+
 
     /* ==========================================================
        ACCOUNT NUMBER VALIDATION
