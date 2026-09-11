@@ -1057,13 +1057,7 @@ exit;
                     '" . addslashes($exp) . "')";
 
     $ok = executeQry($sql);
-
-    // if ($ok) {
-    //     endQry('Inserted');
-    //     apiResponse(true, "Job description inserted successfully.", ['id' => $newId], 201);
-    // }
-    // endQry();
-    // apiResponse(false, "Unable to save job description.", null, 500);
+    
     if (!$ok) {
 
     endQry();
@@ -1612,7 +1606,6 @@ if ($inducId !== '') {
     executeQry($sql);
 }
 
-
 endQry('Inserted');
 
 apiResponse(
@@ -1623,11 +1616,6 @@ apiResponse(
 );
 
 exit;
-
-// } catch (Throwable $e) {
-//     logOracleError($e);
-//     apiResponse(false, "Unable to process request.", null, 500);
-// }
 
 } 
 catch (Throwable $e) {
