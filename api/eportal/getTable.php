@@ -17,8 +17,6 @@ if($taskId == "349") {
     $whereCdn = " t.TASK_ID = " . $taskId;   
 }
 
-//$whereCdn = " t.TASK_ID = " . $taskId;   
-
 
 $base_query = "
             SELECT distinct * 
@@ -85,7 +83,7 @@ foreach($myTasksData as $res)
         }
 
         //349 → Outdoor
-        else if ($taskId == 349) {
+        else if ($taskId == 349 || $taskId == 22 || $taskId == 21 ) {
             $details = singRec("
                 SELECT *
                     FROM EPT_EMPLOYEE_GPASS

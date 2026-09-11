@@ -42,16 +42,34 @@ if (!$empCode) {
 session_write_close();
 
 try {
+    
+    // $sql = "SELECT DISTINCT
+    //             M.ID AS MENU_ID,
+    //             M.LABEL AS MENU_LABEL,
+    //             M.ICON AS MENU_ICON,
+    //             M.SEQ AS MENU_SEQ,
 
-    /*
-    |--------------------------------------------------------------------------
-    | GET MENU + SUB MENU
-    |--------------------------------------------------------------------------
-    */
+    //             MS.ID AS SUB_MENU_ID,
+    //             MS.LABEL AS SUB_MENU_LABEL,
+    //             MS.PROG_URL,
+    //             MS.SEQ AS SUB_MENU_SEQ,
+
+    //             EI.EMP_CODE
+
+    //         FROM HR_MENU M
+    //         INNER JOIN HR_MENU_SUB MS ON MS.MENU_ID = M.ID
+    //         INNER JOIN HR_PROFILE_MENU PM ON PM.SUB_MENU_ID = MS.ID
+    //         INNER JOIN HR_EMP_PROFILE EP ON EP.PROFILE_ID = PM.PROFILE_ID
+    //         INNER JOIN HR_EMPLOYEE_INFO EI ON EI.EMP_CODE = EP.EMP_CODE
+
+    //         WHERE EI.EMP_CODE = :emp_code
+    //         AND MS.STATUS = 'A'
+
+    //         ORDER BY M.SEQ, MS.SEQ";
 
     $sql = "
 
-        SELECT
+        SELECT DISTINCT
             M.ID AS MENU_ID,
             M.LABEL AS MENU_LABEL,
             M.ICON AS MENU_ICON,
@@ -130,6 +148,12 @@ try {
     | BUILD MENU TREE
     |--------------------------------------------------------------------------
     */
+
+    // print '<pre/>';
+    // while ($row = oci_fetch_assoc($stmt)) {
+    //     print_r($row);
+    // }
+    // exit;
 
     $menus = [];
 

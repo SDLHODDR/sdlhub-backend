@@ -105,6 +105,10 @@ try {
     }    
     
     $results['TOTAL_COUNT'] = $mytasks_count['TOTAL_COUNT'];
+
+    //echo '<pre/>';
+    // print_r($results);
+    // exit;
     
     /*
     |--------------------------------------------------------------------------
@@ -120,7 +124,7 @@ try {
     $exclude46      = "AND TA.TASK_ID != '46'";
     $is_special_exc = ($empCode=== '00152') ? $exclude46 : "";
 
-    // print_r($taskarr);
+    //print_r($taskarr);
     // print_r($joining_taskarr);
     // print_r($exit_task_ids);
     // print_r($taskGrpFilter);
@@ -175,7 +179,7 @@ try {
         $joining_in = implode(',', $joining_taskarr);
         $exit_in    = implode(',', array_map('intval', $exit_task_ids));
 
-        // echo '---------------';
+        //echo '---------------';
         // print_r($allTaskIds);
         // print_r($taskIdsIn);
         // print_r($task_master_map);
@@ -253,8 +257,8 @@ try {
         }
     }
 
-    //echo '########################';
-    //print_r($all_rows);
+    // echo '########################';
+    // print_r($all_rows);
     // print_r($tasks_grouped);
     // exit;
     $tasktype = null;
@@ -277,13 +281,15 @@ try {
         $task_desc = $task_master_map[$tid] ?? [];
 
         if ($task_id['TASK_TYPE'] !== $tasktype) {
-            $groupLabel = $taskarr[$task_id['TASK_TYPE']];
+            if (array_key_exists($task_id['TASK_TYPE'], $taskarr) && $taskarr[$task_id['TASK_TYPE']] != "") {
+                $groupLabel = $taskarr[$task_id['TASK_TYPE']];
 
-            $finalArr[$groupLabel][] = [
-                'TASK_ID'   => $tid,
-                'TASK_DESC' => htmlspecialchars($task_desc['TASK_DESC'] ?? ''),
-                'CNT'       => (int)$task_id['CNT'],
-            ];
+                $finalArr[$groupLabel][] = [
+                    'TASK_ID'   => $tid,
+                    'TASK_DESC' => htmlspecialchars($task_desc['TASK_DESC'] ?? ''),
+                    'CNT'       => (int)$task_id['CNT'],
+                ];
+            }
         }
     }
 
