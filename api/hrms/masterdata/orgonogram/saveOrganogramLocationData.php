@@ -32,32 +32,78 @@ if (empty($data)) {
 }
 
 try {
-    print_r($data); 
-    exit;
-    $deptId = $data['DEPARTMENT_ID'] ?? null;
-    $desigId = $data['DESIGNATION_ID'] ?? null;
+    startQry();
 
-    if (!$deptId && !$desigId) {
-        apiResponse(false, "Department Id and Designation Id is required", null, 500);
-        exit;
+    $orgres = singRec("SELECT * FROM HR_ORGANOGRAM WHERE ID = '".$data['ID']."'");
+    if($orgres['EMP_LEVEL']=='15'){
+
+        $geo_det = singRec("SELECT
+			DIVSN_ID,
+			DIVSN_DESC AS GEO_DESC,
+			'Office Staff ' as GEO_LABEL 
+			FROM HR_DIVISIONS WHERE DIVSN_ID = '" . $data['GEO_ID'] . "' ");
+
+    } else {
+
+        $geo_det = singRec("SELECT
+			GEO_ID,
+			GEO_DESC,
+			GEO_LABEL 
+			FROM HR_SFM_NEW_GEO_MAPPING
+			WHERE GEO_ID = '" . $data['GEO_ID'] . "' 
+            AND DIVSN_ID = '".$data['DIVSN_ID']."' 
+            AND '".$data['EFFEC_FROM']."'
+			BETWEEN EFFEC_FROM AND EFFEC_TO");
     }
 
-    $organogramJDLbl = multiRec("select ID,ID || ' - ' || SH_DESC as LABEL from HR_JD where dept_id = '" . $deptId . "' and DESIG_ID = '" . $desigId . "' order by SH_DESC");
+    if($data['ID'] == ''){
+        $newId = executeQry("INSERT INTO HR_ORGANOGRAM_LOC
+			(ID, ORG_ID, GEO_ID, GEO_DESC, LOC_LABEL, EFFEC_FROM, EFFEC_TO, EMP_LEVEL, STATUS)
+			VALUES('',
+			'" . $data['ORGANOGRAM_ID'] . "',
+			'" . trim($data['GEO_ID']) . "',
+			'" . trim($geo_det['GEO_DESC']) . "',
+			'" . trim($geo_det['GEO_LABEL']) . "',
+			'" . trim($data['EFFEC_FROM']) . "',
+			'" . trim($data['EFFEC_TO']) . "',
+			'" . trim($data['EMP_LEVEL']) . "',
+			'A'				
+			)RETURNING ID INTO:newId ", 'newId');
+
+        if(!$newId)
+        {
+            apiResponse(false, "Organogram Location insert/update failed", null, 500);
+            exit;
+        }
+        if ($data['EFFEC_TO'] != '' && $newId) {
+			executeQry("UPDATE HR_ORGANOGRAM_LOC 
+				SET STATUS = 'C' 
+				WHERE ORG_ID='" . $data['ORGANOGRAM_ID'] . "' AND ID = '" . $newId . "'");
+		}
+    } else {
+        executeQry("UPDATE HR_ORGANOGRAM_LOC SET
+			GEO_ID = '" . $data['GEO_ID'] . "',
+			GEO_DESC= '" . trim($geo_det['GEO_DESC']) . "',
+			LOC_LABEL= '" . trim($geo_det['GEO_LABEL']) . "',
+			EFFEC_FROM='" . trim($data['EFFEC_FROM']) . "',
+			EFFEC_TO='" . trim($data['EFFEC_TO']) . "',
+			EMP_LEVEL='" . trim($data['EMP_LEVEL']) . "',
+			STATUS = 'A'
+			where ID = '" . $data['ID'] . "'"); //LOC_ID_hidden
+        if ($data['EFFEC_TO'] != '') {
+            executeQry("UPDATE HR_ORGANOGRAM_LOC SET
+                STATUS = 'C'
+                WHERE ID = '" . $data['ID'] . "'");
+        }
+    }
+    if ($data['EFFEC_TO'] != '') {
+        executeQry("UPDATE HR_ORGANOGRAM_LOC SET 
+            STATUS = 'C'
+            WHERE ORG_ID='" . $_REQUEST['ORGANOGRAM_ID'] . "' AND ID = '" . $newId . "'");
+    }
+    endQry('Updated Sucessffully');
     
-    if ( empty($organogramJDLbl) ) {
-        apiResponse( false, "No Data found", null, 200 );
-        exit;
-    }
-
-    $results = [];
-    foreach ($organogramJDLbl as $org) {
-        $results[] = [
-            "ID" => (int)$org['ID'],
-            "LABEL" => $org['LABEL']
-        ];
-    }
-    
-    apiResponse(true, "Organogram data fetched successfully.", $results);
+    apiResponse(true, "Organogram Location data Insert/Update successfully.", $newId);
 } catch (Throwable $e) {
     logOracleError(
         [
@@ -65,9 +111,8 @@ try {
             "file" => $e->getFile(),
             "line" => $e->getLine(),
         ],
-        "getOrganogramData.php"
+        "saveOrganogramLocationData.php"
     );
-
     apiResponse(false, "Unable to load organogram.", null, 500);
 } finally {
     if (!empty($sql___func___con)) {
