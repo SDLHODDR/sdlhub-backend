@@ -51,7 +51,7 @@ try {
 
     $sql = "
 
-        SELECT
+        SELECT DISTINCT
             M.ID AS MENU_ID,
             M.LABEL AS MENU_LABEL,
             M.ICON AS MENU_ICON,
