@@ -123,14 +123,21 @@ ORDER BY DESCR
     /*
      * Employee Type
      */
-    $employeeTypes = multiRec("
-        SELECT
-            E_ID AS VALUE,
-            EMP_TYPE AS LABEL
-        FROM HR_EMP_TYPE_MST
-        ORDER BY E_ID
-    ");
+    // $employeeTypes = multiRec("
+    //     SELECT
+    //         E_ID AS VALUE,
+    //         EMP_TYPE AS LABEL
+    //     FROM HR_EMP_TYPE_MST
+    //     ORDER BY E_ID
+    // ");
 
+    $employeeTypes = multiRec("
+    SELECT
+        ETYPE_ID AS VALUE,
+        EMP_TYPE AS LABEL
+    FROM HRMSLIVE.HR_EMP_TYPE
+    ORDER BY ETYPE_ID
+");
 
     /*
      * Levels

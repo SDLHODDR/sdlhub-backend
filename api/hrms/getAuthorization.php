@@ -115,7 +115,8 @@ try {
     | RESPONSE
     |--------------------------------------------------------------------------
     */
-    $taskarr= array('J'=>'Joining' , 'E'=> 'Exit' , 'R'=>'Recruitment' , 'C'=> 'Others','T'=>'Tenure Change' ,'A' => 'Appraisal' , 'S' => 'Employee Transfer');
+    $taskarr= array('J'=>'Joining' , 'E'=> 'Exit' , 'R'=>'Recruitment' , 'C'=> 'Others','T'=>'Tenure Change' ,
+    'A' => 'Appraisal' , 'S' => 'Employee Transfer', 'M' => 'Masters' );
 
     $joining_taskarr = [4,13,35,36,37,38,39,41,42,43,44,45,50,51];
     $exit_task_ids   = ['18','19','20','23','24'];
