@@ -43,8 +43,18 @@ try {
     }
 
     $organogramLoc = multiRec("SELECT 
-        DISTINCT hol.ID, get_emp_name(get_org_loc_emp_code(hol.ID, SYSDATE)) || ' - ' || get_org_loc_emp_code(hol.ID , SYSDATE) NM, hol.geo_desc ||' ('|| loc_label || ')' geodesc, hol.effec_from, hol.effec_to, hol.loc_label, hol.geo_id, get_org_loc_emp_code(hol.ID, SYSDATE) emp_code 
-        FROM HR_ORGANOGRAM ho, HR_ORGANOGRAM_LOC hol, HR_SFM_NEW_EMP_LEVELS hel
+        DISTINCT hol.ID, 
+        get_emp_name(get_org_loc_emp_code(hol.ID, SYSDATE)) || ' - ' || get_org_loc_emp_code(hol.ID , SYSDATE) NM, 
+        hol.geo_desc ||' ('|| loc_label || ')' geodesc, 
+        hol.effec_from, 
+        hol.effec_to, 
+        hol.loc_label, 
+        hol.geo_id, 
+        get_org_loc_emp_code(hol.ID, SYSDATE) emp_code 
+        FROM 
+        HR_ORGANOGRAM ho, 
+        HR_ORGANOGRAM_LOC hol, 
+        HR_SFM_NEW_EMP_LEVELS hel
         WHERE 
         ho.id = hol.org_id AND 
         ho.emp_level = hel.levl AND 
