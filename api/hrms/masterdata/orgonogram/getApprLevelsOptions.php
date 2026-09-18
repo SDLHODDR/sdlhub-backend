@@ -1,7 +1,7 @@
 <?php
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+// ini_set('display_errors', 1);
+// error_reporting(E_ALL);
 
 define('CURRENT_PORTAL', 'hrms');
 require_once __DIR__ . "/../../../config/session.php";
@@ -38,7 +38,11 @@ try {
         exit;
     }
 
-    $hierarchyArr = singRec("SELECT get_org_parental('".$orgId."', sysdate) as ORG from dual");
+    $Tdate = 'sysdate'; 
+    $Tdate = '01-04-24';
+
+    $hierarchyArr = singRec("SELECT get_org_parental('".$orgId."', SYSDATE) as ORG from dual");
+    //$hierarchyArr = singRec("SELECT get_org_parental('".$orgId."', '01-04-24') as ORG from dual");
     if ( empty($hierarchyArr) ) {
         apiResponse( false, "No Data found", null, 200 );
         exit;

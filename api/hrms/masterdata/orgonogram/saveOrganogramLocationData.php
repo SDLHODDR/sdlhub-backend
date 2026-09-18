@@ -34,7 +34,7 @@ if (empty($data)) {
 try {
     startQry();
 
-    $orgres = singRec("SELECT * FROM HR_ORGANOGRAM WHERE ID = '".$data['ID']."'");
+    $orgres = singRec("SELECT * FROM HR_ORGANOGRAM WHERE ID = '".$data['ORGANOGRAM_ID']."'");
     if($orgres['EMP_LEVEL']=='15'){
 
         $geo_det = singRec("SELECT
