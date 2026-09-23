@@ -273,6 +273,12 @@ function singDymentionNew($array)
     return $newArray;
 }
 
+function get_descr_table($colnm , $tablename , $key ,  $val  ){
+
+	$res = singRec("select ".$colnm." from ".$tablename." where ".$key." = '".$val."' ");
+	return $res[0];
+}
+
 function getOptions($sqlVal,$value='',$output='',$echo='')
 {
 	if(!empty($echo)) echo $sqlVal.'<hr style="border:2px solid #000000;" />';

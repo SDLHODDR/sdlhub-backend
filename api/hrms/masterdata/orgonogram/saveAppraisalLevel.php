@@ -1,7 +1,7 @@
 <?php
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+// ini_set('display_errors', 1);
+// error_reporting(E_ALL);
 
 define('CURRENT_PORTAL', 'hrms');
 
@@ -38,43 +38,41 @@ try {
 	// });
     // $uniqueParentLoc = array_unique($parentLoc);
 
-    $TId = singRec("SELECT COUNT(ID)CNT FROM HR_ORG_APPR_LEVELS WHERE effec_from  >=  '".$data['EFFEC_FROM']."'
-		 and org_id = '".$data['ORG_ID']."'");
+    // echo '<pre>';
+    // print_r($data);
+    // echo '<pre/>';
+    // exit;
+    
+    $TId = singRec("SELECT COUNT(ID)CNT FROM HR_ORG_APPR_LEVELS WHERE effec_from  >=  '".$data['EFFEC_FROM']."' AND org_id = '".$data['ORG_ID']."'");
     
     if($TId['CNT'] != 0){
         apiResponse(false, "Record Already Exists!", null, 500);
         exit;
     } else {
         $effectiveDate = date('d-M-Y', strtotime($data['EFFEC_FROM'] .'-1 day'));
+
         executeQry("UPDATE HR_ORG_APPR_LEVELS 
-            SET effec_to='".($effectiveDate)."',
-            STATUS = 'D'
+        SET effec_to='".($effectiveDate)."', STATUS = 'D' 
         WHERE to_date('".$data['EFFEC_FROM']."')
         BETWEEN effec_from AND NVL(effec_to , '01-Mar-3000') AND org_id = '".$data['ORG_ID']."'");
 
-        $apprOrgId = get_descr_table('ID', 'HR_ORGANOGRAM', 'ID', $data['APPR_ORGID']);
-    
-        if ($apprOrgId !== null) {						
-            execQry(
-                array(
-                    'type' => 'insert', 'table' => 'HR_ORG_APPR_LEVELS',
-                    'data' => array(
-                        'ORG_ID' => $data['ORG_ID'],
-                        'APPR_LEVEL' => $data['APPR_LEVEL'],
-                        'APPR_ORGID' => $apprOrgId,
-                        'EFFEC_FROM' => ($data['EFFEC_FROM'] ),
-                        'STATUS' => 'N',
-                        'CHG_BY' => $empCode,
-                        'CHG_ON' => 'SYSDATE'
-                    ),
-                    'print' => 0
-                )
-            );
+        foreach($data['APPR_ORGID'] as $key => $valAPORG){
+            $apprOrgId = singRec("SELECT ID FROM HR_ORGANOGRAM WHERE ID = '".$valAPORG."'"); 
+            if ($apprOrgId['ID'] !== null) {
+               $newId = executeQry("INSERT INTO HR_ORG_APPR_LEVELS(ID, ORG_ID, APPR_LEVEL, APPR_ORGID, EFFEC_FROM, STATUS, CHG_BY, CHG_ON) VALUES('',
+               '" . $data['ORG_ID'] . "',
+               '" . trim($data['APPR_LEVEL'][$key]) . "',
+               '" . trim($apprOrgId['ID']) . "',
+               '" . trim($data['EFFEC_FROM']) . "',
+               'N', 
+               '" . $empCode . "',
+               SYSDATE)RETURNING ID INTO:newId ", 'newId');
+            }
         }
+        
+        endQry("Saved Successsfully");
+        apiResponse(true, "Organogram Appraisal data Inserted/Updated successfully.");
     }
-    endQry("Saved Successsfully");
-    apiResponse(true, "Organogram Appraisal data Inserted/Updated successfully.");
-    
 } catch (Throwable $e) {
     logOracleError(
         [

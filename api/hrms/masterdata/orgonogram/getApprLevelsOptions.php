@@ -73,6 +73,11 @@ try {
 
         $orgIds = implode(',',$lvlarr);
     }
+
+    // echo '<pre>';
+    // print_r($lvlarr);
+    // echo '</pre>';
+    // exit;
     
     $getAppLevelsOptData = multiRec("SELECT ID,
     ID||' - ' || GET_ORG_NAME(ID) AS NAME
@@ -82,11 +87,13 @@ try {
         apiResponse( false, "No Data found", null, 200 );
         exit;
     }
+
     $results = [];
-    foreach ($getAppLevelsOptData as $apprLvl) {
+    foreach ($getAppLevelsOptData as $kaprlv => $apprLvl) {
         $results[] = [
             "ID" => (int)$apprLvl['ID'],
-            "NAME" => $apprLvl['NAME']
+            "NAME" => $apprLvl['NAME'],
+            "SELECTED" => (int)$apprLvl['ID'],
         ];
     }
     apiResponse(true, "Organogram Appraisal data fetched successfully.", $results);

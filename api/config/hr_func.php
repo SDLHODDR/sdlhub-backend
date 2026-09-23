@@ -219,14 +219,14 @@ function check_array($array)
 	}
 	return $array;
 }
-function getEmpInfoByCode($id)
-{
-	$EmpName = singRec("SELECT FNAME,LNAME 
-						FROM HR_EMPLOYEE_INFO
-						WHERE EMP_CODE = '" . $id . "'");
-	$name = $EmpName['FNAME'] . ' ' . $EmpName['LNAME'];
-	return ucwords(strtolower($name));
-}
+// function getEmpInfoByCode($id)
+// {
+// 	$EmpName = singRec("SELECT FNAME,LNAME 
+// 						FROM HR_EMPLOYEE_INFO
+// 						WHERE EMP_CODE = '" . $id . "'");
+// 	$name = $EmpName['FNAME'] . ' ' . $EmpName['LNAME'];
+// 	return ucwords(strtolower($name));
+// }
 function insertLog()
 {
 	$page_name = end(explode("/", $_SERVER["PHP_SELF"]));
@@ -1803,14 +1803,6 @@ function findParentOrgEmp($empCode)
 		$parentLocId = $resLoc['PARENT_LOCID'];
 	}
 	return $orgEmp['EMP_CODE'];
-}
-
-
-
-function get_descr_table($colnm , $tablename , $key ,  $val  ){
-
-	$res = singRec("select ".$colnm." from ".$tablename." where ".$key." = '".$val."' ");
-	return $res[0];
 }
 
 function getUserIpAddress() {
