@@ -122,9 +122,22 @@ function multiRec($sqlVal, $binds = [], $options = [])
         return [];
     }
 
-    foreach ($binds as $key => &$value) {
+   /* foreach ($binds as $key => &$value) {
         oci_bind_by_name($stmt, $key, $value);
-    }
+    }*/
+
+	foreach ($binds as $key => &$value) {
+		if (!is_string($key) || !str_starts_with($key, ':')) {
+			continue;
+		}
+
+		if (!oci_bind_by_name($stmt, $key, $value)) {
+			$e = oci_error($stmt);
+			logOracleError($e, $sqlVal);
+			oci_free_statement($stmt);
+			return [];
+		}
+	}
 
     if (!oci_execute($stmt, OCI_DEFAULT)) {
         $e = oci_error($stmt);

@@ -91,6 +91,21 @@ if ($action === 'send_otp') {
 
     if (!$employee) apiResponse(false, 'Employee details not found.', null, 404);
 
+    /* ======================================================
+       VALIDATE THAT DETAILS ACTUALLY CHANGED
+    ====================================================== */
+    $existingCell    = trim($employee['CELL'] ?? '');
+    $existingEmail   = strtolower(trim($employee['PER_EMAIL'] ?? ''));
+    $existingMStatus = strval($employee['M_STATUS'] ?? '');
+
+    $newCell         = trim($cell);
+    $newEmail        = strtolower(trim($per_email));
+    $newMStatus      = strval($m_status);
+
+    if ($existingCell === $newCell && $existingEmail === $newEmail && $existingMStatus === $newMStatus) {
+        apiResponse(false, 'No changes detected in contact details. OTP will not be sent.', null, 400);
+    }
+
     $otp = random_int(10000, 99999);
 
     $address = trim(($employee['CUR_ADD1'] ?? '') . ' ' . ($employee['CUR_ADD2'] ?? '') . ' ' . ($employee['CUR_ADD3'] ?? ''));
@@ -197,7 +212,6 @@ if ($action === 'send_otp') {
         'test_otp' => $otp
     ], 200);
 
-
 /* ==========================================================
    VERIFY OTP
 ========================================================== */
@@ -287,7 +301,6 @@ if ($action === 'send_otp') {
     }
 
     apiResponse(true, 'OTP verified successfully.', ['request_id' => $request_id], 200);
-
 
 /* ==========================================================
    SAVE CONTACT
@@ -419,7 +432,6 @@ if ($action === 'send_otp') {
     }
 
     apiResponse(true, 'Personal details updated successfully.', ['request_id' => $request_id], 200);
-
 
 /* =========================================================================
    SAVE ADDRESS
@@ -571,7 +583,6 @@ if ($action === 'send_otp') {
        FETCH ALL REQUIRED READ DATA BEFORE STARTING TRANSACTIONS
     ====================================================== */
 
-    // 1. Employee master data
     $masterSql = '
         SELECT
             MOBILE_NO AS CELL,
@@ -623,7 +634,6 @@ if ($action === 'send_otp') {
     $oldAddress = trim(($employee['CUR_ADD1'] ?? '') . ' ' . ($employee['CUR_ADD2'] ?? '') . ' ' . ($employee['CUR_ADD3'] ?? ''));
     $oldPermanentAddress = trim(($employee['PER_ADD1'] ?? '') . ' ' . ($employee['PER_ADD2'] ?? '') . ' ' . ($employee['PER_ADD3'] ?? ''));
 
-    // 2. Task master configuration
     $task = singRec("
         SELECT
             t.*,
@@ -637,7 +647,6 @@ if ($action === 'send_otp') {
         apiResponse(false, 'Task configuration not found or incomplete for address details update.', null, 500);
     }
 
-    // 3. Employee office details
     $empOfficeInfo = singRec("
         SELECT
             o.DIVSN_ID,
@@ -657,7 +666,6 @@ if ($action === 'send_otp') {
 
     $request_id = null;
 
-    // Step 1: Insert into EPT_HR_EMP_INFO_REQ
     $insertSql = "
         INSERT INTO EPT_HR_EMP_INFO_REQ
         (
@@ -774,7 +782,6 @@ if ($action === 'send_otp') {
         apiResponse(false, 'Address request was created but request ID could not be generated.', null, 500);
     }
 
-    // Step 2: Insert into EPT_HR_USER_TASKS and capture the generated ID
     $user_task_id = null;
 
     $taskInsertSql = "
@@ -853,7 +860,6 @@ if ($action === 'send_otp') {
         apiResponse(false, 'Authorization task was created but task reference ID could not be generated.', null, 500);
     }
 
-    // Step 3: Update EPT_HR_EMP_INFO_REQ with the created USER_TASKS ID
     $updateReqSql = "
         UPDATE EPT_HR_EMP_INFO_REQ
         SET TASKID = :user_task_id
@@ -884,7 +890,6 @@ if ($action === 'send_otp') {
 
     oci_free_statement($updateReqStmt);
 
-    // Step 4: Commit all three database operations atomically
     if (!oci_commit($sql___func___con)) {
         $error = oci_error($sql___func___con);
         logOracleError($error, 'Address request and authorization task commit');

@@ -296,17 +296,21 @@ try {
 
     /* ==========================================================
        CHECK EXISTING PENDING REQUEST
-
-       We check both T and 1 because existing data/workflow
-       may contain either value.
        ========================================================== */
 
     $pendingRows = executeSelectQry("
         SELECT
-            COUNT(*) AS CNT
+            ID,
+            NEW_BANK_NAME,
+            NEW_BANK_BRANCH,
+            NEW_BANK_IFSC,
+            NEW_BANK_ACNO,
+            NEW_BANK_NOMINEE,
+            TO_CHAR(CHG_ON, 'DD-Mon-YYYY HH24:MI') AS REQ_DATE
         FROM EPT_HR_EMP_BANK_REQ
         WHERE EMP_CODE = '{$empCodeEsc}'
-        AND STATUS IN ('N', 'T')
+          AND STATUS IN ('N', 'T')
+        ORDER BY ID DESC
     ");
 
     if ($pendingRows === false) {
@@ -315,25 +319,30 @@ try {
         );
     }
 
-    $pendingCount = 0;
-
-    if (!empty($pendingRows)) {
-        $pendingCount = (int) ($pendingRows[0]['CNT'] ?? 0);
-    }
-
     /* ==========================================================
        PENDING REQUEST EXISTS
        ========================================================== */
 
-    if ($pendingCount > 0) {
+    if (!empty($pendingRows)) {
         endQry();
+
+        $pendingRec = $pendingRows[0];
 
         apiResponse(
             false,
-            'A bank details update request is already pending for authorization.
-             Please wait until the existing request is authorized before submitting a new request.',
-            null,
-            400
+            'A bank details update request is already pending for authorization. Please wait until the existing request is authorized before submitting a new request.',
+            [
+                'pending_req_id' => $pendingRec['ID'] ?? null,
+                'req_date'       => $pendingRec['REQ_DATE'] ?? null,
+                'pending_data'   => [
+                    'bank_name'    => $pendingRec['NEW_BANK_NAME'] ?? '',
+                    'bank_branch'  => $pendingRec['NEW_BANK_BRANCH'] ?? '',
+                    'bank_ifsc'    => $pendingRec['NEW_BANK_IFSC'] ?? '',
+                    'bank_acno'    => $pendingRec['NEW_BANK_ACNO'] ?? '',
+                    'bank_nominee' => $pendingRec['NEW_BANK_NOMINEE'] ?? '',
+                ]
+            ],
+            409
         );
     }
 
