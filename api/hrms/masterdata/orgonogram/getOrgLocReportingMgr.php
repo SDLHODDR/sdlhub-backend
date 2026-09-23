@@ -1,7 +1,7 @@
 <?php
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+// ini_set('display_errors', 1);
+// error_reporting(E_ALL);
 
 define('CURRENT_PORTAL', 'hrms');
 
@@ -38,6 +38,12 @@ try {
     $locID = $data['LOC_ID'] ?? null;
     $effecFrom = $data['EFFEC_FROM'] ?? null;
 
+    // if ($effecFrom) {
+    //     $dateCondition = "TO_DATE('".$effecFrom."', 'DD-MON-YY')";
+    // } else {
+    //     $dateCondition = "SYSDATE";
+    // }
+
     // $empLevel = '100';
     // $divsnID = '11';
     // $effecFrom = '01-APR-24';
@@ -49,30 +55,35 @@ try {
 
     $reporting1 = singRec("SELECT 
         ID,
-        get_org_loc_emp_code(PARENT_LOCID , sysdate)REP,
+        GET_ORG_LOC_EMP_CODE(PARENT_LOCID , SYSDATE)REP,
         PARENT_ORGID,
         PARENT_LOCID
-        FROM hr_org_loc_parent
+        FROM HR_ORG_LOC_PARENT
         WHERE
-            org_loc_id='".$locID."'
-            AND sysdate between effec_from AND nvl(effec_to,'01-Mar-3000')");
-    
-    if ( empty($reporting1) ) {
-        apiResponse( false, "No Data found", null, 200 );
-        exit;
-    }
+            ORG_LOC_ID='".$locID."'
+            AND SYSDATE BETWEEN EFFEC_FROM AND nvl(EFFEC_TO,'01-Mar-3000')");
+
+    // if ( empty($reporting1) ) {
+    //     apiResponse( false, "No Data found - rep1", null, 200 );
+    //     exit;
+    // }
 
     $reporting2 = singRec("SELECT 
         ID,
-        get_org_loc_emp_code(PARENT_LOCID , sysdate)REP,
+        GET_ORG_LOC_EMP_CODE(PARENT_LOCID , SYSDATE)REP,
         PARENT_ORGID,
         PARENT_LOCID
-        FROM hr_org_loc_parent
+        FROM HR_ORG_LOC_PARENT
         WHERE
-            org_loc_id='".$locID."'
-            AND to_date('".$effecFrom."') between effec_from AND nvl(effec_to, '01-Mar-3000')");
-    
-    if ( empty($reporting2) ) {
+            ORG_LOC_ID = '".$locID."'
+            AND TO_DATE('".$effecFrom."') BETWEEN EFFEC_FROM AND NVL(EFFEC_TO, '01-Mar-3000')");
+
+    // if ( empty($reporting2) ) {
+    //     apiResponse( false, "No Data found - rep2", null, 200 );
+    //     exit;
+    // }
+
+    if ( empty($reporting1) && empty($reporting2)) {
         apiResponse( false, "No Data found", null, 200 );
         exit;
     }

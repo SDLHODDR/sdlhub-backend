@@ -35,8 +35,8 @@ try {
     $orgId = $data['ORG_ID'] ?? null;
     $locId = $data['LOC_ID'] ?? null;
 
-    $locId = 853;
-    $orgId = 178;
+    // $locId = 853;
+    // $orgId = 178;
     if (!$orgId && $locId) {
         apiResponse(false, "Organogram Id and Location Id is required", null, 500);
         exit;
