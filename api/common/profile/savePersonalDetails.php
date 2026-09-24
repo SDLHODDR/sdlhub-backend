@@ -355,7 +355,7 @@ if ($action === 'send_otp') {
     $sql = "
         UPDATE EPT_BCS_EMPLOYEE
         SET
-            CUR_TEL1 = :new_cell,
+            MOBILE_NO = :new_cell,
             EMAIL_ID_PER = :new_email,
             M_STATUS = :new_m_status,
             CHG_ON = SYSDATE,
@@ -860,9 +860,12 @@ if ($action === 'send_otp') {
         apiResponse(false, 'Authorization task was created but task reference ID could not be generated.', null, 500);
     }
 
+    /* ======================================================
+       FIXED: CHANGED "TASKID" TO "TASK_ID"
+    ====================================================== */
     $updateReqSql = "
         UPDATE EPT_HR_EMP_INFO_REQ
-        SET TASKID = :user_task_id
+        SET TASK_ID = :user_task_id
         WHERE ID = :request_id
     ";
 
