@@ -53,7 +53,7 @@ try {
             t.*,
             TO_CHAR(TRUNC(SYSDATE) + t.EXPIRY_DAYS, 'YYYY-MM-DD HH24:MI:SS') AS EXPDT
         FROM EPT_HR_TASK_MASTER t
-        WHERE TASK_LABEL = 'Change Personal Info'
+        WHERE TASK_LABEL = 'Change Family Info'
     ");
 
     if (empty($task) || empty($task['ID']) || empty($task['EXPDT'])) {
