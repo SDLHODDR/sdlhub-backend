@@ -58,6 +58,7 @@ try {
     }
 
     if (!empty($taskIdsString)) {
+        $taskIdsString .= ",'56'"; //Temporary arrangements should come from profile access
         $conditions[] = "TASK_ID IN ($taskIdsString)";
         $conditionsDT[] = " TA.TASK_ID IN ($taskIdsString)";
     }
@@ -106,7 +107,7 @@ try {
     
     $results['TOTAL_COUNT'] = $mytasks_count['TOTAL_COUNT'];
 
-    //echo '<pre/>';
+    // echo '<pre/>';
     // print_r($results);
     // exit;
     
@@ -121,17 +122,18 @@ try {
     $joining_taskarr = [4,13,35,36,37,38,39,41,42,43,44,45,50,51];
     $exit_task_ids   = ['18','19','20','23','24'];
 
-    $taskGrpFilter  = !empty($data['TASK_GRP']) ? "AND TM.ID IN (" . $data['TASK_GRP'] . ")" : "";
+    $taskGrpFilter = !empty($data['TASK_GRP']) ? "AND TM.ID IN (" . $data['TASK_GRP'] . ")" : "";
+    
     $exclude46      = "AND TA.TASK_ID != '46'";
     $is_special_exc = ($empCode=== '00152') ? $exclude46 : "";
 
     //print_r($taskarr);
-    // print_r($joining_taskarr);
-    // print_r($exit_task_ids);
-    // print_r($taskGrpFilter);
-    // print_r($exclude46);
-    // print_r($is_special_exc);
-    // exit;
+    //print_r($joining_taskarr);
+    //print_r($exit_task_ids);
+    //print_r($taskGrpFilter);
+    //print_r($exclude46);
+    //print_r($is_special_exc);
+    //exit;
 
     $additionalWhereDT = '';
 

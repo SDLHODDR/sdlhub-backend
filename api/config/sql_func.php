@@ -298,6 +298,68 @@ function executeProc($sqlVal, $bindVal = array(), $echo = '')
 		return $returnVal;
 	}
 }
+
+function executeProcNew($sqlVal, $bindVal = array(), $echo = '')
+{
+    if (!empty($echo)) {
+        echo $sqlVal . '<hr style="border:2px solid #000000;" />';
+    }
+
+    global $sql___func___con, $qry_____result;
+
+    $sql = oci_parse($sql___func___con, $sqlVal);
+
+    if ($_SESSION['DEBUG'] == 'Y') {
+        write_log($sqlVal);
+    }
+
+    $returnVal = array();
+
+    foreach ($bindVal as $bindName => &$bindData) {
+
+        // OUT parameter
+        if ($bindData['type'] === 'OUT') {
+
+            $returnVal[$bindName] = null;
+
+            oci_bind_by_name(
+                $sql,
+                ':' . $bindName,
+                $returnVal[$bindName],
+                $bindData['length'] ?? 100
+            );
+
+        }
+        // IN parameter
+        else {
+
+            oci_bind_by_name(
+                $sql,
+                ':' . $bindName,
+                $bindData['value']
+            );
+        }
+    }
+
+    if (!oci_execute($sql, OCI_DEFAULT)) {
+
+        $e = oci_error($sql);
+
+        showError($e);
+
+        $qry_____result = 1;
+
+        if ($_SESSION['DEBUG'] == 'Y') {
+            write_log('Error On Above Proc');
+        }
+
+        return false;
+    }
+
+    return $returnVal;
+}
+
+
 function forceRollback($message = '')
 {
 	global $qry_____result;
