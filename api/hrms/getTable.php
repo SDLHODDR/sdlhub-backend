@@ -74,7 +74,7 @@ try {
 
     $taskarr= array('J'=>'Joining' , 'E'=> 'Exit' , 'R'=>'Recruitment' , 'C'=> 'Others','T'=>'Tenure Change' ,'A' => 'Appraisal' , 'S' => 'Employee Transfer', 'M' => 'Masters' );
 
-    $joining_taskarr = [4,13,35,36,37,38,39,41,42,43,44,45,50,51,55];
+    $joining_taskarr = [4,13,35,36,37,38,39,41,42,43,44,45,50,51,53,54,55];
     $exit_task_ids   = ['18','19','20','23','24'];
 
     $taskGrpFilter  = !empty($data['TASK_GRP']) ? "AND TM.ID IN (" . $data['TASK_GRP'] . ")" : "";
@@ -136,7 +136,7 @@ try {
                     GET_ORG_LOC_NAME(OFF_JOIN.ORG_LOC_ID)      AS JOIN_LOC,
                     LOC.GEO_DESC                               AS REQ_LOC_DESC
                 FROM (
-                    SELECT TA.ID, TA.TASK_ID, TA.STATUS, TA.TRAN_CODE, TA.TRAN_DESC,
+                    SELECT TA.ID, TA.TASK_ID, TA.STATUS, TA.TRAN_CODE, TA.TRAN_DESC, 
                             TA.EMP_CODE_FOR, TA.CREATED_BY, TA.CREATED_ON,
                             TA.COMP_ID, TA.DIVSN_ID, TA.DEPT_ID,
                             TA.AUTH_BY, TA.AUTH_ON, TA.REMARKS, TA.UDF_2,
@@ -150,7 +150,7 @@ try {
                 
                     UNION
                 
-                    SELECT TA.ID, TA.TASK_ID, TA.STATUS, TA.TRAN_CODE, TA.TRAN_DESC,
+                    SELECT TA.ID, TA.TASK_ID, TA.STATUS, TA.TRAN_CODE, TA.TRAN_DESC,  
                             TA.EMP_CODE_FOR, TA.CREATED_BY, TA.CREATED_ON,
                             TA.COMP_ID, TA.DIVSN_ID, TA.DEPT_ID,
                             TA.AUTH_BY, TA.AUTH_ON, TA.REMARKS, TA.UDF_2,
