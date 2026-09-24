@@ -54,6 +54,7 @@ try {
         $conditionsDT[] = "TA.DEPT_ID IN ($deptCodesString)";
     }
     if (!empty($taskIdsString)) {
+        $taskIdsString .= ",'56'"; //Temporary arrangements should come from profile access
         $conditionsDT[] = "TA.TASK_ID IN ($taskIdsString)";
     }
 
