@@ -76,10 +76,12 @@ try {
             HEI.GENDER,
             HEI.EMP_CODE,
             HEI.CITY,
+            HEI.STATE,
             HEI.ADDRESS,
             HEI.PINCODE,
             HEI.PERMNT_PINCODE,
             HEI.PERMNT_CITY,
+            HEI.PERMNT_STATE,
             HEI.PERMNT_ADDRESS,
             be.M_STATUS,
             HEI.BLOOD_GRP,
@@ -98,7 +100,8 @@ try {
             be.AC_BRANCH_NAME,
             be.AC_IFSC_NO,
             be.WORK_SITE,
-            HEI.TITLE
+            HEI.TITLE,
+            be.BANK_NOMINEE 
         FROM EPT_BCS_EMPLOYEE be
         INNER JOIN EPT_BCS_ATTD_SHIFT bas
             ON be.WORK_SHIFT = bas.SHFT_CODE
