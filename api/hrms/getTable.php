@@ -62,6 +62,7 @@ try {
     }
 
     if (!empty($taskIdsString)) {
+        $taskIdsString .= ",'56'"; //Temporary arrangements should come from profile access
         //$conditions[] = "TASK_ID IN ($taskIdsString)";
         $conditionsDT[] = " TA.TASK_ID IN ($taskIdsString)";
     }
