@@ -283,7 +283,7 @@ function generateTaskOrg($dataP = "", $orgId = 0, $empCode) {
             'ID' => '',
             'TASK_ID' => $task['ID'],
             'STATUS' => 'O',
-            'TRAN_CODE' => $orgId,
+            'TRAN_CODE' => $dataP['ID'],
             'TASK_TYPE' => $task['TASK_TYPE'],
             'TRAN_DESC' => trim($tran_desc),
             'TASK_GRP_DESC' => $task['TASK_LABEL'],
