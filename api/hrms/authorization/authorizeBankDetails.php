@@ -11,7 +11,7 @@ require_once __DIR__ . '/../../config/utils.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
-$authEmpCode = $_SESSION['emp_code'] ?? $_SESSION['EmpCode'] ?? '';
+$authEmpCode = trim($_SESSION['emp_code'] ?? $_SESSION['EmpCode'] ?? '');
 if (empty($authEmpCode)) {
     apiResponse(false, 'Unauthorized access.', null, 401);
 }
@@ -101,26 +101,47 @@ try {
             apiResponse(false, 'Request record not found.', null, 404);
         }
 
-        if (strtoupper($req['STATUS']) === 'C' || strtoupper($req['STATUS']) === 'X') {
+        if (strtoupper(trim($req['STATUS'] ?? '')) === 'C' || strtoupper(trim($req['STATUS'] ?? '')) === 'X') {
             apiResponse(false, 'This bank request has already been processed.', null, 400);
         }
 
         $targetStatus = ($decision === 'A') ? 'C' : 'X';
-        $empCode = $req['EMP_CODE'];
+        $empCode      = trim((string)($req['EMP_CODE'] ?? ''));
+
+        if (empty($empCode)) {
+            apiResponse(false, 'Employee code is missing in the bank request.', null, 400);
+        }
+
+        $debugInfo = [
+            'emp_code'          => $empCode,
+            'decision'          => $decision,
+            'bank_det_action'   => 'none',
+            'bank_det_rows'     => 0,
+            'bcs_employee_rows' => 0
+        ];
 
         /* ------------------------------------------------------
-           STEP A: IF ACCEPTED, UPDATE MASTER TABLES
+           STEP A: IF ACCEPTED, UPDATE MASTER & PROFILE TABLES
         ------------------------------------------------------ */
         if ($decision === 'A') {
-            // Update or Insert into HR_EMP_BANK_DET
-            $checkDetSql = "SELECT COUNT(*) AS CNT FROM HR_EMP_BANK_DET WHERE EMP_CODE = :emp_code";
-            $checkStmt = oci_parse($sql___func___con, $checkDetSql);
+            $newBankName    = strtoupper(trim((string)($req['NEW_BANK_NAME'] ?? '')));
+            $newBankBranch  = strtoupper(trim((string)($req['NEW_BANK_BRANCH'] ?? '')));
+            $newBankIfsc    = strtoupper(trim((string)($req['NEW_BANK_IFSC'] ?? '')));
+            $newBankAcno    = trim((string)($req['NEW_BANK_ACNO'] ?? ''));
+            $newBankNominee = trim((string)($req['NEW_BANK_NOMINEE'] ?? ''));
+
+            /* 1. Update/Insert HR_EMP_BANK_DET */
+            $checkDetSql = "SELECT COUNT(*) AS CNT FROM HR_EMP_BANK_DET WHERE TRIM(EMP_CODE) = TRIM(:emp_code)";
+            $checkStmt   = oci_parse($sql___func___con, $checkDetSql);
             oci_bind_by_name($checkStmt, ':emp_code', $empCode);
             oci_execute($checkStmt);
             $cntRow = oci_fetch_assoc($checkStmt);
             oci_free_statement($checkStmt);
 
-            if (($cntRow['CNT'] ?? 0) > 0) {
+            $existsInDet = intval($cntRow['CNT'] ?? 0) > 0;
+
+            if ($existsInDet) {
+                $debugInfo['bank_det_action'] = 'UPDATE';
                 $updDetSql = "
                     UPDATE HR_EMP_BANK_DET
                     SET 
@@ -131,10 +152,11 @@ try {
                         BANK_NOMINEE  = :bank_nominee,
                         CHG_ON        = SYSDATE,
                         CHG_BY        = :chg_by
-                    WHERE EMP_CODE = :emp_code
+                    WHERE TRIM(EMP_CODE) = TRIM(:emp_code)
                 ";
                 $detStmt = oci_parse($sql___func___con, $updDetSql);
             } else {
+                $debugInfo['bank_det_action'] = 'INSERT';
                 $insDetSql = "
                     INSERT INTO HR_EMP_BANK_DET
                     (
@@ -149,7 +171,7 @@ try {
                     )
                     VALUES
                     (
-                        :emp_code,
+                        TRIM(:emp_code),
                         :bank_name,
                         :bank_branch,
                         :bank_ifsc,
@@ -162,20 +184,53 @@ try {
                 $detStmt = oci_parse($sql___func___con, $insDetSql);
             }
 
-            oci_bind_by_name($detStmt, ':bank_name', $req['NEW_BANK_NAME']);
-            oci_bind_by_name($detStmt, ':bank_branch', $req['NEW_BANK_BRANCH']);
-            oci_bind_by_name($detStmt, ':bank_ifsc', $req['NEW_BANK_IFSC']);
-            oci_bind_by_name($detStmt, ':bank_acno', $req['NEW_BANK_ACNO']);
-            oci_bind_by_name($detStmt, ':bank_nominee', $req['NEW_BANK_NOMINEE']);
+            oci_bind_by_name($detStmt, ':bank_name', $newBankName);
+            oci_bind_by_name($detStmt, ':bank_branch', $newBankBranch);
+            oci_bind_by_name($detStmt, ':bank_ifsc', $newBankIfsc);
+            oci_bind_by_name($detStmt, ':bank_acno', $newBankAcno);
+            oci_bind_by_name($detStmt, ':bank_nominee', $newBankNominee);
             oci_bind_by_name($detStmt, ':chg_by', $authEmpCode);
             oci_bind_by_name($detStmt, ':emp_code', $empCode);
 
             if (!oci_execute($detStmt, OCI_NO_AUTO_COMMIT)) {
                 $err = oci_error($detStmt);
                 oci_rollback($sql___func___con);
-                apiResponse(false, 'Failed to update HR_EMP_BANK_DET: ' . $err['message'], null, 500);
+                apiResponse(false, 'Failed to update HR_EMP_BANK_DET: ' . ($err['message'] ?? 'Unknown error'), null, 500);
             }
+
+            $debugInfo['bank_det_rows'] = oci_num_rows($detStmt);
             oci_free_statement($detStmt);
+
+            /* 2. Update HR_BCS_EMPLOYEE (Master Employee Table) */
+            $updBcsSql = "
+                UPDATE HR_BCS_EMPLOYEE
+                SET 
+                    BANK_NAME      = :bank_name,
+                    AC_BRANCH_NAME = :bank_branch,
+                    AC_IFSC_NO     = :bank_ifsc,
+                    BANK_ACCT      = :bank_acno,
+                    BANK_NOMINEE   = :bank_nominee,
+                    CHG_ON         = SYSDATE,
+                    CHG_BY         = :chg_by
+                WHERE TRIM(EMP_CODE) = TRIM(:emp_code)
+            ";
+            $bcsStmt = oci_parse($sql___func___con, $updBcsSql);
+            oci_bind_by_name($bcsStmt, ':bank_name', $newBankName);
+            oci_bind_by_name($bcsStmt, ':bank_branch', $newBankBranch);
+            oci_bind_by_name($bcsStmt, ':bank_ifsc', $newBankIfsc);
+            oci_bind_by_name($bcsStmt, ':bank_acno', $newBankAcno);
+            oci_bind_by_name($bcsStmt, ':bank_nominee', $newBankNominee);
+            oci_bind_by_name($bcsStmt, ':chg_by', $authEmpCode);
+            oci_bind_by_name($bcsStmt, ':emp_code', $empCode);
+
+            if (!oci_execute($bcsStmt, OCI_NO_AUTO_COMMIT)) {
+                $err = oci_error($bcsStmt);
+                oci_rollback($sql___func___con);
+                apiResponse(false, 'Failed to update BCS_EMPLOYEE: ' . ($err['message'] ?? 'Unknown error'), null, 500);
+            }
+
+            $debugInfo['bcs_employee_rows'] = oci_num_rows($bcsStmt);
+            oci_free_statement($bcsStmt);
         }
 
         /* ------------------------------------------------------
@@ -197,39 +252,70 @@ try {
         if (!oci_execute($updReqStmt, OCI_NO_AUTO_COMMIT)) {
             $err = oci_error($updReqStmt);
             oci_rollback($sql___func___con);
-            apiResponse(false, 'Failed to update bank request status: ' . $err['message'], null, 500);
+            apiResponse(false, 'Failed to update bank request status: ' . ($err['message'] ?? 'Unknown error'), null, 500);
         }
         oci_free_statement($updReqStmt);
 
         /* ------------------------------------------------------
            STEP C: UPDATE HR_USER_TASKS
         ------------------------------------------------------ */
-        $taskWhere = ($userTaskId > 0) ? "ID = :task_id" : "TRAN_CODE = TO_CHAR(:req_id)";
-        $updTaskSql = "
-            UPDATE HR_USER_TASKS
-            SET 
-                STATUS  = :status,
-                AUTH_ON = SYSDATE,
-                AUTH_BY = :auth_by,
-                REMARKS = :remarks
-            WHERE $taskWhere
-        ";
-        $updTaskStmt = oci_parse($sql___func___con, $updTaskSql);
+        // Ensure both ID and TRAN_CODE conditions handle padding/type conversions
+        if ($userTaskId > 0) {
+            $updTaskSql = "
+                UPDATE HR_USER_TASKS
+                SET 
+                    STATUS  = :status,
+                    AUTH_ON = SYSDATE,
+                    AUTH_BY = :auth_by,
+                    REMARKS = :remarks
+                WHERE ID = :task_id
+            ";
+            $updTaskStmt = oci_parse($sql___func___con, $updTaskSql);
+            oci_bind_by_name($updTaskStmt, ':task_id', $userTaskId);
+        } else {
+            $updTaskSql = "
+                UPDATE HR_USER_TASKS
+                SET 
+                    STATUS  = :status,
+                    AUTH_ON = SYSDATE,
+                    AUTH_BY = :auth_by,
+                    REMARKS = :remarks
+                WHERE TRIM(TRAN_CODE) = TRIM(TO_CHAR(:req_id))
+                   OR REF_TASK_ID = :req_id
+            ";
+            $updTaskStmt = oci_parse($sql___func___con, $updTaskSql);
+            oci_bind_by_name($updTaskStmt, ':req_id', $reqId);
+        }
+
         oci_bind_by_name($updTaskStmt, ':status', $targetStatus);
         oci_bind_by_name($updTaskStmt, ':auth_by', $authEmpCode);
         oci_bind_by_name($updTaskStmt, ':remarks', $remarks);
-        if ($userTaskId > 0) {
-            oci_bind_by_name($updTaskStmt, ':task_id', $userTaskId);
-        } else {
-            oci_bind_by_name($updTaskStmt, ':req_id', $reqId);
-        }
 
         if (!oci_execute($updTaskStmt, OCI_NO_AUTO_COMMIT)) {
             $err = oci_error($updTaskStmt);
             oci_rollback($sql___func___con);
-            apiResponse(false, 'Failed to update user task: ' . $err['message'], null, 500);
+            apiResponse(false, 'Failed to update user task: ' . ($err['message'] ?? 'Unknown error'), null, 500);
         }
+
+        // Verify that the task was actually closed
+        $taskRowsAffected = oci_num_rows($updTaskStmt);
         oci_free_statement($updTaskStmt);
+
+        if ($taskRowsAffected === 0) {
+            // Task record wasn't found by user_task_id or TRAN_CODE, attempt update via TASK_ID on REQ
+            $fallbackSql = "
+                UPDATE HR_USER_TASKS
+                SET STATUS = :status, AUTH_ON = SYSDATE, AUTH_BY = :auth_by, REMARKS = :remarks
+                WHERE ID = (SELECT TASK_ID FROM HR_EMP_BANK_REQ WHERE ID = :req_id)
+            ";
+            $fbStmt = oci_parse($sql___func___con, $fallbackSql);
+            oci_bind_by_name($fbStmt, ':status', $targetStatus);
+            oci_bind_by_name($fbStmt, ':auth_by', $authEmpCode);
+            oci_bind_by_name($fbStmt, ':remarks', $remarks);
+            oci_bind_by_name($fbStmt, ':req_id', $reqId);
+            oci_execute($fbStmt, OCI_NO_AUTO_COMMIT);
+            oci_free_statement($fbStmt);
+        }
 
         /* ------------------------------------------------------
            STEP D: COMMIT TRANSACTION
@@ -237,10 +323,15 @@ try {
         oci_commit($sql___func___con);
 
         $actionWord = ($decision === 'A') ? 'approved' : 'rejected';
-        apiResponse(true, "Bank details update request {$actionWord} successfully.", null, 200);
+        apiResponse(
+            true, 
+            "Bank details update request {$actionWord} successfully.", 
+            $debugInfo, 
+            200
+        );
     }
 } catch (Throwable $e) {
-    if ($sql___func___con) {
+    if (isset($sql___func___con) && $sql___func___con) {
         oci_rollback($sql___func___con);
     }
     apiResponse(false, 'An internal error occurred: ' . $e->getMessage(), null, 500);
