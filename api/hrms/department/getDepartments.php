@@ -4,10 +4,13 @@
 //error_reporting(E_ALL);
 
 ob_start();
+
 define('CURRENT_PORTAL', 'hrms');
+
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
+
 $conn = db_hrms();
 $sql___func___con = $conn;
 
@@ -19,103 +22,128 @@ header("Content-Type: application/json");
 try {
 
     /* ==========================================================
-       SESSION VALIDATION
-    ========================================================== */
-
-    // if (!isset($_SESSION["emp_code"])) {
-    //     apiResponse(false, "Session expired. Please login again.", null, 401);
-    // }
-
-    /* ==========================================================
        DATABASE
     ========================================================== */
 
     if (!$conn) {
-        apiResponse(false, "Unable to connect to HRMS database.", null, 500);
+        apiResponse(
+            false,
+            "Unable to connect to HRMS database.",
+            null,
+            500
+        );
+        exit;
     }
 
+
     /* ==========================================================
-       ROUTING: GET (list or single), POST (save)
+       REQUEST
     ========================================================== */
 
     $method = $_SERVER['REQUEST_METHOD'];
-
     $action = strtolower($_GET['action'] ?? '');
 
-if ($action === 'accounts') {
 
-    // $sql = "
-    //     SELECT ACCT_CODE, DESCR
-    //     FROM HR_BCS_ACCOUNTS
-    //     WHERE ACTIVE = 'Y'
-    //     ORDER BY ACCT_CODE
-    // ";
+    /* ==========================================================
+       ACCOUNTS
+    ========================================================== */
 
-    $sql = "
-        SELECT DISTINCT
-        m.ACCT_CODE,
-        a.DESCR
-        FROM HR_BCS_ACCT_CCTR m
-        JOIN HR_BCS_ACCOUNTS a
-        ON a.ACCT_CODE = m.ACCT_CODE
-        WHERE m.STATUS = 'A'
-        ORDER BY m.ACCT_CODE";
+    if ($action === 'accounts') {
 
-    $rows = multiRec($sql, $conn);
+        $sql = "
+            SELECT DISTINCT
+                m.ACCT_CODE,
+                a.DESCR
+            FROM HR_BCS_ACCT_CCTR m
+            JOIN HR_BCS_ACCOUNTS a
+                ON a.ACCT_CODE = m.ACCT_CODE
+            WHERE m.STATUS = 'A'
+            ORDER BY m.ACCT_CODE
+        ";
 
-    apiResponse(
-        true,
-        "Accounts fetched successfully.",
-        ['accounts' => $rows],
-        200
-    );
+        $rows = multiRec($sql, $conn);
 
-    exit;
-}
+        apiResponse(
+            true,
+            "Accounts fetched successfully.",
+            ['accounts' => $rows],
+            200
+        );
 
-if ($action === 'costcenters') {
+        exit;
+    }
 
-    // $sql = "
-    //     SELECT CCTR_CODE, DESCR, DEPT_CODE
-    //     FROM HR_BCS_COSTCTR
-    //     ORDER BY CCTR_CODE
-    // ";
 
-    $sql = "
-        SELECT DISTINCT
-        m.CCTR_CODE,
-        c.DESCR
-        FROM HR_BCS_ACCT_CCTR m
-        JOIN HR_BCS_COSTCTR c
-        ON c.CCTR_CODE = m.CCTR_CODE
-        WHERE m.STATUS = 'A'
-        ORDER BY m.CCTR_CODE";
+    /* ==========================================================
+       COST CENTERS
+    ========================================================== */
 
-    $rows = multiRec($sql, $conn);
+    if ($action === 'costcenters') {
 
-    apiResponse(
-        true,
-        "Cost centers fetched successfully.",
-        ['costCenters' => $rows],
-        200
-    );
+        $sql = "
+            SELECT DISTINCT
+                m.CCTR_CODE,
+                c.DESCR
+            FROM HR_BCS_ACCT_CCTR m
+            JOIN HR_BCS_COSTCTR c
+                ON c.CCTR_CODE = m.CCTR_CODE
+            WHERE m.STATUS = 'A'
+            ORDER BY m.CCTR_CODE
+        ";
 
-    exit;
-}
+        $rows = multiRec($sql, $conn);
 
-    if ($method === 'GET') { //cho "hii "; echo "in the loop"; print_r($_GET); exit;
+        apiResponse(
+            true,
+            "Cost centers fetched successfully.",
+            ['costCenters' => $rows],
+            200
+        );
 
-        // GET /getDepartments.php?id=123  -> single department
+        exit;
+    }
+
+
+    /* ==========================================================
+       GET
+    ========================================================== */
+
+    if ($method === 'GET') {
+
+        /* ------------------------------------------------------
+           GET SINGLE DEPARTMENT
+        ------------------------------------------------------ */
+
         if (!empty($_GET['id'])) {
+
             $id = $_GET['id'];
 
-            $row = singRec("SELECT DEPT_CODE, DEPT_DESC, SHORT_CODE, ACCT_CODE, CCTR_CODE FROM HR_DEPARTMENT WHERE DEPT_CODE='" . addslashes($id) . "'");
+            $sql = "SELECT
+                        DEPT_ID,
+                        DEPT_CODE,
+                        DEPT_DESC,
+                        SHORT_CODE,
+                        ACCT_CODE,
+                        CCTR_CODE
+                    FROM HR_DEPARTMENT
+                    WHERE DEPT_CODE='" . addslashes($id) . "'";
+
+            $row = singRec($sql);
 
             if (empty($row)) {
-                apiResponse(false, "Department not found.", null, 404);
+
+                apiResponse(
+                    false,
+                    "Department not found.",
+                    null,
+                    404
+                );
+
+                exit;
             }
 
             $department = [
+                'DEPT_ID' => $row['DEPT_ID'],
                 'DEPT_CODE' => $row['DEPT_CODE'],
                 'DEPT_DESC' => $row['DEPT_DESC'],
                 'SHORT_CODE' => $row['SHORT_CODE'],
@@ -127,34 +155,44 @@ if ($action === 'costcenters') {
                 'name' => $row['DEPT_DESC'],
                 'shortName' => $row['SHORT_CODE'],
                 'acctCode' => $row['ACCT_CODE'],
-                'costCenter' => $row['CCTR_CODE'],
+                'costCenter' => $row['CCTR_CODE']
             ];
 
-            apiResponse(true, "Department fetched successfully.", ['department' => $department], 200);
+            apiResponse(
+                true,
+                "Department fetched successfully.",
+                ['department' => $department],
+                200
+            );
+
             exit;
         }
 
-        // GET /getDepartments.php  -> list all
-        // $sql = "SELECT DEPT_CODE, DEPT_DESC, SHORT_CODE, ACCT_CODE, CCTR_CODE FROM HR_DEPARTMENT ORDER BY DEPT_CODE";
+
+        /* ------------------------------------------------------
+           GET ALL DEPARTMENTS
+        ------------------------------------------------------ */
 
         $sql = "
-    SELECT
-        DEPT_ID,
-        DEPT_DESC,
-        DEPT_CODE,
-        ACCT_CODE,
-        CCTR_CODE,
-        SHORT_CODE
-    FROM HR_DEPARTMENT
-    ORDER BY DEPT_CODE
-";
+            SELECT
+                DEPT_ID,
+                DEPT_DESC,
+                DEPT_CODE,
+                ACCT_CODE,
+                CCTR_CODE,
+                SHORT_CODE
+            FROM HR_DEPARTMENT
+            ORDER BY DEPT_CODE
+        ";
+
         $deptRows = multiRec($sql, $conn);
 
         $departments = [];
 
         foreach ($deptRows as $r) {
+
             $departments[] = [
-                        'DEPT_ID' => $r['DEPT_ID'],
+                'DEPT_ID' => $r['DEPT_ID'],
                 'DEPT_CODE' => $r['DEPT_CODE'],
                 'DEPT_DESC' => $r['DEPT_DESC'],
                 'SHORT_CODE' => $r['SHORT_CODE'],
@@ -166,154 +204,332 @@ if ($action === 'costcenters') {
                 'name' => $r['DEPT_DESC'],
                 'shortName' => $r['SHORT_CODE'],
                 'acctCode' => $r['ACCT_CODE'],
-                'costCenter' => $r['CCTR_CODE'],
+                'costCenter' => $r['CCTR_CODE']
             ];
         }
 
-        apiResponse(true, "Departments fetched successfully.", ['departments' => $departments], 200);
+        apiResponse(
+            true,
+            "Departments fetched successfully.",
+            ['departments' => $departments],
+            200
+        );
+
         exit;
     }
 
-    elseif ($method === 'POST') {
 
-        // Read JSON body if present
+    /* ==========================================================
+       POST
+    ========================================================== */
+
+    if ($method === 'POST') {
+
+        /* ------------------------------------------------------
+           READ REQUEST BODY
+        ------------------------------------------------------ */
+
         $input = [];
+
         $raw = file_get_contents('php://input');
+
         if (!empty($raw)) {
+
             $json = json_decode($raw, true);
-            if (is_array($json)) $input = $json;
+
+            if (is_array($json)) {
+                $input = $json;
+            }
         }
 
-        // Merge with $_POST for form-encoded requests
         $input = array_merge($input, $_POST);
 
-        // Accept multiple field names used by UI or older code
-        $id = $input['ID'] ?? $input['DEPT_CODE'] ?? null;
-        $descr = $input['description'] ?? $input['DESCR'] ?? $input['DEPT_DESC'] ?? $input['DEPT_NAME'] ?? '';
-        $short = $input['short_name'] ?? $input['SHORT_CODE'] ?? '';
-        $acct = $input['acctCode'] ?? $input['ACCT_CODE'] ?? $input['ACCT'] ?? '';
-        $cctr = $input['costCenter'] ?? $input['CCTR_CODE'] ?? $input['CCTR'] ?? '';
+
+        /* ------------------------------------------------------
+           ACTION
+        ------------------------------------------------------ */
 
         $action = strtolower($input['action'] ?? '');
 
-        // Normalize description as per existing logic
-        // $descr_db = htmlspecialchars(ucwords(strtolower(trim((string)$descr))), ENT_QUOTES);
-        $descr_db = htmlspecialchars(
-    trim((string)$descr),
-    ENT_QUOTES
-);
 
-        // Start DB transaction
-        startQry();
+        /* ------------------------------------------------------
+           FIELDS
+        ------------------------------------------------------ */
+
+        /*
+         * DEPT_ID:
+         * Existing department -> UPDATE
+         *
+         * Empty DEPT_ID:
+         * New department -> INSERT
+         */
+
+        $deptId = $input['DEPT_ID'] ?? null;
+
+        $deptCode = trim(
+            (string)($input['DEPT_CODE'] ?? '')
+        );
+
+        $descr = $input['description']
+            ?? $input['DESCR']
+            ?? $input['DEPT_DESC']
+            ?? $input['DEPT_NAME']
+            ?? '';
+
+        $short = $input['short_name']
+            ?? $input['SHORT_CODE']
+            ?? '';
+
+        $acct = $input['acctCode']
+            ?? $input['ACCT_CODE']
+            ?? $input['ACCT']
+            ?? '';
+
+        $cctr = $input['costCenter']
+            ?? $input['CCTR_CODE']
+            ?? $input['CCTR']
+            ?? '';
+
+        $descr_db = htmlspecialchars(
+            trim((string)$descr),
+            ENT_QUOTES
+        );
 
         $loginId = $_SESSION['loginId']
-    ?? $_SESSION['emp_code']
-    ?? 'SYSTEM';
+            ?? $_SESSION['emp_code']
+            ?? 'SYSTEM';
 
-    if ($action === 'delete') {
 
-    if (empty($id)) {
-        apiResponse(false, "Department ID is required.", null, 400);
-    }
+        /* ======================================================
+           DELETE
+        ====================================================== */
 
-    startQry();
+        if ($action === 'delete') {
 
-    $sql = "DELETE FROM HR_DEPARTMENT
-            WHERE DEPT_CODE='" . addslashes($id) . "'";
+            $id = $input['ID']
+                ?? $input['DEPT_CODE']
+                ?? null;
 
-    $ok = executeQry($sql);
+            if (empty($id)) {
 
-    if ($ok) {
-        endQry('Deleted');
-        apiResponse(true, "Department deleted successfully.", ['id' => $id], 200);
-    } else {
-        endQry();
-        apiResponse(false, "Unable to delete department.", null, 500);
-    }
+                apiResponse(
+                    false,
+                    "Department ID is required.",
+                    null,
+                    400
+                );
 
-    exit;
-}
-        if (!empty($id)) {
-            // Update existing
-            $sql = "UPDATE HR_DEPARTMENT SET
-                        DEPT_DESC='" . addslashes($descr_db) . "',
-                        ACCT_CODE='" . addslashes($acct) . "',
-                        CCTR_CODE='" . addslashes($cctr) . "',
-                        SHORT_CODE='" . addslashes($short) . "',
-                        CHG_ON=SYSDATE,
-                        CHG_BY='" . addslashes($loginId) ."'
+                exit;
+            }
+
+            startQry();
+
+            $sql = "DELETE FROM HR_DEPARTMENT
                     WHERE DEPT_CODE='" . addslashes($id) . "'";
 
             $ok = executeQry($sql);
 
             if ($ok) {
-                endQry('Updated');
-                apiResponse(true, "Department updated successfully.", ['id' => $id], 200);
+
+                endQry('Deleted');
+
+                apiResponse(
+                    true,
+                    "Department deleted successfully.",
+                    ['id' => $id],
+                    200
+                );
+
             } else {
-                // rollback handled by endQry
+
                 endQry();
-                apiResponse(false, "Unable to update department.", null, 500);
-                $e = oci_error($sql___func___con);
 
-                print_r($e);
-
-                exit;
+                apiResponse(
+                    false,
+                    "Unable to delete department.",
+                    null,
+                    500
+                );
             }
 
             exit;
         }
 
-        // Insert new
-        $last = singRec("SELECT MAX(DEPT_CODE) AS DEPT_CODE FROM HR_DEPARTMENT");
 
-        if (empty($last) || $last['DEPT_CODE'] === '') {
-            $new_code = '1';
-        } else {
-            // preserve numeric increment behaviour
-            $new_code = (string)(intval($last['DEPT_CODE']) + 1);
+        /* ======================================================
+           UPDATE EXISTING DEPARTMENT
+        ====================================================== */
+
+        if (!empty($deptId)) {
+
+            startQry();
+
+            /*
+             * Build each SET value separately.
+             * This avoids the quote/concatenation problem.
+             */
+
+            $updateFields = [
+                "DEPT_CODE='" . addslashes($deptCode) . "'",
+                "DEPT_DESC='" . addslashes($descr_db) . "'",
+                "ACCT_CODE='" . addslashes($acct) . "'",
+                "CCTR_CODE='" . addslashes($cctr) . "'",
+                "SHORT_CODE='" . addslashes($short) . "'",
+                "CHG_ON=SYSDATE",
+                "CHG_BY='" . addslashes($loginId) . "'"
+            ];
+
+            $sql = "UPDATE HR_DEPARTMENT SET "
+                . implode(", ", $updateFields)
+                . " WHERE DEPT_ID='"
+                . addslashes($deptId)
+                . "'";
+
+            $ok = executeQry($sql);
+
+            if ($ok) {
+
+                endQry('Updated');
+
+                apiResponse(
+                    true,
+                    "Department updated successfully.",
+                    ['id' => $deptId],
+                    200
+                );
+
+            } else {
+
+                endQry();
+
+                apiResponse(
+                    false,
+                    "Unable to update department.",
+                    null,
+                    500
+                );
+            }
+
+            exit;
         }
 
-        $loginId = $_SESSION['loginId']
-    ?? $_SESSION['emp_code']
-    ?? 'SYSTEM';
 
-        $sql = "INSERT INTO HR_DEPARTMENT (DEPT_CODE,DEPT_DESC,ACCT_CODE,CCTR_CODE,SHORT_CODE,CHG_ON,CHG_BY)
-                VALUES('".addslashes($new_code)."',
-                       '".addslashes($descr_db)."',
-                       '".addslashes($acct)."',
-                       '".addslashes($cctr)."',
-                       '".addslashes($short)."',
-                       SYSDATE,
-                       '".addslashes($loginId)."')";
+        /* ======================================================
+           INSERT NEW DEPARTMENT
+        ====================================================== */
+
+        if ($deptCode === '') {
+
+            apiResponse(
+                false,
+                "Department code is required.",
+                null,
+                400
+            );
+
+            exit;
+        }
+
+
+        /* ------------------------------------------------------
+           CHECK DUPLICATE DEPARTMENT CODE
+        ------------------------------------------------------ */
+
+        $sql = "SELECT DEPT_CODE
+                FROM HR_DEPARTMENT
+                WHERE DEPT_CODE='" . addslashes($deptCode) . "'";
+
+        $existing = singRec($sql);
+
+        if (!empty($existing)) {
+
+            apiResponse(
+                false,
+                "Department code already exists.",
+                null,
+                409
+            );
+
+            exit;
+        }
+
+
+        /* ------------------------------------------------------
+           INSERT
+        ------------------------------------------------------ */
+
+        startQry();
+
+        $sql = "INSERT INTO HR_DEPARTMENT
+                    (
+                        DEPT_CODE,
+                        DEPT_DESC,
+                        ACCT_CODE,
+                        CCTR_CODE,
+                        SHORT_CODE,
+                        CHG_ON,
+                        CHG_BY
+                    )
+                VALUES
+                    (
+                        '" . addslashes($deptCode) . "',
+                        '" . addslashes($descr_db) . "',
+                        '" . addslashes($acct) . "',
+                        '" . addslashes($cctr) . "',
+                        '" . addslashes($short) . "',
+                        SYSDATE,
+                        '" . addslashes($loginId) . "'
+                    )";
 
         $ok = executeQry($sql);
 
         if ($ok) {
+
             endQry('Inserted');
-            apiResponse(true, "Department inserted successfully.", ['id' => $new_code], 201);
+
+            apiResponse(
+                true,
+                "Department inserted successfully.",
+                ['id' => $deptCode],
+                201
+            );
+
         } else {
+
             endQry();
-            apiResponse(false, "Unable to insert department.", null, 500);
+
+            apiResponse(
+                false,
+                "Unable to insert department.",
+                null,
+                500
+            );
         }
 
         exit;
     }
 
-    else {
-        apiResponse(false, "Unsupported HTTP method.", null, 405);
-    }
+
+    /* ==========================================================
+       UNSUPPORTED METHOD
+    ========================================================== */
+
+    apiResponse(
+        false,
+        "Unsupported HTTP method.",
+        null,
+        405
+    );
+
 
 } catch (Throwable $e) {
 
-    /* ==========================================================
-       LOG ERROR
-    ========================================================== */
-
     logOracleError($e);
 
-    /* ==========================================================
-       GENERIC ERROR RESPONSE
-    ========================================================== */
-
-    apiResponse(false, "Unable to process request.", null, 500);
+    apiResponse(
+        false,
+        "Unable to process request.",
+        null,
+        500
+    );
 }
