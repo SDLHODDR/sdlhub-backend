@@ -35,11 +35,15 @@ try {
     $divIdsString    = !empty($sanitizedDivIds) ? implode(',', $sanitizedDivIds) : "";
     $deptCodesString = !empty($sanitizedDeptCodes) ? implode(',', $sanitizedDeptCodes) : "";
     
-    if (isset($_SESSION['taskId']) && !empty($_SESSION['taskId'])) {
-        $sanitizedTaskIds = array_map('intval', $_SESSION['taskId']);
+    $sanitizedTaskIds = array_map('intval', $_SESSION['taskId'] ?? []);
+    if (!empty($sanitizedTaskIds)) {
+        $scopedAuthTaskIds = !empty($sanitizedCompIds) && !empty($sanitizedDivIds) && !empty($sanitizedDeptCodes)
+            ? [56, 57]
+            : [56];
+        $sanitizedTaskIds = array_values(array_unique(array_merge($sanitizedTaskIds, $scopedAuthTaskIds)));
         $taskIdsString = implode(',', $sanitizedTaskIds);
     } else {
-        $taskIdsString = "";
+        $taskIdsString = '';
     }
 
     $conditionsDT = [];
@@ -54,7 +58,6 @@ try {
         $conditionsDT[] = "TA.DEPT_ID IN ($deptCodesString)";
     }
     if (!empty($taskIdsString)) {
-        $taskIdsString .= ",'56'"; //Temporary arrangements should come from profile access
         $conditionsDT[] = "TA.TASK_ID IN ($taskIdsString)";
     }
 
@@ -98,7 +101,7 @@ try {
             FROM HR_USER_TASKS TA
             INNER JOIN HR_TASK_MASTER TM ON TM.ID = TA.TASK_ID
             WHERE $additionalWhereDT
-                  TA.EMP_CODE_FOR IS NULL
+                  (TA.EMP_CODE_FOR IS NULL OR TA.TASK_ID = '57')
               AND TA.STATUS = 'O'
               $taskGrpFilter $is_special_exc
         ) tasks
