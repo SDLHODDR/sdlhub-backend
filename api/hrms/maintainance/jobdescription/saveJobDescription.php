@@ -212,6 +212,7 @@ if ($action === 'delete_responsibility') {
 }
 
     $jobId = trim($input['id'] ?? $input['ID'] ?? '');
+    $tab = strtolower(trim($input['tab'] ?? ''));
     $shdesc = trim($input['shdesc'] ?? $input['SH_DESC'] ?? '');
     $descr = trim($input['desc'] ?? $input['DESCR'] ?? '');
     $deptId = trim($input['deptid'] ?? $input['DEPT_ID'] ?? '');
@@ -339,6 +340,768 @@ if (!is_array($inductionData)) {
     $inductionData = [];
 }
 
+/*
+=========================================================
+TAB-SPECIFIC SAVE FOR EXISTING JOB DESCRIPTION
+=========================================================
+*/
+
+if ($jobId !== '' && $tab !== '' && $tab !== 'basic') {
+
+    $loginId = $_SESSION['loginId'] ?? $_SESSION['emp_code'] ?? 'SYSTEM';
+
+    startQry();
+
+    /*
+     * =====================================================
+     * KRA
+     * =====================================================
+     */
+    if ($tab === 'kra') {
+
+        $kraData = parseJsonOrArray(
+            $input['kra'] ?? '[]',
+            []
+        );
+
+        if (!is_array($kraData)) {
+            $kraData = [];
+        }
+
+        executeQry(
+            "DELETE FROM HR_JD_KRA
+             WHERE JD_ID='" . addslashes($jobId) . "'"
+        );
+
+        foreach ($kraData as $row) {
+
+            if (is_array($row)) {
+                $kraId =
+                    $row['KRA_ID'] ??
+                    $row['kra_id'] ??
+                    $row['value'] ??
+                    '';
+
+                $respPerc =
+                    $row['RESP_PERC'] ??
+                    $row['resp_perc'] ??
+                    '';
+            } else {
+                $kraId = $row;
+                $respPerc = '';
+            }
+
+            if ($kraId === '') {
+                continue;
+            }
+
+            $last = singRec(
+                "SELECT NVL(MAX(ID),0)+1 AS ID
+                 FROM HR_JD_KRA"
+            );
+
+            $childId = $last['ID'];
+
+            $sql = "
+                INSERT INTO HR_JD_KRA
+                (
+                    ID,
+                    JD_ID,
+                    KRA_ID,
+                    RESP_PERC,
+                    CHG_BY,
+                    CHG_ON
+                )
+                VALUES
+                (
+                    '" . addslashes($childId) . "',
+                    '" . addslashes($jobId) . "',
+                    '" . addslashes($kraId) . "',
+                    " . sqlValue($respPerc) . ",
+                    " . sqlValue($loginId) . ",
+                    SYSDATE
+                )
+            ";
+
+            executeQry($sql);
+        }
+    }
+
+    /*
+     * =====================================================
+     * EDUCATION
+     * =====================================================
+     */
+    elseif ($tab === 'education') {
+
+        $educationData = parseJsonOrArray(
+            $input['education'] ?? '[]',
+            []
+        );
+
+        if (!is_array($educationData)) {
+            $educationData = [];
+        }
+
+        executeQry(
+            "DELETE FROM HR_JD_EDU_DET
+             WHERE JD_ID='" . addslashes($jobId) . "'"
+        );
+
+        foreach ($educationData as $row) {
+
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $qualificationId =
+                $row['QUA_ID'] ??
+                $row['qualification'] ??
+                $row['QUALIFICATION'] ??
+                '';
+
+            $comments =
+                $row['COMMENTS'] ??
+                $row['comments'] ??
+                '';
+
+            if ($qualificationId === '') {
+                continue;
+            }
+
+            $last = singRec(
+                "SELECT NVL(MAX(ID),0)+1 AS ID
+                 FROM HR_JD_EDU_DET"
+            );
+
+            $childId = $last['ID'];
+
+            $sql = "
+                INSERT INTO HR_JD_EDU_DET
+                (
+                    ID,
+                    JD_ID,
+                    QUA_ID,
+                    COMMENTS,
+                    CHG_BY,
+                    CHG_ON
+                )
+                VALUES
+                (
+                    '" . addslashes($childId) . "',
+                    '" . addslashes($jobId) . "',
+                    '" . addslashes($qualificationId) . "',
+                    " . sqlValue($comments) . ",
+                    " . sqlValue($loginId) . ",
+                    SYSDATE
+                )
+            ";
+
+            executeQry($sql);
+        }
+    }
+
+    /*
+     * =====================================================
+     * SKILLS
+     * =====================================================
+     */
+    elseif ($tab === 'skills') {
+
+        $skillsData = parseJsonOrArray(
+            $input['skills'] ?? '[]',
+            []
+        );
+
+        if (!is_array($skillsData)) {
+            $skillsData = [];
+        }
+
+        executeQry(
+            "DELETE FROM HR_JD_CAPABILITIES
+             WHERE JD_ID='" . addslashes($jobId) . "'"
+        );
+
+        foreach ($skillsData as $row) {
+
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $capaId =
+                $row['CAPA_ID'] ??
+                $row['capa_id'] ??
+                $row['code'] ??
+                '';
+
+            $capaLevelId =
+                $row['CAPALVL_ID'] ??
+                $row['capalvl_id'] ??
+                $row['level'] ??
+                '';
+
+            if ($capaId === '') {
+                continue;
+            }
+
+            $last = singRec(
+                "SELECT NVL(MAX(ID),0)+1 AS ID
+                 FROM HR_JD_CAPABILITIES"
+            );
+
+            $childId = $last['ID'];
+
+            $sql = "
+                INSERT INTO HR_JD_CAPABILITIES
+                (
+                    ID,
+                    JD_ID,
+                    CAPA_ID,
+                    CAPALVL_ID,
+                    CHG_ON,
+                    CHG_BY
+                )
+                VALUES
+                (
+                    '" . addslashes($childId) . "',
+                    '" . addslashes($jobId) . "',
+                    '" . addslashes($capaId) . "',
+                    " . sqlValue($capaLevelId) . ",
+                    SYSDATE,
+                    " . sqlValue($loginId) . "
+                )
+            ";
+
+            executeQry($sql);
+        }
+    }
+
+    /*
+     * =====================================================
+     * ALLOWANCES
+     * =====================================================
+     */
+    elseif ($tab === 'allowances') {
+
+        $allowancesData = parseJsonOrArray(
+            $input['allowances'] ?? '[]',
+            []
+        );
+
+        if (!is_array($allowancesData)) {
+            $allowancesData = [];
+        }
+
+        executeQry(
+            "DELETE FROM HR_JD_ALLOWANCES
+             WHERE JD_ID='" . addslashes($jobId) . "'"
+        );
+
+        foreach ($allowancesData as $row) {
+
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $allowId =
+                $row['ALLOW_ID'] ??
+                $row['allow_id'] ??
+                $row['listing'] ??
+                '';
+
+            $amount =
+                $row['ALLOW_AMOUNT'] ??
+                $row['allowAmount'] ??
+                '';
+
+            $addInfo =
+                $row['ADD_INFO'] ??
+                $row['add_info'] ??
+                $row['frequency'] ??
+                '';
+
+            $expType =
+                $row['EXP_TYPE'] ??
+                $row['exp_type'] ??
+                $row['expenseType'] ??
+                '';
+
+            if ($allowId === '') {
+                continue;
+            }
+
+            $last = singRec(
+                "SELECT NVL(MAX(ID),0)+1 AS ID
+                 FROM HR_JD_ALLOWANCES"
+            );
+
+            $childId = $last['ID'];
+
+            $sql = "
+                INSERT INTO HR_JD_ALLOWANCES
+                (
+                    ID,
+                    JD_ID,
+                    ALLOW_ID,
+                    ALLOW_AMOUNT,
+                    ADD_INFO,
+                    EXP_TYPE,
+                    CHG_ON,
+                    CHG_BY
+                )
+                VALUES
+                (
+                    '" . addslashes($childId) . "',
+                    '" . addslashes($jobId) . "',
+                    '" . addslashes($allowId) . "',
+                    " . sqlValue($amount) . ",
+                    " . sqlValue($addInfo) . ",
+                    " . sqlValue($expType) . ",
+                    SYSDATE,
+                    " . sqlValue($loginId) . "
+                )
+            ";
+
+            executeQry($sql);
+        }
+    }
+
+    /*
+     * =====================================================
+     * CTC HEADS
+     * =====================================================
+     */
+    elseif ($tab === 'ctc') {
+
+        $ctcHeadsData = parseJsonOrArray(
+            $input['ctc_heads'] ?? '[]',
+            []
+        );
+
+        if (!is_array($ctcHeadsData)) {
+            $ctcHeadsData = [];
+        }
+
+        executeQry(
+            "DELETE FROM HR_JD_CTC_HEADS
+             WHERE JD_ID='" . addslashes($jobId) . "'"
+        );
+
+        foreach ($ctcHeadsData as $row) {
+
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $adId =
+                $row['AD_ID'] ??
+                $row['ad_id'] ??
+                $row['head'] ??
+                '';
+
+            $adCode =
+                $row['AD_CODE'] ??
+                $row['ad_code'] ??
+                '';
+
+            $key =
+                $row['KEY'] ??
+                $row['key'] ??
+                '';
+
+            $tempVal =
+                $row['TEMPVAL'] ??
+                $row['tempval'] ??
+                $row['formula'] ??
+                '';
+
+            $val =
+                $row['VAL'] ??
+                $row['value'] ??
+                '';
+
+            if ($adId === '' && $adCode === '') {
+                continue;
+            }
+
+            $last = singRec(
+                "SELECT NVL(MAX(ID),0)+1 AS ID
+                 FROM HR_JD_CTC_HEADS"
+            );
+
+            $childId = $last['ID'];
+
+            $sql = "
+                INSERT INTO HR_JD_CTC_HEADS
+                (
+                    ID,
+                    JD_ID,
+                    AD_ID,
+                    AD_CODE,
+                    CHG_ON,
+                    CHG_BY,
+                    KEY,
+                    TEMPVAL,
+                    VAL
+                )
+                VALUES
+                (
+                    '" . addslashes($childId) . "',
+                    '" . addslashes($jobId) . "',
+                    " . sqlValue($adId) . ",
+                    " . sqlValue($adCode) . ",
+                    SYSDATE,
+                    " . sqlValue($loginId) . ",
+                    " . sqlValue($key) . ",
+                    " . sqlValue($tempVal) . ",
+                    " . sqlValue($val) . "
+                )
+            ";
+
+            executeQry($sql);
+        }
+    }
+
+    /*
+     * =====================================================
+     * QUESTION TEMPLATE
+     * =====================================================
+     */
+    elseif ($tab === 'questions') {
+
+        $questionTemplateData = parseJsonOrArray(
+            $input['question_template'] ?? '[]',
+            []
+        );
+
+        if (!is_array($questionTemplateData)) {
+            $questionTemplateData = [];
+        }
+
+        executeQry(
+            "DELETE FROM HR_JD_QUESTIONS
+             WHERE JD_ID='" . addslashes($jobId) . "'"
+        );
+
+        foreach ($questionTemplateData as $row) {
+
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $qgrpId =
+                $row['QGRP_ID'] ??
+                $row['qgrp_id'] ??
+                '';
+
+            $qgrpType =
+                $row['QGRP_TYPE'] ??
+                $row['qgrp_type'] ??
+                '';
+
+            $qsgrpId =
+                $row['QSGRP_ID'] ??
+                $row['qsgrp_id'] ??
+                '';
+
+            $questionId =
+                $row['QUESTION_ID'] ??
+                $row['question_id'] ??
+                $row['value'] ??
+                '';
+
+            $dispSeq =
+                $row['DISP_SEQ'] ??
+                $row['disp_seq'] ??
+                '';
+
+            if ($questionId === '') {
+                continue;
+            }
+
+            $last = singRec(
+                "SELECT NVL(MAX(ID),0)+1 AS ID
+                 FROM HR_JD_QUESTIONS"
+            );
+
+            $childId = $last['ID'];
+
+            $sql = "
+                INSERT INTO HR_JD_QUESTIONS
+                (
+                    ID,
+                    JD_ID,
+                    QGRP_ID,
+                    QGRP_TYPE,
+                    QSGRP_ID,
+                    QUESTION_ID,
+                    DISP_SEQ,
+                    CHG_BY,
+                    CHG_ON,
+                    EFF_FROM,
+                    EFF_TO
+                )
+                VALUES
+                (
+                    '" . addslashes($childId) . "',
+                    '" . addslashes($jobId) . "',
+                    " . sqlValue($qgrpId) . ",
+                    " . sqlValue($qgrpType) . ",
+                    " . sqlValue($qsgrpId) . ",
+                    '" . addslashes($questionId) . "',
+                    " . sqlValue($dispSeq) . ",
+                    " . sqlValue($loginId) . ",
+                    SYSDATE,
+                    SYSDATE,
+                    NULL
+                )
+            ";
+
+            executeQry($sql);
+        }
+    }
+
+    /*
+     * =====================================================
+     * DEPARTMENT REFERENCE
+     * =====================================================
+     */
+    elseif ($tab === 'deptref') {
+
+        $deptReferencesData = parseJsonOrArray(
+            $input['dept_references'] ?? '[]',
+            []
+        );
+
+        if (!is_array($deptReferencesData)) {
+            $deptReferencesData = [];
+        }
+
+        executeQry(
+            "DELETE FROM HR_JD_REF_DEPT
+             WHERE JD_ID='" . addslashes($jobId) . "'"
+        );
+
+        foreach ($deptReferencesData as $row) {
+
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $deptId =
+                $row['DEPT_ID'] ??
+                $row['dept_id'] ??
+                $row['value'] ??
+                $row['deptId'] ??
+                '';
+
+            if ($deptId === '') {
+                continue;
+            }
+
+            $last = singRec(
+                "SELECT NVL(MAX(ID),0)+1 AS ID
+                 FROM HR_JD_REF_DEPT"
+            );
+
+            $childId = $last['ID'];
+
+            $sql = "
+                INSERT INTO HR_JD_REF_DEPT
+                (
+                    ID,
+                    JD_ID,
+                    DEPT_ID,
+                    CHG_BY,
+                    CHG_ON
+                )
+                VALUES
+                (
+                    '" . addslashes($childId) . "',
+                    '" . addslashes($jobId) . "',
+                    '" . addslashes($deptId) . "',
+                    " . sqlValue($loginId) . ",
+                    SYSDATE
+                )
+            ";
+
+            executeQry($sql);
+        }
+    }
+
+    /*
+     * =====================================================
+     * DIVISION MAPPING
+     * =====================================================
+     */
+    elseif ($tab === 'division') {
+
+        $divisionMappingData = parseJsonOrArray(
+            $input['division_mapping'] ?? '[]',
+            []
+        );
+
+        if (!is_array($divisionMappingData)) {
+            $divisionMappingData = [];
+        }
+
+        executeQry(
+            "DELETE FROM HR_JD_DIVSN
+             WHERE JD_ID='" . addslashes($jobId) . "'"
+        );
+
+        foreach ($divisionMappingData as $row) {
+
+            $divisionId = '';
+
+            if (is_array($row)) {
+                $divisionId =
+                    $row['DIVSN_ID'] ??
+                    $row['divsn_id'] ??
+                    $row['value'] ??
+                    '';
+            } else {
+                $divisionId = $row;
+            }
+
+            if ($divisionId === '') {
+                continue;
+            }
+
+            $last = singRec(
+                "SELECT NVL(MAX(ID),0)+1 AS ID
+                 FROM HR_JD_DIVSN"
+            );
+
+            $childId = $last['ID'];
+
+            $sql = "
+                INSERT INTO HR_JD_DIVSN
+                (
+                    ID,
+                    JD_ID,
+                    DIVSN_ID,
+                    CHG_ON,
+                    CHG_BY
+                )
+                VALUES
+                (
+                    '" . addslashes($childId) . "',
+                    '" . addslashes($jobId) . "',
+                    '" . addslashes($divisionId) . "',
+                    SYSDATE,
+                    " . sqlValue($loginId) . "
+                )
+            ";
+
+            executeQry($sql);
+        }
+    }
+
+    /*
+     * =====================================================
+     * INDUCTION
+     * =====================================================
+     */
+    elseif ($tab === 'induction') {
+
+        $inductionData = parseJsonOrArray(
+            $input['induction'] ?? '{}',
+            []
+        );
+
+        if (!is_array($inductionData)) {
+            $inductionData = [];
+        }
+
+        executeQry(
+            "DELETE FROM HR_JD_INDUCTION
+             WHERE JD_ID='" . addslashes($jobId) . "'"
+        );
+
+        $inducId =
+            $inductionData['INDUC_ID'] ??
+            $inductionData['induc_id'] ??
+            '';
+
+        $orgId =
+            $inductionData['ORG_ID'] ??
+            $inductionData['org_id'] ??
+            '';
+
+        $orgLocId =
+            $inductionData['ORG_LOC_ID'] ??
+            $inductionData['org_loc_id'] ??
+            '';
+
+        $dispSeq =
+            $inductionData['DISP_SEQ'] ??
+            $inductionData['disp_seq'] ??
+            '';
+
+        if ($inducId !== '') {
+
+            $last = singRec(
+                "SELECT NVL(MAX(ID),0)+1 AS ID
+                 FROM HR_JD_INDUCTION"
+            );
+
+            $childId = $last['ID'];
+
+            $sql = "
+                INSERT INTO HR_JD_INDUCTION
+                (
+                    ID,
+                    JD_ID,
+                    INDUC_ID,
+                    ORG_ID,
+                    ORG_LOC_ID,
+                    DISP_SEQ,
+                    CHG_BY,
+                    CHG_ON
+                )
+                VALUES
+                (
+                    '" . addslashes($childId) . "',
+                    '" . addslashes($jobId) . "',
+                    '" . addslashes($inducId) . "',
+                    " . sqlValue($orgId) . ",
+                    " . sqlValue($orgLocId) . ",
+                    " . sqlValue($dispSeq) . ",
+                    " . sqlValue($loginId) . ",
+                    SYSDATE
+                )
+            ";
+
+            executeQry($sql);
+        }
+    }
+
+    else {
+        endQry();
+
+        apiResponse(
+            false,
+            "Invalid Job Description tab.",
+            null,
+            400
+        );
+
+        exit;
+    }
+
+    endQry('Updated');
+
+    apiResponse(
+        true,
+        ucfirst($tab) . " saved successfully.",
+        ['id' => $jobId],
+        200
+    );
+
+    exit;
+}
+
     if ($shdesc === '') {
         apiResponse(false, "JD Label is required.", null, 400);
     }
@@ -357,7 +1120,8 @@ if (!is_array($inductionData)) {
     $loginId = $_SESSION['loginId'] ?? $_SESSION['emp_code'] ?? 'SYSTEM';
     $loginIdSql = sqlValue($loginId);
 
-if ($jobId !== '') {
+// if ($jobId !== '') {
+if ($jobId !== '' && ($tab === '' || $tab === 'basic')) {
 
     /*
      * =========================================================
@@ -398,626 +1162,24 @@ if ($jobId !== '') {
             null,
             500
         );
+                exit;
     }
+    endQry('Updated');
 
-    /*
-     * =========================================================
-     * DELETE OLD CHILD RECORDS
-     *
-     * We re-insert the current tab data below.
-     * =========================================================
-     */
-
-    executeQry(
-        "DELETE FROM HR_JD_KRA
-         WHERE JD_ID='" . addslashes($jobId) . "'"
+    apiResponse(
+        true,
+        "Job description updated successfully.",
+        ['id' => $jobId],
+        200
     );
 
-    executeQry(
-        "DELETE FROM HR_JD_EDU_DET
-         WHERE JD_ID='" . addslashes($jobId) . "'"
-    );
-
-    executeQry(
-        "DELETE FROM HR_JD_CAPABILITIES
-         WHERE JD_ID='" . addslashes($jobId) . "'"
-    );
-
-    executeQry(
-        "DELETE FROM HR_JD_ALLOWANCES
-         WHERE JD_ID='" . addslashes($jobId) . "'"
-    );
-
-    executeQry(
-        "DELETE FROM HR_JD_CTC_HEADS
-         WHERE JD_ID='" . addslashes($jobId) . "'"
-    );
-
-    executeQry(
-        "DELETE FROM HR_JD_REF_DEPT
-         WHERE JD_ID='" . addslashes($jobId) . "'"
-    );
-
-    executeQry(
-        "DELETE FROM HR_JD_DIVSN
-         WHERE JD_ID='" . addslashes($jobId) . "'"
-    );
-
-    executeQry(
-        "DELETE FROM HR_JD_INDUCTION
-         WHERE JD_ID='" . addslashes($jobId) . "'"
-    );
-
-    /*
-     * From this point onward, the existing child INSERT
-     * blocks will execute using $jobId.
-     */
+    exit;
 }
 
+/* =========================================================
+ * INSERT NEW JOB DESCRIPTION
+ * ========================================================= */
 
-/*
------------------------------
-EDUCATION
------------------------------
-*/
-
-foreach ($educationData as $row) {
-
-    if (!is_array($row)) {
-        continue;
-    }
-
-    $qualificationId =
-        $row['QUA_ID']
-        ?? $row['qualification']
-        ?? $row['QUALIFICATION']
-        ?? '';
-
-    $comments =
-        $row['COMMENTS']
-        ?? $row['comments']
-        ?? '';
-
-    if ($qualificationId === '') {
-        continue;
-    }
-
-    $last = singRec(
-        "SELECT NVL(MAX(ID),0)+1 AS ID FROM HR_JD_EDU_DET"
-    );
-
-    $childId = $last['ID'];
-
-    $sql = "
-        INSERT INTO HR_JD_EDU_DET
-        (
-            ID,
-            JD_ID,
-            QUA_ID,
-            COMMENTS,
-            CHG_BY,
-            CHG_ON
-        )
-        VALUES
-        (
-            '" . addslashes($childId) . "',
-            '" . addslashes($jobId) . "',
-            '" . addslashes($qualificationId) . "',
-            " . sqlValue($comments) . ",
-            {$loginIdSql},
-            SYSDATE
-        )
-    ";
-
-    executeQry($sql);
-}
-
-/*
------------------------------
-SKILLS
------------------------------
-*/
-
-foreach ($skillsData as $row) {
-
-    $capaId =
-        $row['CAPA_ID']
-        ?? $row['capa_id']
-        ?? $row['code']
-        ?? '';
-
-    $capaLevelId =
-        $row['CAPALVL_ID']
-        ?? $row['capalvl_id']
-        ?? $row['level']
-        ?? '';
-
-    if ($capaId === '') {
-        continue;
-    }
-
-    $last = singRec(
-        "SELECT NVL(MAX(ID),0)+1 AS ID FROM HR_JD_CAPABILITIES"
-    );
-
-    $childId = $last['ID'];
-
-    $sql = "
-        INSERT INTO HR_JD_CAPABILITIES
-        (
-            ID,
-            JD_ID,
-            CAPA_ID,
-            CAPALVL_ID,
-            CHG_ON,
-            CHG_BY
-        )
-        VALUES
-        (
-            '" . addslashes($childId) . "',
-            '" . addslashes($jobId) . "',
-            '" . addslashes($capaId) . "',
-            " . sqlValue($capaLevelId) . ",
-            SYSDATE,
-            {$loginIdSql}
-        )
-    ";
-
-    executeQry($sql);
-}
-
-
-/*
------------------------------
-ALLOWANCES
------------------------------
-*/
-
-foreach ($allowancesData as $row) {
-
-    $allowId =
-        $row['ALLOW_ID']
-        ?? $row['allow_id']
-        ?? $row['listing']
-        ?? '';
-
-    $amount =
-    $row['ALLOW_AMOUNT']
-    ?? $row['allow_amount']
-    ?? $row['amount']
-    ?? '';
-
-    $addInfo =
-    $row['ADD_INFO']
-    ?? $row['add_info']
-    ?? $row['frequency']
-    ?? '';
-
-    $fromDate =
-        $row['FROMDT']
-        ?? $row['from']
-        ?? '';
-
-    $toDate =
-        $row['TODT']
-        ?? $row['to']
-        ?? '';
-
-    $expType =
-    $row['EXP_TYPE']
-    ?? $row['exp_type']
-    ?? $row['expenseType']
-    ?? '';
-
-    if ($allowId === '') {
-        continue;
-    }
-
-    $last = singRec(
-        "SELECT NVL(MAX(ID),0)+1 AS ID FROM HR_JD_ALLOWANCES"
-    );
-
-    $childId = $last['ID'];
-
-    $sql = "
-        INSERT INTO HR_JD_ALLOWANCES
-        (
-            ID,
-            JD_ID,
-            ALLOW_ID,
-            ALLOW_AMOUNT,
-            ADD_INFO,
-            FROMDT,
-            TODT,
-            EXP_TYPE,
-            CHG_ON,
-            CHG_BY
-        )
-        VALUES
-        (
-            '" . addslashes($childId) . "',
-            '" . addslashes($jobId) . "',
-            '" . addslashes($allowId) . "',
-            " . sqlValue($amount) . ",
-            " . sqlValue($addInfo) . ",
-            " . (
-                $fromDate !== ''
-                    ? "TO_DATE('" . addslashes($fromDate) . "','YYYY-MM-DD')"
-                    : "NULL"
-            ) . ",
-            " . (
-                $toDate !== ''
-                    ? "TO_DATE('" . addslashes($toDate) . "','YYYY-MM-DD')"
-                    : "NULL"
-            ) . ",
-            " . sqlValue($expType) . ",
-            SYSDATE,
-            {$loginIdSql}
-        )
-    ";
-
-    executeQry($sql);
-}
-
-
-/*
------------------------------
-CTC HEADS
------------------------------
-*/
-
-foreach ($ctcHeadsData as $row) {
-
-    $adId =
-        $row['AD_ID']
-        ?? $row['ad_id']
-        ?? $row['head']
-        ?? '';
-
-    $adCode =
-        $row['AD_CODE']
-        ?? $row['ad_code']
-        ?? '';
-
-    $key =
-        $row['KEY']
-        ?? $row['key']
-        ?? '';
-
-    $tempVal =
-        $row['TEMPVAL']
-        ?? $row['tempval']
-        ?? $row['formula']
-        ?? '';
-
-    $val =
-        $row['VAL']
-        ?? $row['value']
-        ?? '';
-
-    $effFrom =
-        $row['EFFEC_FROM']
-        ?? $row['from']
-        ?? '';
-
-    $effTo =
-        $row['EFFEC_TO']
-        ?? $row['to']
-        ?? '';
-
-    if ($adId === '' && $adCode === '') {
-        continue;
-    }
-
-    $last = singRec(
-        "SELECT NVL(MAX(ID),0)+1 AS ID FROM HR_JD_CTC_HEADS"
-    );
-
-    $childId = $last['ID'];
-
-    $sql = "
-        INSERT INTO HR_JD_CTC_HEADS
-        (
-            ID,
-            JD_ID,
-            AD_ID,
-            AD_CODE,
-            CHG_ON,
-            CHG_BY,
-            EFFEC_FROM,
-            EFFEC_TO,
-            KEY,
-            TEMPVAL,
-            VAL
-        )
-        VALUES
-        (
-            '" . addslashes($childId) . "',
-            '" . addslashes($jobId) . "',
-            " . sqlValue($adId) . ",
-            " . sqlValue($adCode) . ",
-            SYSDATE,
-            {$loginIdSql},
-            " . (
-                $effFrom !== ''
-                    ? "TO_DATE('" . addslashes($effFrom) . "','YYYY-MM-DD')"
-                    : "NULL"
-            ) . ",
-            " . (
-                $effTo !== ''
-                    ? "TO_DATE('" . addslashes($effTo) . "','YYYY-MM-DD')"
-                    : "NULL"
-            ) . ",
-            " . sqlValue($key) . ",
-            " . sqlValue($tempVal) . ",
-            " . sqlValue($val) . "
-        )
-    ";
-
-    executeQry($sql);
-}
-
-
-/*
------------------------------
-QUESTION TEMPLATE
------------------------------
-*/
-
-foreach ($questionTemplateData as $row) {
-
-    $qgrpId =
-        $row['QGRP_ID']
-        ?? $row['qgrp_id']
-        ?? '';
-
-    $qgrpType =
-        $row['QGRP_TYPE']
-        ?? $row['qgrp_type']
-        ?? '';
-
-    $qsgrpId =
-        $row['QSGRP_ID']
-        ?? $row['qsgrp_id']
-        ?? '';
-
-    $questionId =
-        $row['QUESTION_ID']
-        ?? $row['question_id']
-        ?? $row['value']
-        ?? '';
-
-    $dispSeq =
-        $row['DISP_SEQ']
-        ?? $row['disp_seq']
-        ?? '';
-
-    if ($questionId === '') {
-        continue;
-    }
-
-    $last = singRec(
-        "SELECT NVL(MAX(ID),0)+1 AS ID FROM HR_JD_QUESTIONS"
-    );
-
-    $childId = $last['ID'];
-
-    $sql = "
-        INSERT INTO HR_JD_QUESTIONS
-        (
-            ID,
-            JD_ID,
-            QGRP_ID,
-            QGRP_TYPE,
-            QSGRP_ID,
-            QUESTION_ID,
-            DISP_SEQ,
-            CHG_BY,
-            CHG_ON,
-            EFF_FROM,
-            EFF_TO
-        )
-        VALUES
-        (
-            '" . addslashes($childId) . "',
-            '" . addslashes($jobId) . "',
-            " . sqlValue($qgrpId) . ",
-            " . sqlValue($qgrpType) . ",
-            " . sqlValue($qsgrpId) . ",
-            '" . addslashes($questionId) . "',
-            " . sqlValue($dispSeq) . ",
-            {$loginIdSql},
-            SYSDATE,
-            SYSDATE,
-            NULL
-        )
-    ";
-
-    executeQry($sql);
-}
-
-
-/*
------------------------------
-DEPARTMENT REFERENCE
------------------------------
-*/
-
-foreach ($deptReferencesData as $row) {
-
-    $deptId =
-        $row['DEPT_ID']
-        ?? $row['dept_id']
-                ?? $row['deptId']
-        ?? $row['value']
-        ?? '';
-
-    if ($deptId === '') {
-        continue;
-    }
-
-    $last = singRec(
-        "SELECT NVL(MAX(ID),0)+1 AS ID FROM HR_JD_REF_DEPT"
-    );
-
-    $childId = $last['ID'];
-
-    $sql = "
-        INSERT INTO HR_JD_REF_DEPT
-        (
-            ID,
-            JD_ID,
-            DEPT_ID,
-            CHG_BY,
-            CHG_ON
-        )
-        VALUES
-        (
-            '" . addslashes($childId) . "',
-            '" . addslashes($jobId) . "',
-            '" . addslashes($deptId) . "',
-            {$loginIdSql},
-            SYSDATE
-        )
-    ";
-
-    if (!$ok) {
-        endQry();
-
-        apiResponse(
-            false,
-            "Unable to insert department reference.",
-            [
-                'sql' => $sql,
-                'dept_id' => $deptId,
-                'jd_id' => $jobId
-            ],
-            500
-        );
-    }
-
-    executeQry($sql);
-}
-
-
-/*
------------------------------
-DIVISION MAPPING
------------------------------
-*/
-
-foreach ($divisionMappingData as $row) {
-
-    $divisionId = is_array($row)
-    ? ($row['DIVSN_ID'] ?? $row['divsn_id'] ?? $row['value'] ?? '')
-    : trim($row);
-
-    if ($divisionId === '') {
-        continue;
-    }
-
-    $last = singRec(
-        "SELECT NVL(MAX(ID),0)+1 AS ID FROM HR_JD_DIVSN"
-    );
-
-    $childId = $last['ID'];
-
-    $sql = "
-        INSERT INTO HR_JD_DIVSN
-        (
-            ID,
-            JD_ID,
-            DIVSN_ID,
-            CHG_ON,
-            CHG_BY
-        )
-        VALUES
-        (
-            '" . addslashes($childId) . "',
-            '" . addslashes($jobId) . "',
-            '" . addslashes($divisionId) . "',
-            SYSDATE,
-            {$loginIdSql}
-        )
-    ";
-
-    executeQry($sql);
-}
-
-
-/*
------------------------------
-INDUCTION
------------------------------
-*/
-
-$inducId =
-    $inductionData['INDUC_ID']
-    ?? $inductionData['induc_id']
-    ?? '';
-
-$orgId =
-    $inductionData['ORG_ID']
-    ?? $inductionData['org_id']
-    ?? '';
-
-$orgLocId =
-    $inductionData['ORG_LOC_ID']
-    ?? $inductionData['org_loc_id']
-    ?? '';
-
-$dispSeq =
-    $inductionData['DISP_SEQ']
-    ?? $inductionData['disp_seq']
-    ?? '';
-
-if ($inducId !== '') {
-
-    $last = singRec(
-        "SELECT NVL(MAX(ID),0)+1 AS ID FROM HR_JD_INDUCTION"
-    );
-
-    $childId = $last['ID'];
-
-    $sql = "
-        INSERT INTO HR_JD_INDUCTION
-        (
-            ID,
-            JD_ID,
-            INDUC_ID,
-            ORG_ID,
-            ORG_LOC_ID,
-            DISP_SEQ,
-            CHG_BY,
-            CHG_ON
-        )
-        VALUES
-        (
-            '" . addslashes($childId) . "',
-            '" . addslashes($jobId) . "',
-            '" . addslashes($inducId) . "',
-            " . sqlValue($orgId) . ",
-            " . sqlValue($orgLocId) . ",
-            " . sqlValue($dispSeq) . ",
-            {$loginIdSql},
-            SYSDATE
-        )
-    ";
-
-    executeQry($sql);
-}
-
-
-endQry('Updated');
-
-apiResponse(
-    true,
-    "Job description updated successfully.",
-    ['id' => $jobId],
-    200
-);
-
-exit;
 
     $last = singRec("SELECT MAX(ID) AS ID FROM HR_JD");
     $newId = '1';
