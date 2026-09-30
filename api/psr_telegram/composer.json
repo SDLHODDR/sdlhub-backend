@@ -1,0 +1,13 @@
+{
+    "name": "05510/psr_telegram",
+    "authors": [
+        {
+            "name": "Sunil Ghate",
+            "email": "05510@sdloffice.com"
+        }
+    ],
+    "require": {
+        "endroid/qr-code": "^6.0",
+        "firebase/php-jwt": "^7.0"
+    }
+}
