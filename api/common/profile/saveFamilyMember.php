@@ -497,6 +497,23 @@ try {
         apiResponse(false, 'Failed to generate authorization request ID.', null, 500);
     }
 
+
+    /* ==========================================================
+    RESOLVE CLIENT IP ADDRESS
+    ========================================================== */
+
+    $clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] 
+        ?? $_SERVER['HTTP_CLIENT_IP'] 
+        ?? $_SERVER['REMOTE_ADDR'] 
+        ?? 'UNKNOWN';
+
+    if (strpos($clientIp, ',') !== false) {
+        $clientIp = trim(explode(',', $clientIp)[0]);
+    }
+
+    $clientIpEsc = str_replace("'", "''", substr(trim($clientIp), 0, 100));
+
+
     /* ===========================================
        STEP 2: INSERT INTO EPT_HR_USER_TASKS
     =========================================== */
@@ -518,7 +535,8 @@ try {
             DEPT_ID,
             EXPIRE_ON,
             CREATED_ON,
-            CREATED_BY
+            CREATED_BY,
+            IP_ADDR
         )
         VALUES
         (
@@ -535,7 +553,8 @@ try {
             :dept_id,
             TO_DATE(:expire_on, 'YYYY-MM-DD HH24:MI:SS'),
             SYSDATE,
-            :created_by
+            :created_by,
+            :ip_addr
         )
         RETURNING ID INTO :user_task_id
     ";
@@ -558,6 +577,7 @@ try {
     oci_bind_by_name($stmtTask, ':expire_on', $task['EXPDT']);
     oci_bind_by_name($stmtTask, ':created_by', $empCode);
     oci_bind_by_name($stmtTask, ':user_task_id', $userTaskId, 10);
+    oci_bind_by_name($stmtTask, ':ip_addr', $clientIpEsc, 100);
 
     if (!oci_execute($stmtTask, OCI_NO_AUTO_COMMIT)) {
         $err = oci_error($stmtTask);
