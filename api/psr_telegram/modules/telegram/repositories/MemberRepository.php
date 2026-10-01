@@ -245,110 +245,114 @@ class MemberRepository extends BaseRepository
         // print_r($data);
         // exit;
 
-        $members  = $data['member_data'] ?? [];
-        $groupIds = $data['group_ids'] ?? [];
+        // $members  = $data['member_data'] ?? [];
+        // $groupIds = $data['group_ids'] ?? [];
         
-        foreach ($members as $member){
-            foreach ($groupIds as $groupId){
-                $exists = $this->isMemberGroupMapped( $member['id'], $groupId );
+        // foreach ($members as $member){
+        //     foreach ($groupIds as $groupId){
+        //         $exists = $this->isMemberGroupMapped( $member['id'], $groupId );
 
-                if ($exists) { continue; }
+        //         if ($exists) { continue; }
                 
-                $this->saveMemberGroupMapping( $member, $groupId );
-                $this->createMessageQueue( $member, $groupId );
+        //         $this->saveMemberGroupMapping( $member, $groupId );
+        //         $this->createMessageQueue( $member, $groupId );
+        //     }
+        // }
+
+        // return [
+        //     "success" => true,
+        //     "message" => "Groups assigned successfully"
+        // ];
+
+
+
+
+
+        // print_r($data["member_data"]);
+        // exit;
+        foreach ($data["member_data"] as $key => $valmemb) {
+            # code...
+            $memberId = $valmemb["id"];
+            $memberPhone = $valmemb["mobile"];
+            $groupIds = $data["group_ids"];
+
+        // $telegram = new TelegramNodeService();
+            
+            $returnArr = [];
+            $returnArr["member_id"] = $memberId;
+            $returnArr["member_phone"] = $memberPhone;
+            $returnArr["groups"] = [];
+
+            foreach ($groupIds as $groupId) {
+                //$groupSql = " SELECT INVITE_LINK FROM PSR_TELEGRAM_GROUPS WHERE ID = '" . $groupId . "' ";
+                // Fetch group details
+                $groupSql = "SELECT TELEGRAM_GROUP_ID, TITLE FROM PSR_TELEGRAM_GROUPS WHERE ID = '{$groupId}'";
+                $groupStmt = $this->execute($groupSql);
+                $groupArrs = $this->fetchAll($groupStmt);
+                
+                // // Generate employee invite
+                // $response = $telegram->generateEmployeeInvite([
+                //     'telegram_group_id' => $groupArrs[0]['TELEGRAM_GROUP_ID'],
+                //     'employee_code' => $memberId
+                // ]);
+
+
+
+                // // SAVE INVITE MAPPING HERE
+                // $insertSql = "INSERT INTO PSR_MEMBER_GROUP_INVITES ( MEMBER_ID, GROUP_ID, INVITE_HASH, INVITE_LINK, STATUS, CREATED_ON ) VALUES ( :member_id, :group_id, :invite_hash, :invite_link, 'PENDING', SYSDATE )";
+
+                // $params = [
+                //     ':member_id' => $memberId,
+                //     ':group_id' => $groupId,
+                //     ':invite_hash' => $response['data']['invite_hash'],
+                //     ':invite_link' => $response['data']['invite_link']
+                // ];
+                // $this->execute($insertSql, $params);
+
+
+                //$inviteLink = $groupArrs[0]["INVITE_LINK"] ?? null;
+
+                // $returnArr["groups"]["id"] = $groupId;
+                // $returnArr["groups"]["invite_link"] = $inviteLink;
+
+                // // Insert mapping
+                // $insertSql = "
+                //     INSERT INTO PSR_MEMBER_GROUP_MAP
+                //     ( MEMBER_ID, GROUP_ID, INVITE_STATUS, INVITE_LINK, INVITED_ON, CREATED_ON )
+                //     VALUES ( :member_id, :group_id, :invite_status, :invite_link, SYSDATE, SYSDATE )";
+
+                // $params = [
+                //     ":member_id" => $memberId,
+                //     ":group_id" => $groupId,
+                //     ":invite_status" => "Pending",
+                //     ":invite_link" => $inviteLink
+                // ];
+                
+                // $this->execute($insertSql, $params);
+
+                // $response = $telegram ->generateEmployeeInvite([
+                //     'telegram_group_id' => $groupArrs[0]['TELEGRAM_GROUP_ID'],
+                //      'employee_code' => $memberId
+                // ]);
+
+                $msg = "Hello Member,
+                Click below to get your Telegram Group Invite:
+                https://t.me/sdlitTechBot?start=" . $memberId . "_" . $groupArrs[0]['TELEGRAM_GROUP_ID'] ?? null;
+
+                $returnArr["groups"][] = [
+                    "id" => $groupId,
+                    "telegram_group_id" => $groupArrs[0]['TELEGRAM_GROUP_ID'] ?? null,
+                    "GROUP_NAME" => $groupArrs[0]['TITLE'] ?? null,
+                    "INVITE_LINK" => $msg
+                ];
             }
         }
 
         return [
             "success" => true,
-            "message" => "Groups assigned successfully"
+            "message" => "Groups assigned successfully",
+            "data" => $returnArr
         ];
-
-
-
-
-
-
-    //     $memberId = $data["member_data"]["id"];
-    //     $memberPhone = $data["member_data"]["mobile"];
-    //     $groupIds = $data["group_ids"];
-
-    //    // $telegram = new TelegramNodeService();
-        
-    //     $returnArr = [];
-    //     $returnArr["member_id"] = $memberId;
-    //     $returnArr["member_phone"] = $memberPhone;
-    //     $returnArr["groups"] = [];
-
-    //     foreach ($groupIds as $groupId) {
-    //         //$groupSql = " SELECT INVITE_LINK FROM PSR_TELEGRAM_GROUPS WHERE ID = '" . $groupId . "' ";
-    //         // Fetch group details
-    //         $groupSql = "SELECT TELEGRAM_GROUP_ID, TITLE FROM PSR_TELEGRAM_GROUPS WHERE ID = '{$groupId}'";
-    //         $groupStmt = $this->execute($groupSql);
-    //         $groupArrs = $this->fetchAll($groupStmt);
-            
-    //         // // Generate employee invite
-    //         // $response = $telegram->generateEmployeeInvite([
-    //         //     'telegram_group_id' => $groupArrs[0]['TELEGRAM_GROUP_ID'],
-    //         //     'employee_code' => $memberId
-    //         // ]);
-
-
-
-    //         // // SAVE INVITE MAPPING HERE
-    //         // $insertSql = "INSERT INTO PSR_MEMBER_GROUP_INVITES ( MEMBER_ID, GROUP_ID, INVITE_HASH, INVITE_LINK, STATUS, CREATED_ON ) VALUES ( :member_id, :group_id, :invite_hash, :invite_link, 'PENDING', SYSDATE )";
-
-    //         // $params = [
-    //         //     ':member_id' => $memberId,
-    //         //     ':group_id' => $groupId,
-    //         //     ':invite_hash' => $response['data']['invite_hash'],
-    //         //     ':invite_link' => $response['data']['invite_link']
-    //         // ];
-    //         // $this->execute($insertSql, $params);
-
-
-    //         //$inviteLink = $groupArrs[0]["INVITE_LINK"] ?? null;
-
-    //         // $returnArr["groups"]["id"] = $groupId;
-    //         // $returnArr["groups"]["invite_link"] = $inviteLink;
-
-    //         // // Insert mapping
-    //         // $insertSql = "
-    //         //     INSERT INTO PSR_MEMBER_GROUP_MAP
-    //         //     ( MEMBER_ID, GROUP_ID, INVITE_STATUS, INVITE_LINK, INVITED_ON, CREATED_ON )
-    //         //     VALUES ( :member_id, :group_id, :invite_status, :invite_link, SYSDATE, SYSDATE )";
-
-    //         // $params = [
-    //         //     ":member_id" => $memberId,
-    //         //     ":group_id" => $groupId,
-    //         //     ":invite_status" => "Pending",
-    //         //     ":invite_link" => $inviteLink
-    //         // ];
-            
-    //         // $this->execute($insertSql, $params);
-
-    //         // $response = $telegram ->generateEmployeeInvite([
-    //         //     'telegram_group_id' => $groupArrs[0]['TELEGRAM_GROUP_ID'],
-    //         //      'employee_code' => $memberId
-    //         // ]);
-
-    //         $msg = "Hello Member,
-    //         Click below to get your Telegram Group Invite:
-    //         https://t.me/sdlitTechBot?start=" . $memberId . "_" . $groupArrs[0]['TELEGRAM_GROUP_ID'] ?? null;
-
-    //         $returnArr["groups"][] = [
-    //             "id" => $groupId,
-    //             "telegram_group_id" => $groupArrs[0]['TELEGRAM_GROUP_ID'] ?? null,
-    //             "GROUP_NAME" => $groupArrs[0]['TITLE'] ?? null,
-    //             "INVITE_LINK" => $msg
-    //         ];
-    //     }
-
-    //     return [
-    //         "success" => true,
-    //         "message" => "Groups assigned successfully",
-    //         "data" => $returnArr
-    //     ];
         
     }
 

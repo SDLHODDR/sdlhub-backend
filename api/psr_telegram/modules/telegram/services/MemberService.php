@@ -115,33 +115,33 @@ class MemberService
 
         if ($saveData['success']) {
             try {
-                // // $payload = [
-                // //     'mobile' => $saveData['data']['member_phone'],
-                // //     'message' => $saveData['data']['groups']['invite_link']
-                // // ];
-
-                // // $telegramResponse = $this->whatsApp->inviteGroupMsg( $payload );
-
-                // $message = "";
-                // foreach ( $saveData['data']['groups'] as $group )
-                // {
-                //     $message .= "Telegram Group Invite:\n";
-                //     $message .= $group['INVITE_LINK'];
-                //     $message .= "\n\n";
-                // }
                 // $payload = [
                 //     'mobile' => $saveData['data']['member_phone'],
-                //     'message' => trim($message)
+                //     'message' => $saveData['data']['groups']['invite_link']
                 // ];
-                
+
                 // $telegramResponse = $this->whatsApp->inviteGroupMsg( $payload );
 
-                // if (
-                //     !$telegramResponse ||
-                //     !isset($telegramResponse['success'])
-                // ) {
-                //     throw new Exception( 'WhatsApp service unavailable' );
-                // }
+                $message = "";
+                foreach ( $saveData['data']['groups'] as $group )
+                {
+                    $message .= "Telegram Group Invite:\n";
+                    $message .= $group['INVITE_LINK'];
+                    $message .= "\n\n";
+                }
+                $payload = [
+                    'mobile' => $saveData['data']['member_phone'],
+                    'message' => trim($message)
+                ];
+                
+                $telegramResponse = $this->whatsApp->inviteGroupMsg( $payload );
+
+                if (
+                    !$telegramResponse ||
+                    !isset($telegramResponse['success'])
+                ) {
+                    throw new Exception( 'WhatsApp service unavailable' );
+                }
 
                 return [
                     "success" => true,
