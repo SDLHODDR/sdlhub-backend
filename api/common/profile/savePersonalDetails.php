@@ -784,6 +784,21 @@ if ($action === 'send_otp') {
 
     $user_task_id = null;
 
+    /* ==========================================================
+       RESOLVE CLIENT IP ADDRESS
+    ========================================================== */
+
+    $clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] 
+        ?? $_SERVER['HTTP_CLIENT_IP'] 
+        ?? $_SERVER['REMOTE_ADDR'] 
+        ?? 'UNKNOWN';
+
+    if (strpos($clientIp, ',') !== false) {
+        $clientIp = trim(explode(',', $clientIp)[0]);
+    }
+
+    $clientIpEsc = str_replace("'", "''", substr(trim($clientIp), 0, 100));
+
     $taskInsertSql = "
         INSERT INTO EPT_HR_USER_TASKS
         (           
@@ -800,8 +815,10 @@ if ($action === 'send_otp') {
             DEPT_ID,
             EXPIRE_ON,
             CREATED_ON,
-            CREATED_BY
+            CREATED_BY,
+            IP_ADDR
         )
+            
         VALUES
         (           
             :task_id,
@@ -817,7 +834,8 @@ if ($action === 'send_otp') {
             :dept_id,
             TO_DATE(:expire_on, 'YYYY-MM-DD HH24:MI:SS'),
             SYSDATE,
-            :created_by
+            :created_by,
+            :ip_addr
         )
         RETURNING ID INTO :user_task_id
     ";
@@ -842,6 +860,7 @@ if ($action === 'send_otp') {
     oci_bind_by_name($taskStmt, ':expire_on', $task['EXPDT']);
     oci_bind_by_name($taskStmt, ':created_by', $emp_code);
     oci_bind_by_name($taskStmt, ':user_task_id', $user_task_id, 10);
+    oci_bind_by_name($taskStmt, ':ip_addr', $clientIpEsc, 100);
 
     if (!oci_execute($taskStmt, OCI_NO_AUTO_COMMIT)) {
         $error = oci_error($taskStmt);
