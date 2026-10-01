@@ -100,7 +100,7 @@ bot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
 
   try {
     const response = await axios.post(
-      "http://localhost:8080/sdlhub/sdlhub_new/backend/api/psr_telegram/api/telegram/members/mapuser-group",
+      "http://localhost:8080/sdlhub-backend/api/psr_telegram/api/telegram/members/mapuser-group",
       {
         emp_code: empCode,
         group_id: groupId,
