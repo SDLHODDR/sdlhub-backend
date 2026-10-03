@@ -9,55 +9,47 @@ $sql___func___con = db_eportal();
 require_once __DIR__ . '/../../config/functions.php';
 require_once __DIR__ . '/../../config/utils.php';
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=UTF-8');
 
 try {
-    /* ==========================================================
+    /* ===========================================
        SESSION VALIDATION
-       ========================================================== */
+    =========================================== */
 
-    $empCode = trim($_SESSION['emp_code'] ?? '');
+    $empCode = $_SESSION['emp_code'] ?? $_SESSION['EMP_CODE'] ?? $_SESSION['employee_code'] ?? '';
 
-    if ($empCode === '') {
-        apiResponse(
-            false,
-            'Unauthorized access',
-            null,
-            401
-        );
+    if (empty($empCode)) {
+        apiResponse(false, 'Unauthorized access.', null, 401);
     }
 
-    /* ==========================================================
-       READ REQUEST
-       ========================================================== */
+    /* ===========================================
+       READ & PARSE INPUT (Supports FormData & JSON)
+    =========================================== */
 
-    $data = json_decode(
-        file_get_contents('php://input'),
-        true
-    );
+    if (!empty($_POST)) {
+        $data = $_POST;
+    } else {
+        $raw = file_get_contents('php://input');
+        $data = json_decode($raw, true) ?? [];
+    }
 
     if (!is_array($data)) {
-        apiResponse(
-            false,
-            'Invalid request data.',
-            null,
-            400
-        );
+        apiResponse(false, 'Invalid request data.', null, 400);
     }
 
-    /* ==========================================================
+    /* ===========================================
        READ NEW BANK DETAILS
-       ========================================================== */
+    =========================================== */
 
-    $newBankName = trim((string) ($data['bank_name'] ?? ''));
-    $newBranch   = trim((string) ($data['bank_branch'] ?? ''));
+    $newBankName = strtoupper(trim((string) ($data['bank_name'] ?? '')));
+    $newBranch   = strtoupper(trim((string) ($data['bank_branch'] ?? '')));
     $newIfsc     = strtoupper(trim((string) ($data['bank_ifsc'] ?? '')));
     $newAcno     = trim((string) ($data['bank_acno'] ?? ''));
     $newNominee  = trim((string) ($data['bank_nominee'] ?? ''));
 
-    /* ==========================================================
+    /* ===========================================
        VALIDATION
-       ========================================================== */
+    =========================================== */
 
     if (
         $newBankName === '' ||
@@ -65,131 +57,194 @@ try {
         $newIfsc === '' ||
         $newAcno === ''
     ) {
-        apiResponse(
-            false,
-            'Please enter all required bank details.',
-            null,
-            400
-        );
+        apiResponse(false, 'Please enter all required bank details.', null, 400);
     }
 
-    /* ==========================================================
-       IFSC VALIDATION
-       ========================================================== */
-
-    if (!preg_match('/^[A-Z0-9]+$/', $newIfsc)) {
-        apiResponse(
-            false,
-            'Invalid IFSC.',
-            null,
-            400
-        );
+    if (!preg_match('/^[A-Z0-9]+$/', $newIfsc) || strlen($newIfsc) !== 11) {
+        apiResponse(false, 'IFSC must be exactly 11 alphanumeric characters.', null, 400);
     }
-
-    if (strlen($newIfsc) !== 11) {
-        apiResponse(
-            false,
-            'IFSC must be 11 characters.',
-            null,
-            400
-        );
-    }
-
-    /* ==========================================================
-       ACCOUNT NUMBER VALIDATION
-       ========================================================== */
 
     if (!preg_match('/^[0-9]+$/', $newAcno)) {
-        apiResponse(
-            false,
-            'Invalid account number.',
-            null,
-            400
-        );
+        apiResponse(false, 'Account number should contain digits only.', null, 400);
     }
 
-    /* ==========================================================
-       RESOLVE CLIENT IP ADDRESS
-       ========================================================== */
+    /* ===========================================
+       PRE-FETCH TASK MASTER & OFFICE DETAILS
+    =========================================== */
 
-    $clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] 
-        ?? $_SERVER['HTTP_CLIENT_IP'] 
-        ?? $_SERVER['REMOTE_ADDR'] 
-        ?? 'UNKNOWN';
+    $task = singRec("
+        SELECT
+            t.*,
+            TO_CHAR(TRUNC(SYSDATE) + t.EXPIRY_DAYS, 'YYYY-MM-DD HH24:MI:SS') AS EXPDT
+        FROM EPT_HR_TASK_MASTER t
+        WHERE TASK_LABEL = 'Change Bank Info'
+    ");
 
-    if (strpos($clientIp, ',') !== false) {
-        $clientIp = trim(explode(',', $clientIp)[0]);
+    if (empty($task) || empty($task['ID']) || empty($task['EXPDT'])) {
+        apiResponse(false, 'Task configuration not found or incomplete for bank details authorization.', null, 500);
     }
 
-    $clientIpEsc = str_replace("'", "''", substr(trim($clientIp), 0, 100));
+    $empOfficeInfo = singRec("
+        SELECT o.DIVSN_ID, o.DEPT_ID
+        FROM EPT_HR_EMP_OFFICE_DET o
+        WHERE o.EMP_CODE = '{$empCode}'
+    ");
 
-    /* ==========================================================
-       ESCAPE EMPLOYEE CODE
-       ========================================================== */
+    $divsnId = !empty($empOfficeInfo['DIVSN_ID']) ? (int) $empOfficeInfo['DIVSN_ID'] : 0;
+    $deptId  = !empty($empOfficeInfo['DEPT_ID'])  ? (int) $empOfficeInfo['DEPT_ID']  : 0;
 
-    $empCodeEsc = str_replace("'", "''", $empCode);
+    /* ===========================================
+       FETCH CURRENT BANK DETAILS
+    =========================================== */
 
-    /* ==========================================================
-       START TRANSACTION
-       ========================================================== */
-
-    startQry();
-
-    /* ==========================================================
-       GET CURRENT BANK DETAILS
-       ========================================================== */
-
-    $employeeRows = executeSelectQry("
+    $oldSql = "
         SELECT
             BANK_NAME,
             AC_BRANCH_NAME,
             AC_IFSC_NO,
-            BANK_ACCT
+            BANK_ACCT,
+            BANK_NOMINEE
         FROM EPT_BCS_EMPLOYEE
-        WHERE EMP_CODE = '{$empCodeEsc}'
-    ");
+        WHERE EMP_CODE = :emp_code
+    ";
 
-    if ($employeeRows === false) {
-        forceRollback('Failed to fetch current bank details.');
+    $stmtOld = oci_parse($sql___func___con, $oldSql);
+    oci_bind_by_name($stmtOld, ':emp_code', $empCode);
+    oci_execute($stmtOld);
+    $oldRec = oci_fetch_assoc($stmtOld);
+    oci_free_statement($stmtOld);
+
+    if (!$oldRec) {
+        apiResponse(false, 'Employee profile record not found.', null, 404);
     }
 
-    if (empty($employeeRows)) {
-        forceRollback('Employee bank details not found.');
+    $oldBankName = strtoupper(trim((string) ($oldRec['BANK_NAME'] ?? '')));
+    $oldBranch   = strtoupper(trim((string) ($oldRec['AC_BRANCH_NAME'] ?? '')));
+    $oldIfsc     = strtoupper(trim((string) ($oldRec['AC_IFSC_NO'] ?? '')));
+    $oldAcno     = trim((string) ($oldRec['BANK_ACCT'] ?? ''));
+    $oldNominee  = trim((string) ($oldRec['BANK_NOMINEE'] ?? ''));
+
+    /* ===========================================
+       CHECK FOR EXISTING PENDING REQUEST
+    =========================================== */
+
+    $checkPendingSql = "
+        SELECT
+            ID,
+            NEW_BANK_NAME,
+            NEW_BANK_BRANCH,
+            NEW_BANK_IFSC,
+            NEW_BANK_ACNO,
+            NEW_BANK_NOMINEE,
+            DOC_NAME1,
+            TO_CHAR(CHG_ON, 'DD-Mon-YYYY HH24:MI') AS REQ_DATE
+        FROM EPT_HR_EMP_BANK_REQ
+        WHERE EMP_CODE = :emp_code
+          AND STATUS IN ('N', 'T')
+        ORDER BY ID DESC
+    ";
+
+    $stmtPending = oci_parse($sql___func___con, $checkPendingSql);
+    oci_bind_by_name($stmtPending, ':emp_code', $empCode);
+    oci_execute($stmtPending);
+    $pendingRec = oci_fetch_assoc($stmtPending);
+    oci_free_statement($stmtPending);
+
+    if ($pendingRec) {
+        apiResponse(
+            false,
+            'A bank details update request is already pending for authorization.',
+            [
+                'pending_req_id' => $pendingRec['ID'],
+                'req_date'       => $pendingRec['REQ_DATE'],
+                'pending_data'   => [
+                    'bank_name'    => $pendingRec['NEW_BANK_NAME'] ?? '',
+                    'bank_branch'  => $pendingRec['NEW_BANK_BRANCH'] ?? '',
+                    'bank_ifsc'    => $pendingRec['NEW_BANK_IFSC'] ?? '',
+                    'bank_acno'    => $pendingRec['NEW_BANK_ACNO'] ?? '',
+                    'bank_nominee' => $pendingRec['NEW_BANK_NOMINEE'] ?? '',
+                    'document'     => $pendingRec['DOC_NAME1'] ?? '',
+                ]
+            ],
+            409
+        );
     }
 
-    $oldData = $employeeRows[0];
+    /* ===========================================
+       HANDLE DOCUMENT UPLOAD (1MB Max Limit)
+    =========================================== */
 
-    $oldBankName = strtoupper(trim((string) ($oldData['BANK_NAME'] ?? '')));
-    $oldBranch   = strtoupper(trim((string) ($oldData['AC_BRANCH_NAME'] ?? '')));
-    $oldIfsc     = strtoupper(trim((string) ($oldData['AC_IFSC_NO'] ?? '')));
-    $oldAcno     = trim((string) ($oldData['BANK_ACCT'] ?? ''));
-    $oldNominee  = '';
+    $docName1 = null;
+    $docPath1 = null;
 
-    /* ==========================================================
-       NORMALIZE NEW VALUES
-       ========================================================== */
+    if (isset($_FILES['document']) && $_FILES['document']['error'] !== UPLOAD_ERR_NO_FILE) {
+        if ($_FILES['document']['error'] !== UPLOAD_ERR_OK) {
+            apiResponse(false, 'Document upload error occurred.', null, 400);
+        }
 
-    $newBankName = strtoupper($newBankName);
-    $newBranch   = strtoupper($newBranch);
-    $newIfsc     = strtoupper($newIfsc);
-    $newAcno     = trim($newAcno);
-    $newNominee  = trim($newNominee);
+        $fileTmpPath     = $_FILES['document']['tmp_name'];
+        $docOriginalName = basename($_FILES['document']['name']);
+        $fileSize        = $_FILES['document']['size'];
+        $fileExtension   = strtolower(pathinfo($docOriginalName, PATHINFO_EXTENSION));
 
-    $bankNameChanged = $oldBankName !== $newBankName;
-    $branchChanged   = $oldBranch !== $newBranch;
-    $ifscChanged     = $oldIfsc !== $newIfsc;
-    $accountChanged  = $oldAcno !== $newAcno;
-    $nomineeChanged  = $oldNominee !== $newNominee;
+        $allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png'];
+        if (!in_array($fileExtension, $allowedExtensions, true)) {
+            apiResponse(false, 'Invalid file format. Allowed types: ' . implode(', ', $allowedExtensions), null, 400);
+        }
 
-    $hasChange =
+        // 1MB Max Upload Size
+        if ($fileSize > 1 * 1024 * 1024) {
+            apiResponse(false, 'Uploaded document cannot exceed 1MB.', null, 400);
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime  = finfo_file($finfo, $fileTmpPath);
+        finfo_close($finfo);
+
+        $allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+        if (!in_array($mime, $allowedMimes, true)) {
+            apiResponse(false, 'Invalid file type detected.', null, 400);
+        }
+
+        $uploadDir = '/mnt/documents/uploads/bank_document/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        // DOC_NAME1 is VARCHAR2(20 BYTE)
+        $docName1 = substr(pathinfo($docOriginalName, PATHINFO_FILENAME), 0, 15) . '.' . $fileExtension;
+
+        // DOC_PATH1 is VARCHAR2(50 BYTE)
+        // Format: "B_00575_1726918293_ab12.pdf" (approx 26-28 chars)
+        $docPath1 = 'B_' . $empCode . '_' . time() . '_' . substr(bin2hex(random_bytes(2)), 0, 4) . '.' . $fileExtension;
+        $destPath = $uploadDir . $docPath1;
+
+        if (!move_uploaded_file($fileTmpPath, $destPath)) {
+            apiResponse(false, 'Failed to save uploaded document.', null, 500);
+        }
+    }
+
+    /* ===========================================
+       CHECK FOR DATA CHANGES
+    =========================================== */
+
+    $bankNameChanged = ($oldBankName !== $newBankName);
+    $branchChanged   = ($oldBranch !== $newBranch);
+    $ifscChanged     = ($oldIfsc !== $newIfsc);
+    $accountChanged  = ($oldAcno !== $newAcno);
+    $nomineeChanged  = ($oldNominee !== $newNominee);
+    $hasNewDocument  = ($docName1 !== null);
+
+    $hasChange = (
         $bankNameChanged ||
         $branchChanged ||
         $ifscChanged ||
         $accountChanged ||
-        $nomineeChanged;
+        $nomineeChanged ||
+        $hasNewDocument
+    );
 
     if (!$hasChange) {
-        endQry();
         apiResponse(
             false,
             'No changes found in bank details.',
@@ -204,218 +259,250 @@ try {
         );
     }
 
-    /* ==========================================================
-       ESCAPE STRINGS
-       ========================================================== */
+    /* ===========================================
+       RESOLVE CLIENT IP ADDRESS
+    =========================================== */
 
-    $oldBankNameEsc = str_replace("'", "''", $oldBankName);
-    $oldBranchEsc   = str_replace("'", "''", $oldBranch);
-    $oldIfscEsc     = str_replace("'", "''", $oldIfsc);
-    $oldAcnoEsc     = str_replace("'", "''", $oldAcno);
-    $oldNomineeEsc  = str_replace("'", "''", $oldNominee);
+    $clientIp = $_SERVER['HTTP_X_FORWARDED_FOR'] 
+        ?? $_SERVER['HTTP_CLIENT_IP'] 
+        ?? $_SERVER['REMOTE_ADDR'] 
+        ?? 'UNKNOWN';
 
-    $newBankNameEsc = str_replace("'", "''", $newBankName);
-    $newBranchEsc   = str_replace("'", "''", $newBranch);
-    $newIfscEsc     = str_replace("'", "''", $newIfsc);
-    $newAcnoEsc     = str_replace("'", "''", $newAcno);
-    $newNomineeEsc  = str_replace("'", "''", $newNominee);
+    if (strpos($clientIp, ',') !== false) {
+        $clientIp = trim(explode(',', $clientIp)[0]);
+    }
+    $clientIp = substr(trim($clientIp), 0, 100);
 
-    /* ==========================================================
-       CHECK EXISTING PENDING REQUEST
-       ========================================================== */
+    /* ===========================================
+       STEP 1: INSERT INTO EPT_HR_EMP_BANK_REQ
+    =========================================== */
 
-    $pendingRows = executeSelectQry("
-        SELECT
-            ID,
+    $reqId = null;
+    $status = 'N';
+
+    $insertReqSql = "
+        INSERT INTO EPT_HR_EMP_BANK_REQ
+        (
+            EMP_CODE,
+            BANK_NAME,
+            BANK_BRANCH,
+            BANK_IFSC,
+            BANK_ACNO,
+            BANK_NOMINEE,
             NEW_BANK_NAME,
             NEW_BANK_BRANCH,
             NEW_BANK_IFSC,
             NEW_BANK_ACNO,
             NEW_BANK_NOMINEE,
-            TO_CHAR(CHG_ON, 'DD-Mon-YYYY HH24:MI') AS REQ_DATE
-        FROM EPT_HR_EMP_BANK_REQ
-        WHERE EMP_CODE = '{$empCodeEsc}'
-          AND STATUS IN ('N', 'T')
-        ORDER BY ID DESC
-    ");
+            DOC_NAME1,
+            DOC_PATH1,
+            STATUS,
+            CHG_ON,
+            CHG_BY
+        )
+        VALUES
+        (
+            :emp_code,
+            :old_bank_name,
+            :old_bank_branch,
+            :old_bank_ifsc,
+            :old_bank_acno,
+            :old_bank_nominee,
+            :new_bank_name,
+            :new_bank_branch,
+            :new_bank_ifsc,
+            :new_bank_acno,
+            :new_bank_nominee,
+            :doc_name1,
+            :doc_path1,
+            :status,
+            SYSDATE,
+            :chg_by
+        )
+        RETURNING ID INTO :req_id
+    ";
 
-    if ($pendingRows === false) {
-        forceRollback('Failed to check existing pending bank request.');
+    $stmtReq = oci_parse($sql___func___con, $insertReqSql);
+    if (!$stmtReq) {
+        $err = oci_error($sql___func___con);
+        logOracleError($err, $insertReqSql);
+        apiResponse(false, 'Failed to prepare bank request statement.', null, 500);
     }
 
-    if (!empty($pendingRows)) {
-        endQry();
-        $pendingRec = $pendingRows[0];
-        apiResponse(
-            false,
-            'A bank details update request is already pending for authorization.',
-            [
-                'pending_req_id' => $pendingRec['ID'] ?? null,
-                'req_date'       => $pendingRec['REQ_DATE'] ?? null,
-                'pending_data'   => [
-                    'bank_name'    => $pendingRec['NEW_BANK_NAME'] ?? '',
-                    'bank_branch'  => $pendingRec['NEW_BANK_BRANCH'] ?? '',
-                    'bank_ifsc'    => $pendingRec['NEW_BANK_IFSC'] ?? '',
-                    'bank_acno'    => $pendingRec['NEW_BANK_ACNO'] ?? '',
-                    'bank_nominee' => $pendingRec['NEW_BANK_NOMINEE'] ?? '',
-                ]
-            ],
-            409
-        );
+    oci_bind_by_name($stmtReq, ':emp_code', $empCode);
+    oci_bind_by_name($stmtReq, ':old_bank_name', $oldBankName);
+    oci_bind_by_name($stmtReq, ':old_bank_branch', $oldBranch);
+    oci_bind_by_name($stmtReq, ':old_bank_ifsc', $oldIfsc);
+    oci_bind_by_name($stmtReq, ':old_bank_acno', $oldAcno);
+    oci_bind_by_name($stmtReq, ':old_bank_nominee', $oldNominee);
+
+    oci_bind_by_name($stmtReq, ':new_bank_name', $newBankName);
+    oci_bind_by_name($stmtReq, ':new_bank_branch', $newBranch);
+    oci_bind_by_name($stmtReq, ':new_bank_ifsc', $newIfsc);
+    oci_bind_by_name($stmtReq, ':new_bank_acno', $newAcno);
+    oci_bind_by_name($stmtReq, ':new_bank_nominee', $newNominee);
+
+    oci_bind_by_name($stmtReq, ':doc_name1', $docName1);
+    oci_bind_by_name($stmtReq, ':doc_path1', $docPath1);
+    oci_bind_by_name($stmtReq, ':status', $status);
+    oci_bind_by_name($stmtReq, ':chg_by', $empCode);
+    oci_bind_by_name($stmtReq, ':req_id', $reqId, 32);
+
+    if (!oci_execute($stmtReq, OCI_NO_AUTO_COMMIT)) {
+        $err = oci_error($stmtReq);
+        logOracleError($err, $insertReqSql);
+        oci_rollback($sql___func___con);
+        oci_free_statement($stmtReq);
+        apiResponse(false, 'Unable to record bank update request: ' . ($err['message'] ?? ''), null, 500);
+    }
+    oci_free_statement($stmtReq);
+
+    if (empty($reqId)) {
+        oci_rollback($sql___func___con);
+        apiResponse(false, 'Failed to generate authorization request ID.', null, 500);
     }
 
-    /* ==========================================================
-       INSERT BANK UPDATE REQUEST
-       ========================================================== */
+    /* ===========================================
+       STEP 2: INSERT INTO EPT_HR_USER_TASKS
+    =========================================== */
 
-    $requestId = execQry([
-        'type'  => 'insert',
-        'table' => 'EPT_HR_EMP_BANK_REQ',
-        'data'  => [
-            'EMP_CODE'         => $empCodeEsc,
-            'BANK_NAME'        => $oldBankNameEsc,
-            'BANK_BRANCH'      => $oldBranchEsc,
-            'BANK_IFSC'        => $oldIfscEsc,
-            'BANK_ACNO'        => $oldAcnoEsc,
-            'BANK_NOMINEE'     => $oldNomineeEsc,
+    $tranDesc = "Bank details update request submitted by employee {$empCode} for authorization.";
+    $userTaskId = null;
 
-            'NEW_BANK_NAME'    => $newBankNameEsc,
-            'NEW_BANK_BRANCH'  => $newBranchEsc,
-            'NEW_BANK_IFSC'    => $newIfscEsc,
-            'NEW_BANK_ACNO'    => $newAcnoEsc,
-            'NEW_BANK_NOMINEE' => $newNomineeEsc,
+    $insertTaskSql = "
+        INSERT INTO EPT_HR_USER_TASKS
+        (
+            TASK_ID,
+            STATUS,
+            TRAN_CODE,
+            TASK_TYPE,
+            TRAN_DESC,
+            TASK_GRP_DESC,
+            EMP_CODE_FOR,
+            REMARKS,
+            COMP_ID,
+            DIVSN_ID,
+            DEPT_ID,
+            EXPIRE_ON,
+            CREATED_ON,
+            CREATED_BY,
+            IP_ADDR
+        )
+        VALUES
+        (
+            :task_id,
+            'O',
+            :tran_code,
+            'A',
+            :tran_desc,
+            :task_grp_desc,
+            :emp_code_for,
+            'SENT FOR CONFIRMATION',
+            1,
+            :divsn_id,
+            :dept_id,
+            TO_DATE(:expire_on, 'YYYY-MM-DD HH24:MI:SS'),
+            SYSDATE,
+            :created_by,
+            :ip_addr
+        )
+        RETURNING ID INTO :user_task_id
+    ";
 
-            'STATUS'           => 'N',
-            'CHG_ON'           => 'SYSDATE',
-            'CHG_BY'           => $empCodeEsc
-        ],
-        'return' => 'ID',
-        'print'  => 0
-    ]);
-
-    if (!$requestId) {
-        forceRollback('Failed to submit bank details update request.');
-        return;
+    $stmtTask = oci_parse($sql___func___con, $insertTaskSql);
+    if (!$stmtTask) {
+        $err = oci_error($sql___func___con);
+        logOracleError($err, $insertTaskSql);
+        oci_rollback($sql___func___con);
+        apiResponse(false, 'Failed to prepare authorization task statement.', null, 500);
     }
 
-    /* ==========================================================
-       GET TASK MASTER
-       ========================================================== */
+    oci_bind_by_name($stmtTask, ':task_id', $task['ID']);
+    oci_bind_by_name($stmtTask, ':tran_code', $reqId);
+    oci_bind_by_name($stmtTask, ':tran_desc', $tranDesc);
+    oci_bind_by_name($stmtTask, ':task_grp_desc', $task['TASK_LABEL']);
+    oci_bind_by_name($stmtTask, ':emp_code_for', $empCode);
+    oci_bind_by_name($stmtTask, ':divsn_id', $divsnId);
+    oci_bind_by_name($stmtTask, ':dept_id', $deptId);
+    oci_bind_by_name($stmtTask, ':expire_on', $task['EXPDT']);
+    oci_bind_by_name($stmtTask, ':created_by', $empCode);
+    oci_bind_by_name($stmtTask, ':ip_addr', $clientIp);
+    oci_bind_by_name($stmtTask, ':user_task_id', $userTaskId, 32);
 
-    $task = singRec("
-        SELECT
-            t.*,
-            TRUNC(SYSDATE) + t.EXPIRY_DAYS AS EXPDT
-        FROM EPT_HR_TASK_MASTER t
-        WHERE TASK_LABEL = 'Change Bank Info'
-    ");
+    if (!oci_execute($stmtTask, OCI_NO_AUTO_COMMIT)) {
+        $err = oci_error($stmtTask);
+        logOracleError($err, $insertTaskSql);
+        oci_rollback($sql___func___con);
+        oci_free_statement($stmtTask);
+        apiResponse(false, 'Unable to create workflow authorization task.', null, 500);
+    }
+    oci_free_statement($stmtTask);
 
-    if (empty($task) || empty($task['ID'])) {
-        forceRollback('Task configuration not found for bank details update.');
-        return;
+    if (empty($userTaskId)) {
+        oci_rollback($sql___func___con);
+        apiResponse(false, 'Failed to generate workflow task ID.', null, 500);
     }
 
-    /* ==========================================================
-       GET EMPLOYEE OFFICE INFO
-       ========================================================== */
+    /* ===========================================
+       STEP 3: LINK TASK_ID BACK TO REQUEST
+    =========================================== */
 
-    $empOfficeInfo = singRec("
-        SELECT o.DIVSN_ID, o.DEPT_ID 
-        FROM EPT_HR_EMP_OFFICE_DET o 
-        WHERE o.EMP_CODE = '{$empCodeEsc}'        
-    ");
-
-    $DIVSN_ID = !empty($empOfficeInfo['DIVSN_ID']) ? $empOfficeInfo['DIVSN_ID'] : 0;
-    $DEPT_ID  = !empty($empOfficeInfo['DEPT_ID'])  ? $empOfficeInfo['DEPT_ID']  : 0;
-
-    $tran_desc = "Bank details update request submitted by employee {$empCodeEsc} for authorization.";
-
-    /* ==========================================================
-       INSERT USER TASK
-       ========================================================== */
-
-    $userTaskId = execQry([
-        'type'  => 'insert',
-        'table' => 'EPT_HR_USER_TASKS',
-        'data'  => [
-            'TASK_ID'       => $task['ID'],
-            'STATUS'        => 'O',
-            'TRAN_CODE'     => (string) $requestId,
-            'TASK_TYPE'     => 'A',
-            'TRAN_DESC'     => trim($tran_desc),
-            'TASK_GRP_DESC' => $task['TASK_LABEL'],
-            'EMP_CODE_FOR'  => $empCodeEsc,
-            'REMARKS'       => 'SENT FOR CONFIRMATION',
-            'COMP_ID'       => 1,
-            'DIVSN_ID'      => $DIVSN_ID,
-            'DEPT_ID'       => $DEPT_ID,
-            'EXPIRE_ON'     => $task['EXPDT'],
-            'CREATED_ON'    => 'SYSDATE',
-            'CREATED_BY'    => $empCodeEsc,
-            'IP_ADDR'       => $clientIpEsc
-        ],
-        'return' => 'ID',
-        'print'  => 0
-    ]);
-
-    if (!$userTaskId) {
-        forceRollback('Failed to create authorization task for bank details update.');
-        return;
-    }
-
-    /* ==========================================================
-       UPDATE TASK ID INTO BANK REQUEST TABLE
-       ========================================================== */
-
-    executeQry("
+    $updateLinkSql = "
         UPDATE EPT_HR_EMP_BANK_REQ
-        SET TASK_ID = {$userTaskId}
-        WHERE ID = {$requestId}
-    ");
+        SET TASK_ID = :user_task_id
+        WHERE ID = :req_id
+    ";
 
-    if ($qry_____result != 0) {
-        forceRollback('Failed to link task ID with bank details update request.');
-        return;
+    $stmtLink = oci_parse($sql___func___con, $updateLinkSql);
+    if (!$stmtLink) {
+        $err = oci_error($sql___func___con);
+        logOracleError($err, $updateLinkSql);
+        oci_rollback($sql___func___con);
+        apiResponse(false, 'Failed to prepare task linkage statement.', null, 500);
     }
 
-    /* ==========================================================
-       COMMIT
-       ========================================================== */
+    oci_bind_by_name($stmtLink, ':user_task_id', $userTaskId);
+    oci_bind_by_name($stmtLink, ':req_id', $reqId);
 
-    endQry();
+    if (!oci_execute($stmtLink, OCI_NO_AUTO_COMMIT)) {
+        $err = oci_error($stmtLink);
+        logOracleError($err, $updateLinkSql);
+        oci_rollback($sql___func___con);
+        oci_free_statement($stmtLink);
+        apiResponse(false, 'Unable to link task ID with bank request.', null, 500);
+    }
+    oci_free_statement($stmtLink);
 
-    /* ==========================================================
+    /* ===========================================
+       STEP 4: COMMIT TRANSACTION
+    =========================================== */
+
+    if (!oci_commit($sql___func___con)) {
+        $err = oci_error($sql___func___con);
+        logOracleError($err, 'Commit failed for EPT_HR_EMP_BANK_REQ');
+        oci_rollback($sql___func___con);
+        apiResponse(false, 'Unable to finalize bank request submission.', null, 500);
+    }
+
+    /* ===========================================
        SUCCESS RESPONSE
-       ========================================================== */
+    =========================================== */
 
     apiResponse(
         true,
         'Bank details update request submitted successfully for authorization.',
         [
-            'request_id'   => $requestId,
+            'request_id'   => $reqId,
             'user_task_id' => $userTaskId,
-            'master_task'  => $task['ID']
+            'doc_name'     => $docName1
         ],
         200
     );
 } catch (Throwable $e) {
-    forceRollback('Save bank details request failed.');
+    if (isset($sql___func___con) && $sql___func___con) {
+        oci_rollback($sql___func___con);
+    }
 
-    logOracleError(
-        [
-            'message' => $e->getMessage(),
-            'file'    => $e->getFile(),
-            'line'    => $e->getLine()
-        ],
-        'saveBankDetails.php'
-    );
-
-    apiResponse(
-        false,
-        'Unable to submit bank details update request.',
-        [
-            'error_detail' => $e->getMessage()
-        ],
-        500
-    );
+    logOracleError(['message' => $e->getMessage()], 'saveBankDetails.php');
+    apiResponse(false, 'An internal error occurred while processing your request.', null, 500);
 }
