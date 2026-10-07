@@ -89,7 +89,19 @@ function apiResponse($status = true, $message = "", $data = null, $httpCode = 20
     exit;
 }
 
-function getClientIp()
+
+function getClientIp(): string {
+    $ip = $_SERVER["REMOTE_ADDR"] ?? "0.0.0.0";
+    if (!empty($_SERVER["HTTP_X_FORWARDED_FOR"])) {
+        $ipList = explode(",", $_SERVER["HTTP_X_FORWARDED_FOR"]);
+        $ip = trim($ipList[0]);
+    } elseif (!empty($_SERVER["HTTP_CLIENT_IP"])) {
+        $ip = $_SERVER["HTTP_CLIENT_IP"];
+    }
+    return substr($ip, 0, 20);
+}
+
+/*function getClientIp()
 {
     $ipKeys = [
         'HTTP_CF_CONNECTING_IP',     // Cloudflare
@@ -107,7 +119,7 @@ function getClientIp()
     }
 
     return 'UNKNOWN';
-}
+}*/
 
 function getBrowserName($userAgent)
 {
