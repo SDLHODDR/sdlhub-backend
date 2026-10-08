@@ -229,4 +229,39 @@
 		else
 			return sprintf('%02d:%02d', $hours, $minutes);
 	}
+
+	/**
+  * Get active company IDs assigned to an employee profile using multiRec.
+  *
+  * @param string $empCode Employee code
+  * @return array List of COMP_ID values (e.g., ['01', '02'])
+  */
+ function getUserCompanyIds(string $empCode): array
+ {
+  if (empty($empCode)) {
+   return [];
+  }
+
+  $sql = "
+   SELECT PC.COMP_ID 
+   FROM HR_PROFILE_COMPANY PC 
+   INNER JOIN HR_EMP_PROFILE EP ON EP.PROFILE_ID = PC.PROFILE_ID
+   WHERE EP.EMP_CODE = :emp_code 
+   AND PC.STATUS = 'A' 
+   AND SYSDATE BETWEEN EP.EFFEC_FROM AND NVL(EP.EFFEC_TO, TO_DATE('01-MAR-3000', 'DD-MON-YYYY'))
+  ";
+
+  $binds = [
+   ':emp_code' => $empCode
+  ];
+
+  $records = multiRec($sql, $binds);
+
+  if (empty($records)) {
+   return [];
+  }
+
+  // Extract flat array of COMP_ID values
+  return array_column($records, 'COMP_ID');
+ }
 ?>
