@@ -10,15 +10,16 @@
 
 ob_start();
 define('CURRENT_PORTAL', 'hrms');
-require_once __DIR__ . "/../../../config/session.php";
-require_once __DIR__ . "/../../../cors.php";
-require_once __DIR__ . "/../../../config/db.php";
+require_once __DIR__ . "/../../config/session.php";
+require_once __DIR__ . "/../../cors.php";
+require_once __DIR__ . "/../../config/db.php";
 
 $sql___func___con = db_hrms();
 
-require_once __DIR__ . "/../../../config/functions.php";
-require_once __DIR__ . "/../../../config/utils.php";
-require_once __DIR__ . "/../../../config/env.php";
+require_once __DIR__ . "/../../config/functions.php";
+require_once __DIR__ . "/../../config/utils.php";
+require_once __DIR__ . "/../../config/env.php";
+require_once __DIR__ . "/../../config/emp_func.php";
 
 header("Content-Type: application/json; charset=UTF-8");
 
@@ -44,24 +45,43 @@ try {
        COMPANY ACCESS / IDS FILTER
     ========================================================== */
 
-    // Retrieve company IDs assigned to user session or context
-    $compIdsString = isset($_SESSION["comp_id"]) ? (string)$_SESSION["comp_id"] : '';
-    if (empty($compIdsString) && function_exists('getUserCompanyIds')) {
-        $compIdsString = getUserCompanyIds($_SESSION["emp_code"]);
+    // HRMS stores compId as an array; legacy sessions may contain a comma-separated string.
+    $rawCompanyIds = $_SESSION["compId"] ?? [];
+    if (is_array($rawCompanyIds)) {
+        $companyIds = $rawCompanyIds;
+    } else {
+        $companyIds = preg_split('/\s*,\s*/', trim((string)$rawCompanyIds, " \"'"), -1, PREG_SPLIT_NO_EMPTY);
+    }
+    $companyIds = array_values(array_unique(array_filter(array_map(
+        static fn($id) => trim((string)$id, " \"'"),
+        $companyIds
+    ), static fn($id) => $id !== '')));
+
+    if (empty($companyIds) && function_exists('getUserCompanyIds')) {
+        $empCode = trim((string)($_SESSION["emp_code"] ?? $_SESSION["EmpCode"] ?? ''));
+        $companyIds = getUserCompanyIds($empCode);
+        $companyIds = array_values(array_unique(array_filter(array_map(
+            static fn($id) => trim((string)$id),
+            $companyIds
+        ), static fn($id) => $id !== '')));
     }
 
-    // Default fallback if no company restriction exists
-    $compCondition = "";
-    if (!empty($compIdsString)) {
-        $compCondition = " AND EI.COMP_ID IN ($compIdsString) ";
-    }
+    // If company access cannot be resolved, fail closed and return no company rows.
+    $compIdsString = "'" . implode("', '", array_map(
+        static fn($id) => str_replace("'", "''", $id),
+        $companyIds
+    )) . "'";
+    $compCondition = empty($companyIds)
+        ? " AND 1 = 0 "
+        : " AND EI.COMP_ID IN ($compIdsString) ";
+
 
     /* ==========================================================
-       FILTER PARAMETER
+       UPCOMING TENURE WINDOW
     ========================================================== */
 
-    $emp_days_rec = singRec("SELECT VALUE FROM HR_SYS_PARAMS WHERE KEY = 'EMP_FILTR'");
-    $emp_days = isset($emp_days_rec['VALUE']) && is_numeric($emp_days_rec['VALUE']) ? (int)$emp_days_rec['VALUE'] : 30;
+    $emp_days = 200;
+    // $emp_days = 15;
 
     /* ==========================================================
        FETCH UPCOMING TENURE EMPLOYEES
@@ -93,11 +113,8 @@ try {
                 AND SYSDATE BETWEEN EFF_FROM AND NVL(EFF_TO, TO_DATE('01-MAR-3000', 'DD-MON-YYYY'))
           )
           AND A.EMP_CODE IN (SELECT EMP_CODE FROM HR_EMP_TENURE WHERE ETYPE_ID IN (2, 5, 6))
-          AND (
-              (TRUNC(A.EFF_TO) >= TRUNC(SYSDATE) AND TRUNC(A.EFF_TO) <= TRUNC(SYSDATE + {$emp_days}))
-              OR 
-              (TRUNC(A.EFF_TO) < TRUNC(SYSDATE) AND TRUNC(A.EFF_TO) >= TRUNC(SYSDATE - 365))
-          )
+          AND TRUNC(A.EFF_TO) >= TRUNC(SYSDATE)
+          AND TRUNC(A.EFF_TO) <= TRUNC(SYSDATE + {$emp_days})
         ORDER BY A.EFF_TO ASC
     ");
 
