@@ -68,7 +68,7 @@ try {
         'E' => 'Exit',
         'R' => 'Recruitment',
         'C' => 'Others',
-        'T' => 'Tenure Change',
+        'T' => 'TenureChange',
         'A' => 'Appraisal',
         'S' => 'Employee Transfer',
         'M' => 'Masters'
