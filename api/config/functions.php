@@ -860,6 +860,56 @@ function taskUpdate($status, $remark, $task_id, $taskGrp = null, $notChek = 0)
 	}
 }
 
+function generateTaskHR(
+	$task_group = null,
+	$tran_code = null,
+	$tran_desc = null,
+	$task_grp_desc = null,
+	$task_type = null,
+	$status = null,
+	$emp_code_for = null,
+	$created_by = null,
+	$comp_id = null,
+	$div_id = null,
+	$dept_id = null
+) {
+	$task_id = singRec("select id from hr_task_master where task_grp='" . $task_group . "'");
+	// print_r($task_id);
+	// echo '<br/>STATUS : ' . $status;
+	// echo '<br/>tran_code : ' . $tran_code;
+	// echo '<br/>task_type : ' . $task_type;
+	// echo '<br/>tran_desc : ' . $tran_desc;
+	// echo '<br/>task_grp_desc : ' . $task_grp_desc;
+	// echo '<br/>emp_code_for : ' . $emp_code_for;
+	// echo '<br/>comp_id : ' . $comp_id;
+	// echo '<br/>div_id : ' . $div_id;
+	// echo '<br/>dept_id : ' . $dept_id;
+	// echo '<br/>created_by : ' . $created_by;
+	// exit;
+
+	$newId = execQry(array(
+		'type' => 'insert',
+		'table' => 'HR_USER_TASKS',
+		'data' => array(
+			'ID' => '',
+			'TASK_ID' => trim($task_id['ID']),
+			'STATUS' => $status,
+			'TRAN_CODE' => $tran_code,
+			'TASK_TYPE' => $task_type,
+			'TRAN_DESC' => trim($tran_desc),
+			'TASK_GRP_DESC' => $task_grp_desc,
+			'EMP_CODE_FOR' => $emp_code_for,
+			'COMP_ID' => $comp_id,
+			'DIVSN_ID' => $div_id,
+			'DEPT_ID' => $dept_id,
+			'CREATED_ON' => 'SYSDATE',
+			'CREATED_BY' => $created_by
+		),
+		'return' => 'ID',
+		'print' => 0
+	));
+	return $newId;
+}
 
 function executeSelectQry($sqlVal)
 {

@@ -1,5 +1,3 @@
-require("dotenv").config();
-
 const express = require("express");
 
 const bot = require(
@@ -116,11 +114,12 @@ app.post(
   }
 );
 
+const configuredPort = Number.parseInt(process.env.TELEGRAM_PORT, 10);
+const port = Number.isInteger(configuredPort) ? configuredPort : 5003;
+
 app.listen(
-  5003,
+  port,
   () => {
-    console.log(
-      "Telegram API Running on 5003"
-    );
+    console.log(`Telegram API Running on ${port}`);
   }
 );

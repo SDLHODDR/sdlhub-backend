@@ -1,8 +1,14 @@
-//require("dotenv").config();
+const path = require("path");
+const fs = require("fs");
+
+require("dotenv").config({
+    path: path.resolve(__dirname, "../../../.env")
+});
 
 const express = require("express");
 const cors = require("cors");
 const qrcode = require("qrcode-terminal");
+
 const {
     Client,
     LocalAuth
@@ -14,24 +20,252 @@ app.use(cors());
 app.use(express.json());
 
 let isReady = false;
+let retryAttempt = 0;
+let retryTimer = null;
+let initializationInProgress = false;
 
 /*
 |--------------------------------------------------------------------------
-| WhatsApp Client
+| WhatsApp Configuration
 |--------------------------------------------------------------------------
 */
 
-const client = new Client({
-    authStrategy: new LocalAuth({ clientId: "psr-whatsapp" }),
+const clientId =
+    process.env.WHATSAPP_CLIENT_ID || "psr-whatsapp";
 
-    puppeteer: {
-        headless: false, // change to true after testing
-        args: [
-            "--no-sandbox",
-            "--disable-setuid-sandbox"
-        ]
+const authPath =
+    path.resolve(__dirname, ".wwebjs_auth");
+
+const webCacheType =
+    process.env.WHATSAPP_WEB_CACHE_TYPE || "none";
+
+if (!["local", "remote", "none"].includes(webCacheType)) {
+    throw new Error(
+        "WHATSAPP_WEB_CACHE_TYPE must be local, remote, or none"
+    );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Create WhatsApp Client
+|--------------------------------------------------------------------------
+*/
+
+const createWhatsAppClient = () => {
+
+    console.log(
+        "Creating WhatsApp Client:",
+        clientId
+    );
+
+    console.log(
+        "WhatsApp Auth Path:",
+        authPath
+    );
+
+    return new Client({
+
+        authStrategy: new LocalAuth({
+            clientId,
+            dataPath: authPath
+        }),
+
+        webVersionCache: {
+            type: webCacheType,
+            path: path.resolve(
+                __dirname,
+                ".wwebjs_cache"
+            )
+        },
+
+        puppeteer: {
+
+            headless:
+                process.env.WHATSAPP_HEADLESS
+                    ?.toLowerCase() !== "false",
+
+            args: [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage"
+            ]
+        }
+    });
+};
+
+let client = createWhatsAppClient();
+
+/*
+|--------------------------------------------------------------------------
+| Get WhatsApp Session Directory
+|--------------------------------------------------------------------------
+*/
+
+const getSessionPath = () => {
+
+    return path.join(
+        authPath,
+        `session-${clientId}`
+    );
+};
+
+/*
+|--------------------------------------------------------------------------
+| Remove Stale Chromium Lock Files
+|--------------------------------------------------------------------------
+|
+| IMPORTANT:
+| This does NOT delete the WhatsApp session.
+|
+| It only removes Chromium lock files:
+|
+| SingletonLock
+| SingletonCookie
+| SingletonSocket
+|
+|--------------------------------------------------------------------------
+*/
+
+const cleanupChromiumLockFiles = () => {
+
+    const sessionPath =
+        getSessionPath();
+
+    const lockFiles = [
+        "SingletonLock",
+        "SingletonCookie",
+        "SingletonSocket"
+    ];
+
+    console.log(
+        "Checking Chromium session locks:",
+        sessionPath
+    );
+
+    for (const fileName of lockFiles) {
+
+        const filePath =
+            path.join(
+                sessionPath,
+                fileName
+            );
+
+        try {
+
+            if (fs.existsSync(filePath)) {
+
+                fs.unlinkSync(filePath);
+
+                console.log(
+                    `Removed stale Chromium lock: ${fileName}`
+                );
+            }
+
+        } catch (error) {
+
+            console.error(
+                `Unable to remove Chromium lock ${fileName}:`,
+                error.message
+            );
+        }
     }
-});
+};
+
+/*
+|--------------------------------------------------------------------------
+| Safely Destroy WhatsApp Client
+|--------------------------------------------------------------------------
+*/
+
+const destroyClientSafely = async (
+    whatsAppClient
+) => {
+
+    if (!whatsAppClient) {
+        return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Destroy whatsapp-web.js client
+    |--------------------------------------------------------------------------
+    */
+
+    try {
+
+        await whatsAppClient.destroy();
+
+        console.log(
+            "WhatsApp Client Destroyed"
+        );
+
+    } catch (error) {
+
+        console.error(
+            "WhatsApp Client Destroy Failed:",
+            error.message
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Close Puppeteer Browser
+    |--------------------------------------------------------------------------
+    */
+
+    try {
+
+        if (whatsAppClient.pupBrowser) {
+
+            const browser =
+                whatsAppClient.pupBrowser;
+
+            if (browser.isConnected()) {
+
+                await browser.close();
+
+                console.log(
+                    "Puppeteer Browser Closed"
+                );
+            }
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Puppeteer Browser Cleanup Failed:",
+            error.message
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Close Puppeteer Page
+    |--------------------------------------------------------------------------
+    */
+
+    try {
+
+        if (
+            whatsAppClient.pupPage &&
+            !whatsAppClient.pupPage.isClosed()
+        ) {
+
+            await whatsAppClient.pupPage.close();
+
+            console.log(
+                "Puppeteer Page Closed"
+            );
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Puppeteer Page Cleanup Failed:",
+            error.message
+        );
+    }
+};
 
 /*
 |--------------------------------------------------------------------------
@@ -39,60 +273,345 @@ const client = new Client({
 |--------------------------------------------------------------------------
 */
 
-client.on("qr", (qr) => {
-    console.log("\n================================");
-    console.log("SCAN WHATSAPP QR");
-    console.log("================================\n");
-    qrcode.generate(qr, {
-        small: true
-    });
-});
+const registerClientEvents = (
+    whatsAppClient
+) => {
+
+    whatsAppClient.on(
+        "qr",
+        (qr) => {
+
+            console.log(
+                "\n================================"
+            );
+
+            console.log(
+                "SCAN WHATSAPP QR"
+            );
+
+            console.log(
+                "================================\n"
+            );
+
+            qrcode.generate(
+                qr,
+                {
+                    small: true
+                }
+            );
+        }
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Authenticated
+    |--------------------------------------------------------------------------
+    */
+
+    whatsAppClient.on(
+        "authenticated",
+        () => {
+
+            console.log(
+                "WhatsApp Authenticated"
+            );
+        }
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Authentication Failure
+    |--------------------------------------------------------------------------
+    */
+
+    whatsAppClient.on(
+        "auth_failure",
+        (msg) => {
+
+            isReady = false;
+
+            console.error(
+                "WhatsApp Auth Failure:",
+                msg
+            );
+        }
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Ready
+    |--------------------------------------------------------------------------
+    */
+
+    whatsAppClient.on(
+        "ready",
+        () => {
+
+            /*
+            | Only accept ready event from
+            | the currently active client.
+            */
+
+            if (whatsAppClient !== client) {
+                return;
+            }
+
+            isReady = true;
+
+            retryAttempt = 0;
+
+            console.log(
+                "\n================================"
+            );
+
+            console.log(
+                "WhatsApp Client Ready"
+            );
+
+            console.log(
+                "================================\n"
+            );
+        }
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Disconnected
+    |--------------------------------------------------------------------------
+    */
+
+    whatsAppClient.on(
+        "disconnected",
+        (reason) => {
+
+            if (whatsAppClient !== client) {
+                return;
+            }
+
+            console.error(
+                "WhatsApp Disconnected:",
+                reason
+            );
+
+            isReady = false;
+
+            scheduleClientRestart();
+        }
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Client Error
+    |--------------------------------------------------------------------------
+    */
+
+    whatsAppClient.on(
+        "error",
+        (error) => {
+
+            console.error(
+                "WhatsApp Client Error:",
+                error
+            );
+        }
+    );
+};
 
 /*
 |--------------------------------------------------------------------------
-| Authentication
+| Initialize WhatsApp Client
 |--------------------------------------------------------------------------
 */
 
-client.on("authenticated", () => {
-    console.log("WhatsApp Authenticated");
-});
+const initializeClient = async () => {
 
-client.on("auth_failure", (msg) => {
-    console.log("WhatsApp Auth Failure");
-    console.log(msg);
-});
+    /*
+    |--------------------------------------------------------------------------
+    | Prevent duplicate initialization
+    |--------------------------------------------------------------------------
+    */
+
+    if (initializationInProgress) {
+
+        console.log(
+            "WhatsApp initialization already in progress"
+        );
+
+        return;
+    }
+
+    initializationInProgress = true;
+
+    try {
+
+        console.log(
+            "\n================================"
+        );
+
+        console.log(
+            "Initializing WhatsApp Client..."
+        );
+
+        console.log(
+            "================================\n"
+        );
+
+        await client.initialize();
+
+    } catch (error) {
+
+        isReady = false;
+
+        console.error(
+            "WhatsApp Initialization Failed:",
+            error
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Cleanup failed client
+        |--------------------------------------------------------------------------
+        */
+
+        const failedClient =
+            client;
+
+        await destroyClientSafely(
+            failedClient
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Remove stale Chromium lock files
+        |--------------------------------------------------------------------------
+        */
+
+        cleanupChromiumLockFiles();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Schedule restart
+        |--------------------------------------------------------------------------
+        */
+
+        scheduleClientRestart();
+
+    } finally {
+
+        initializationInProgress = false;
+    }
+};
 
 /*
 |--------------------------------------------------------------------------
-| Ready
+| Schedule Client Restart
 |--------------------------------------------------------------------------
 */
 
-client.on("ready", () => {
+const scheduleClientRestart = () => {
 
-    isReady = true;
+    /*
+    |--------------------------------------------------------------------------
+    | Don't schedule multiple timers
+    |--------------------------------------------------------------------------
+    */
 
-    console.log("\n================================");
-    console.log("WhatsApp Client Ready");
-    console.log("================================\n");
-});
+    if (retryTimer) {
+        return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Exponential Backoff
+    |
+    | 5 sec
+    | 10 sec
+    | 20 sec
+    | 40 sec
+    | 60 sec
+    | 60 sec...
+    |--------------------------------------------------------------------------
+    */
+
+    const delay =
+        Math.min(
+            5000 * (2 ** retryAttempt),
+            60000
+        );
+
+    retryAttempt += 1;
+
+    console.log(
+        `Retrying WhatsApp initialization in ${delay / 1000} seconds`
+    );
+
+    retryTimer = setTimeout(
+        async () => {
+
+            retryTimer = null;
+
+            const previousClient =
+                client;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Destroy previous client
+            |--------------------------------------------------------------------------
+            */
+
+            await destroyClientSafely(
+                previousClient
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Cleanup stale Chromium locks
+            |--------------------------------------------------------------------------
+            */
+
+            cleanupChromiumLockFiles();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Create fresh client
+            |--------------------------------------------------------------------------
+            */
+
+            client =
+                createWhatsAppClient();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Register events for new client
+            |--------------------------------------------------------------------------
+            */
+
+            registerClientEvents(
+                client
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Initialize new client
+            |--------------------------------------------------------------------------
+            */
+
+            await initializeClient();
+
+        },
+        delay
+    );
+};
 
 /*
 |--------------------------------------------------------------------------
-| Disconnect
+| Register Initial Client Events
 |--------------------------------------------------------------------------
 */
 
-client.on("disconnected", (reason) => {
-    console.log("WhatsApp Disconnected:",reason);
-    isReady = false;
-
-    setTimeout(() => {
-        console.log("Reinitializing WhatsApp...");
-        client.initialize();
-    }, 5000);
-});
+registerClientEvents(
+    client
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -103,8 +622,17 @@ client.on("disconnected", (reason) => {
 app.post(
     "/send-message",
     async (req, res) => {
+
         try {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Check WhatsApp Ready
+            |--------------------------------------------------------------------------
+            */
+
             if (!isReady) {
+
                 return res.status(503).json({
                     success: false,
                     message:
@@ -117,6 +645,12 @@ app.post(
                 message
             } = req.body;
 
+            /*
+            |--------------------------------------------------------------------------
+            | Validate Input
+            |--------------------------------------------------------------------------
+            */
+
             if (!mobile || !message) {
 
                 return res.status(400).json({
@@ -128,7 +662,7 @@ app.post(
 
             /*
             |--------------------------------------------------------------------------
-            | Normalize Number
+            | Normalize Mobile Number
             |--------------------------------------------------------------------------
             */
 
@@ -136,10 +670,16 @@ app.post(
                 .toString()
                 .replace(/\D/g, "");
 
-            if (
-                !mobile.startsWith("91")
-            ) {
-                mobile = "91" + mobile;
+            /*
+            |--------------------------------------------------------------------------
+            | Add India Country Code
+            |--------------------------------------------------------------------------
+            */
+
+            if (!mobile.startsWith("91")) {
+
+                mobile =
+                    "91" + mobile;
             }
 
             console.log(
@@ -161,9 +701,12 @@ app.post(
             if (!numberId) {
 
                 return res.status(404).json({
+
                     success: false,
+
                     message:
                         "Number not found on WhatsApp",
+
                     mobile
                 });
             }
@@ -180,10 +723,19 @@ app.post(
                     message
                 );
 
+            /*
+            |--------------------------------------------------------------------------
+            | Response
+            |--------------------------------------------------------------------------
+            */
+
             return res.json({
+
                 success: true,
+
                 message:
                     "Message sent successfully",
+
                 data: response
             });
 
@@ -195,8 +747,11 @@ app.post(
             );
 
             return res.status(500).json({
+
                 success: false,
-                error: error.message
+
+                error:
+                    error.message
             });
         }
     }
@@ -208,15 +763,21 @@ app.post(
 |--------------------------------------------------------------------------
 */
 
-app.get("/", (req, res) => {
+app.get(
+    "/",
+    (req, res) => {
 
-    return res.json({
-        success: true,
-        ready: isReady,
-        message:
-            "WhatsApp Service Running"
-    });
-});
+        return res.json({
+
+            success: true,
+
+            ready: isReady,
+
+            message:
+                "WhatsApp Service Running"
+        });
+    }
+);
 
 /*
 |--------------------------------------------------------------------------
@@ -224,19 +785,25 @@ app.get("/", (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-const PORT = process.env.PORT || 5002;
-
-app.listen(PORT, () => {
-
-    console.log(
-        `WhatsApp Service Running on ${PORT}`
+const PORT =
+    Number(
+        process.env.WHATSAPP_PORT || 5002
     );
-});
+
+app.listen(
+    PORT,
+    () => {
+
+        console.log(
+            `WhatsApp Service Running on ${PORT}`
+        );
+    }
+);
 
 /*
 |--------------------------------------------------------------------------
-| Initialize Client
+| Initialize WhatsApp Client
 |--------------------------------------------------------------------------
 */
 
-client.initialize();
+initializeClient();
