@@ -41,9 +41,9 @@ class QueueProcessorService
         {
             case 'WHATSAPP_CAPTURE_CHATID':
                 
-                echo "Sending WhatsApp...\n";
+                echo "Sending WhatsApp group invite...\n";
                 
-                $this->processWhatsappCapture( $message );
+                $this->processWhatsappCapture($message);
                 
                 echo "Success\n";
                 
@@ -126,7 +126,7 @@ class QueueProcessorService
        
     }
 
-    private function processWhatsappCapture( $message )
+    private function processWhatsappCapture($message)
     {
         
         //$payload = json_decode( $message['PAYLOAD'], true );
@@ -145,31 +145,27 @@ class QueueProcessorService
 
         $group = $this->repo->getGroupById( $payload['group_id'] );
 
-        $inviteLink = "https://t.me/sdlitTechBot?start=" . $payload['employee_code'] . "_" . $group['TELEGRAM_GROUP_ID'];
+        $inviteLink = $group['INVITE_LINK'] ?? null;
+        if (empty($inviteLink)) {
+            throw new Exception('Telegram group invite link is unavailable.');
+        }
 
         $msg =
             "Hello {$payload['member_name']},\n\n" .
             "You have been assigned to Telegram Group:\n" .
             "{$group['TITLE']}\n\n" .
-            "Click below to start Telegram Bot:\n" .
+            "Join the group using this invite link:\n" .
             $inviteLink;
 
-        //print $payload['mobile'];
-        //if($payload['mobile'] == '9167655538') {
-            // print_r($payload); 
-            // print_r($msg);
-            // exit;    
-            // sending for test numbers
-            $response = $this->whatsApp->inviteGroupMsg([
+        $response = $this->whatsApp->inviteGroupMsg([
                 'mobile' => $payload['mobile'],
                 'message' => $msg
             ]);
 
-            if ( !$response || empty($response['success'])) {
-                throw new Exception( 'WhatsApp sending failed' );
-            }
-            
-            $this->repo->markSent( $message['MSG_ID'] );
-        //}
+        if (!$response || empty($response['success'])) {
+            throw new Exception($response['message'] ?? 'WhatsApp invite delivery failed.');
+        }
+
+        $this->repo->markSent($message['MSG_ID']);
     }
 }

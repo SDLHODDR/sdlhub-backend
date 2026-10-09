@@ -4,7 +4,7 @@
 
 require_once __DIR__ . '/../repositories/MemberRepository.php';
 require_once __DIR__ . '/../repositories/TeamSDLRepository.php';
-require_once 'WhatsAppNodeService.php';
+require_once __DIR__ . '/WhatsAppNodeService.php';
 
 class MemberService
 {
@@ -109,48 +109,51 @@ class MemberService
     public function saveMembersGroups($data)
     {
         $saveData = $this->repo->saveMembersGroups($data);
-        // echo "<pre/>";
-        // print_r($saveData);
-        // exit;
-
-        if ($saveData['success']) {
-            try {
-                // $payload = [
-                //     'mobile' => $saveData['data']['member_phone'],
-                //     'message' => $saveData['data']['groups']['invite_link']
-                // ];
-
-                // $telegramResponse = $this->whatsApp->inviteGroupMsg( $payload );
-
-                $message = "";
-                foreach ( $saveData['data']['groups'] as $group )
-                {
-                    $message .= "Telegram Group Invite:\n";
-                    $message .= $group['INVITE_LINK'];
-                    $message .= "\n\n";
-                }
-                $payload = [
-                    'mobile' => $saveData['data']['member_phone'],
-                    'message' => trim($message)
-                ];
-                
-                $telegramResponse = $this->whatsApp->inviteGroupMsg( $payload );
-
-                if (
-                    !$telegramResponse ||
-                    !isset($telegramResponse['success'])
-                ) {
-                    throw new Exception( 'WhatsApp service unavailable' );
-                }
-
-                return [
-                    "success" => true,
-                    "message" => "Groups invited successfully",
-                ];
-            } catch (Exception $e) {
-                throw new Exception( 'WhatsApp Node Service is down. ' . $e->getMessage() );
-            }
+        if (empty($saveData['success'])) {
+            return $saveData;
         }
+
+        $results = [];
+        foreach ($saveData['data']['invitations'] ?? [] as $invitation) {
+            $message = '';
+            foreach ($invitation['groups'] as $group) {
+                $message .= "Telegram Group Invite: {$group['GROUP_NAME']}\n";
+                $message .= $group['INVITE_LINK'] . "\n\n";
+            }
+
+            if ($message === '' || empty($invitation['member_phone'])) {
+                $results[] = [
+                    'member_id' => $invitation['member_id'],
+                    'status' => 'FAILED',
+                    'message' => $message === '' ? 'No group invite link is available.' : 'Employee phone number is missing.'
+                ];
+                continue;
+            }
+
+            $response = $this->whatsApp->inviteGroupMsg([
+                'mobile' => $invitation['member_phone'],
+                'message' => trim($message)
+            ]);
+
+            $sent = !empty($response['success']);
+            $results[] = [
+                'member_id' => $invitation['member_id'],
+                'status' => $sent ? 'SENT' : 'FAILED',
+                'message' => $response['message'] ?? null,
+                'error_code' => $response['error_code'] ?? null
+            ];
+        }
+
+        $allSent = !empty($results) && count(array_filter(
+            $results,
+            static fn($result) => $result['status'] !== 'SENT'
+        )) === 0;
+
+        return [
+            'success' => $allSent,
+            'message' => $allSent ? 'Telegram invitations sent.' : 'Some Telegram invitations could not be sent.',
+            'data' => $results
+        ];
     }
 
     public function listRegion()

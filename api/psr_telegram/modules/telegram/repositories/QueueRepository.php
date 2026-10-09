@@ -15,7 +15,7 @@ class QueueRepository extends BaseRepository
 
     public function getGroupById( $groupId )
     {
-      $sql = " SELECT TELEGRAM_GROUP_ID, TITLE FROM PSR_TELEGRAM_GROUPS WHERE ID = :group_id ";
+      $sql = " SELECT TELEGRAM_GROUP_ID, TITLE, INVITE_LINK FROM PSR_TELEGRAM_GROUPS WHERE ID = :group_id ";
       $stmt = oci_parse( $this->conn, $sql );
       oci_bind_by_name( $stmt, ":group_id", $groupId );
       oci_execute($stmt);
