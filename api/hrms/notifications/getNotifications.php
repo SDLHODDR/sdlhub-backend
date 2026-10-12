@@ -30,9 +30,12 @@ if (empty($empCode)) {
 $notifications = [];
 $stmt = null;
 
+$portalParam = $_GET['portal'];
+$tableNotificaiton = fetchNoficaitonTable($portalParam);
+
 try {
     $raw_notifications= multiRec("SELECT ID, EMP_CODE, ASON_DATE, ATTN_TYPE, DESCR, VIEWED_ON
-            FROM HR_NOTIFICATION
+            FROM " .$tableNotificaiton. "
             WHERE EMP_CODE = '" . $empCode. "'
             ORDER BY ASON_DATE DESC");
 
