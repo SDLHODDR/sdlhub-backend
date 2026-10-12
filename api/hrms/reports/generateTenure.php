@@ -83,7 +83,7 @@ try {
             "file" => $e->getFile(),
             "line" => $e->getLine(),
         ],
-        "tenureChange.php"
+        "generateTenure.php"
     );
 
     apiResponse(false, "Unable to generate Task.22", null, 500);

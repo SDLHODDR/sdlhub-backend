@@ -58,6 +58,7 @@ try {
         $conditionsDT[] = "TA.DEPT_ID IN ($deptCodesString)";
     }
     if (!empty($taskIdsString)) {
+        $taskIdsString .= ',26';
         $conditionsDT[] = "TA.TASK_ID IN ($taskIdsString)";
     }
 
@@ -81,6 +82,7 @@ try {
     /* ==========================================================
        1. DISTINCT TASK COUNTS PER TASK_ID
     ========================================================== */
+
     $distinct_tasks = multiRec("
         SELECT 
             tasks.TASK_ID, 
