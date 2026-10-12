@@ -1,31 +1,47 @@
 <?php
 
+require_once __DIR__ . '/TelegramService.php';
+
 class TelegramBotService
 {
-    private $baseUrl =
-        'http://localhost:5003';
+    private $telegram;
+
+    public function __construct()
+    {
+        $this->telegram = new TelegramService();
+    }
 
     public function sendGroupMessage($data)
     {
-        return $this->post('/send-group-message', $data );
+        return $this->sendMessage(
+            $data['telegram_group_id'] ?? null,
+            $data['message'] ?? null
+        );
     }
 
     public function sendDm($data)
     {
-        return $this->post('/send-dm', $data );
+        return $this->sendMessage(
+            $data['telegram_chat_id'] ?? null,
+            $data['message'] ?? null
+        );
     }
 
-    private function post($url, $payload)
+    private function sendMessage($chatId, $message)
     {
-        $ch = curl_init($this->baseUrl . $url);
+        if (empty($chatId) || !is_string($message) || trim($message) === '') {
+            return [
+                'success' => false,
+                'message' => 'A Telegram chat ID and message are required.'
+            ];
+        }
 
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt( $ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [ 'Content-Type: application/json']);
+        $response = $this->telegram->sendMessage($chatId, $message);
 
-        $response = curl_exec($ch);
-        curl_close($ch);
-
-        return json_decode($response, true);
+        return [
+            'success' => !empty($response['ok']),
+            'data' => $response['result'] ?? null,
+            'message' => $response['description'] ?? null
+        ];
     }
 }

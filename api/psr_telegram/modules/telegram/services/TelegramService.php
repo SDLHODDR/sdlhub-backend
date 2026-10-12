@@ -8,7 +8,7 @@ class TelegramService
     {
         $config = require __DIR__ . '/../../../config/telegram.php';
 
-        $this->botToken = $config['bot_token'];
+        $this->botToken = $config['bot_token'] ?? '';
     }
 
     public function sendMessage($chatId, $message)
@@ -36,16 +36,37 @@ class TelegramService
 
     private function curlPost($url, $payload)
     {
+        if ($this->botToken === '') {
+            return [
+                'ok' => false,
+                'description' => 'Telegram Bot API token is not configured.'
+            ];
+        }
+
         $ch = curl_init($url);
 
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+
         curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
 
         $response = curl_exec($ch);
+        $curlError = curl_error($ch);
 
         curl_close($ch);
 
-        return json_decode($response, true);
+        if ($response === false) {
+            return [
+                'ok' => false,
+                'description' => $curlError ?: 'Telegram Bot API request failed.'
+            ];
+        }
+
+        $decoded = json_decode($response, true);
+        return is_array($decoded)
+            ? $decoded
+            : ['ok' => false, 'description' => 'Telegram Bot API returned an invalid response.'];
     }
 }

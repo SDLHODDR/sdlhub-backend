@@ -860,6 +860,25 @@ function taskUpdate($status, $remark, $task_id, $taskGrp = null, $notChek = 0)
 	}
 }
 
+function fetchNoficaitonTable($portalParam) {
+	$returnTable = '';
+	switch ($portalParam) {
+		case 'eportal':
+			$returnTable = 'EPT_NOTIFICATION';
+			break;
+		
+		case 'hrms':
+			$returnTable = 'HR_NOTIFICATION';
+			break;
+
+		default:
+			$returnTable = 'EPT_NOTIFICATION';
+			break;
+	}
+
+	return $returnTable;
+}
+
 function generateTaskHR(
 	$task_group = null,
 	$tran_code = null,

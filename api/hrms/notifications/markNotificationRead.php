@@ -32,12 +32,15 @@ if ($data['ID'] === false || $data['ID'] === null) {
     apiResponse(false, "A valid notification ID is required.", null, 400);
 }
 
+$portalParam = $_GET['portal'];
+$tableNotificaiton = fetchNoficaitonTable($portalParam);
+
 try {
     startQry();
     $notifyId = $data['ID'] ?? null;
 
     if (!empty($notifyId) || $notifyId != "") {
-        $notiFy = executeQry("UPDATE hr_notification
+        $notiFy = executeQry("UPDATE ". $tableNotificaiton ."
             SET VIEWED_ON = NVL(VIEWED_ON, SYSDATE)
             WHERE ID = '" . $notifyId . "' AND EMP_CODE = '" . $empCode. "'");
     }

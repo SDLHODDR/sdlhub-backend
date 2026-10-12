@@ -1,5 +1,4 @@
 const express = require("express");
-const cors = require("cors");
 const axios = require("axios");
 const path = require("node:path");
 
@@ -14,8 +13,23 @@ const input = require("input");
 
 const app = express();
 
-app.use(cors());
 app.use(express.json());
+
+const internalApiKey = process.env.TELEGRAM_INTERNAL_API_KEY;
+if (!internalApiKey) {
+  throw new Error("TELEGRAM_INTERNAL_API_KEY must be set");
+}
+
+app.use((req, res, next) => {
+  if (req.get("X-Internal-Key") !== internalApiKey) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized"
+    });
+  }
+
+  next();
+});
 
 const apiId = Number(process.env.TELEGRAM_API_ID);
 const apiHash = process.env.TELEGRAM_API_HASH;
@@ -58,8 +72,6 @@ async function initTelegram() {
   await client.connect();
 
   console.log("Telegram Connected");
-
-  console.log(client.session.save());
 
   // REGISTER EVENTS
   registerTelegramEvents();
