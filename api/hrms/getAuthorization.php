@@ -58,7 +58,7 @@ try {
         $conditionsDT[] = "TA.DEPT_ID IN ($deptCodesString)";
     }
     if (!empty($taskIdsString)) {
-        $taskIdsString .= ',26';
+        $taskIdsString .= '25,26,27,32';
         $conditionsDT[] = "TA.TASK_ID IN ($taskIdsString)";
     }
 
