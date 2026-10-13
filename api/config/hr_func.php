@@ -1,12 +1,6 @@
 <?php
 include_once('db.php');
-session_start();
-requestDecoder();
-$GLOBALS['hrms'] = "http://192.168.10.143";
-$GLOBALS['eppnew'] = "http://192.168.10.142";
-$GLOBALS['teamsdl'] = "http://192.168.10.141";
-$GLOBALS['eppold'] = "http://192.168.10.144";
-include_once('sql_func.php');
+
 // if (!isset($_POST['texttransform']))
 	// $_POST = array_change_value_case($_POST, CASE_UPPER);
 function get_emp_type($etypid)
@@ -128,18 +122,7 @@ function getDivsnfromReq($reqid)
 	$comp = singRec("select hr.DIVSN_ID from hr_organogram ho inner join hr_recruitment hr on hr.org_id=ho.id WHERE HR.ID='" . $reqid . "'");
 	return $comp['DIVSN_ID'];
 }
-function stristrarray($array, $str)
-{
-	$indexes = array();
-	$ex = null;
-	foreach ($array as $k => $v) {
-		if (stristr($str, $v)) {
-			$ex = stristr($str, $v);
-			continue;
-		}
-	}
-	return $ex;
-}
+
 //function to encrypt the string
 function encode($str)
 {
@@ -212,13 +195,7 @@ function redirect($url)
 {
 	header('location:' . $url);
 }
-function check_array($array)
-{
-	if (!is_array($array)) {
-		$array = array();
-	}
-	return $array;
-}
+
 // function getEmpInfoByCode($id)
 // {
 // 	$EmpName = singRec("SELECT FNAME,LNAME 
@@ -252,20 +229,7 @@ function insertLog()
 		endQry();
 	}
 }
-function encodel($str)
-{
-	for ($i = 0; $i < 5; $i++) {
-		$str = strrev(base64_encode($str));
-	}
-	return $str;
-}
-function decodel($str)
-{
-	for ($i = 0; $i < 5; $i++) {
-		$str = base64_decode(strrev($str));
-	}
-	return $str;
-}
+
 function url_encode($in)
 {
 	return base64_encode(rawurlencode(serialize($in)));
