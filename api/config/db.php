@@ -1,24 +1,25 @@
 <?php
+ini_set('display_errors', '0');
 
 /******** Central Login DB ********/
-$login_conn = oci_connect("sdlusers","google10","192.168.20.150:1521/ora19csdl");
+$login_conn = @oci_connect("sdlusers","google10","192.168.20.150:1521/ora19csdl");
 if(!$login_conn){ die("Central DB connection failed"); }
 
 /******** App DB connections ********/
 function db_eportal(){
-    return oci_connect("eportal","google10","192.168.20.150:1521/ora19csdl");
+    return @oci_connect("eportal","google10","192.168.20.150:1521/ora19csdl");
 }
 function db_hrms(){
     return oci_connect("hrmslive","google10","192.168.20.150:1521/ora19csdl");
 }
 function db_epplive(){
-    return oci_connect("epplive","google10","192.168.20.150:1521/ora19csdl");
+    return @oci_connect("epplive","google10","192.168.20.150:1521/ora19csdl");
 }
 function db_teamsdl(){
-    return oci_connect("teamsdl","google10","192.168.20.150:1521/ora19csdl");
+    return @oci_connect("teamsdl","google10","192.168.20.150:1521/ora19csdl");
 }
 function db_eppprod(){
-    return oci_pconnect('epplive', 'DXt2XqxcNB', '192.168.10.111:1521/orcl');
+    return @oci_pconnect('epplive', 'DXt2XqxcNB', '192.168.10.111:1521/orcl');
 }
 
 function getDBConnection($dbName) {
