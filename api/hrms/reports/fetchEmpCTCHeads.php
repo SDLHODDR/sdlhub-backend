@@ -164,9 +164,9 @@ try {
         $office["ORG_ID"]
     );
 
-    print '<br/>----------------------------------</br>';
-    print_r($currentStructure);
-    print_r($proposedStructure);
+    //print '<br/>----------------------------------</br>';
+    //print_r($currentStructure);
+    //print_r($proposedStructure);
     //exit;
 
     $heads = multiRec(
@@ -194,13 +194,13 @@ try {
     }
 
    // print_r($heads);
-    echo '---Tenure---';
-    echo $empRecID . "===" . $tenure['ID'];
-    print_r($tenure);
-    echo '---SaveRows---';
-    print_r($savedRows);
-    echo '---SavedByCode---';
-    print_r($savedByCode);
+    // echo '---Tenure---';
+    // echo $empRecID . "===" . $tenure['ID'];
+    // print_r($tenure);
+    // echo '---SaveRows---';
+    // print_r($savedRows);
+    // echo '---SavedByCode---';
+    // print_r($savedByCode);
    // exit;
     $variableRows = multiRec(
         "SELECT A.AD_CODE, B.SH_DESCR AS DESCR,
@@ -225,8 +225,8 @@ try {
             "editable" => (float)($tenure["PROP_CTC"] ?? 0) > 360000,
         ];
     }
-    print_r($variableRows);
-    print_r($variableHeads);
+    //print_r($variableRows);
+    //print_r($variableHeads);
     //exit;
 
     $percentageLabels = [
@@ -281,10 +281,13 @@ try {
         $proposedAnnualTotal += $structureMonthly * 12;
     }
 
-    print_r($rows);
+    //print_r($rows);
     //exit;
 
-    $employeeName = getEmpInfoByCodeHR($empRecID);
+    $employeeName = getEmpInfoByCodeHRUtils($empRecID);
+    // print '------------';
+    // print_r($employeeName);
+    // exit;
     $data = [
         "employee" => [
             "code" => $empRecID,
@@ -313,8 +316,8 @@ try {
         "hasSavedHeads" => !empty($savedRows),
     ];
 
-    print_r($data);
-    exit;
+    // print_r($data);
+    // exit;
 
     if (!empty($sql___func___con)) {
         oci_close($sql___func___con);
