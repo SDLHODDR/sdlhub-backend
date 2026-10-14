@@ -188,6 +188,124 @@ function readJsonInput()
     return [];
 }
 
+function getEmpofficeHR($empId)
+{
+	$res = singRec("SELECT ddmonyyyy(b.doj)doj , ddmonyyyy(b.dol)dol , get_division_name(a.divsn_id)div , get_dept_name(a.dept_id)dept , 
+						get_design_name(a.desi_id)desig , get_org_loc_name(org_loc_id)loc , a.org_id,a.divsn_id,a.dept_id,c.company,d.TITLE_DESC
+						FROM hr_emp_office_det a 
+						inner join hr_employee_info b on a.emp_code=b.emp_code
+						inner join hr_organogram c on a.org_id = c.id 
+						inner join hr_titles d on d.title_id = b.title
+						where trunc(sysdate) between effec_from and nvl(effec_to , '01-Mar-3000') and a.emp_code='".$empId."'");
+ 	return $res;
+}
+
+function get_ctc_structure_hr($empCode,$ctc,$refId,$org_id) {
+   
+    $empjd = singRec("SELECT jd_id FROM hr_organogram WHERE id = '" . $org_id . "'");
+	$xpfbs = singRec("select amount_mnth from hr_emp_ctc_heads where emp_code='".$empCode."' 
+	and ad_code='XPFBS' AND REF_ID = '".$refId."'");                  
+    $ctc_heads = multiRec("SELECT a.*, b.sh_descr AS DESCR, b.ad_type, b.rnd_off, b.rnd_to 
+        FROM HR_JD_CTC_HEADS a
+        INNER JOIN hr_bcs_allw_dedn b ON a.AD_ID = b.ID
+        WHERE JD_ID = '" . $empjd['JD_ID'] . "'  
+        AND SYSDATE BETWEEN a.effec_from AND NVL(a.effec_to, '01-Mar-3000')ORDER BY b.seq_no");
+ 
+    foreach ($ctc_heads as $resctc) {
+        $ctc_key = $resctc['KEY'];
+        $ctc_val = $resctc['VAL'];
+        $ctc_head = $resctc['AD_CODE'];
+        $mctc = ($ctc) / 12;
+ 
+        if ($ctc_key != 'V') {
+            if ($ctc_head == 'MBAS') {
+                if ($ctc_key == 'C') {
+                    $mbasic_sal = ($mctc) * $ctc_val / 100;
+                    $mbasic_sal = ceilingHR($mbasic_sal, 50);
+                    $ctc_arr['MBAS'] = number_format($mbasic_sal, 2, '.', '');
+                } else if ($ctc_key == 'F') {
+                    $mbasic_sal = number_format($ctc_val, 2, '.', '');
+                    $monthly_amt = number_format($ctc_val, 2, '.', '');
+                }
+            }
+    
+            if ($ctc_head != 'MSPL') {
+                if ($ctc_head == 'CPF') {
+                    if ($mbasic_sal < 15000) {
+                        $monthly_amt = number_format(($mbasic_sal * 12) / 100, 2, '.', '');
+                    } else {
+                        if ($_REQUEST['XPFBS'] == 1) {
+                            $monthly_amt = number_format($ctc_val, 2, '.', '');
+                        } else if ($_REQUEST['XPFBS'] == 0) {
+                            $ctc_val = 12;
+                            $monthly_amt = number_format(($mbasic_sal * $ctc_val) / 100, 2, '.', '');
+                        }
+                    }
+                } else {
+                    if ($ctc_key == 'C') {
+                        $monthly_amt = number_format(($mctc * $ctc_val) / 100, 2, '.', '');
+                    } else if ($ctc_key == 'B') {
+                        $monthly_amt = number_format(($mbasic_sal * $ctc_val) / 100, 2, '.', '');
+                    } else if ($ctc_key == 'F') {
+                        $monthly_amt = number_format($ctc_val, 2, '.', '');
+                    }
+                }
+    
+                if ($resctc['RND_OFF'] != 'N' || $resctc['AD_CODE'] == 'MHRA') {
+                    if ($ctc_key != 'F') {
+                        $monthly_amt = number_format(ceilingHR($monthly_amt, $resctc['RND_TO']), 2, '.', '');
+                    }
+                }
+                $ctc_arr[$ctc_head] = number_format($monthly_amt, 2, '.', '');
+            }
+        }
+    }
+    
+    // Summing net CTC
+    $net_ctc = 0;
+    foreach ($ctc_arr as $key => $val) {
+        $net_ctc += floatval($val);
+    }
+	foreach ($ctc_arr as $key => $val) {
+        // echo $key.'=>'.$val;
+    }
+	// echo "NET : ".$net_ctc;
+
+    if ($net_ctc <= $mctc) {
+        $mspl = singRec("SELECT a.*, b.sh_descr AS DESCR, b.ad_type, b.rnd_off, b.rnd_to 
+                FROM HR_JD_CTC_HEADS a INNER JOIN hr_bcs_allw_dedn b ON a.AD_ID = b.ID 
+                WHERE JD_ID = '" . $empjd['JD_ID'] . "' AND a.AD_CODE = 'MSPL' 
+                AND SYSDATE BETWEEN a.effec_from AND NVL(a.effec_to, '01-Mar-3000') 
+                ORDER BY b.seq_no");
+    
+        if (isset($mspl['AD_CODE']) && $mspl['AD_CODE'] != '') {
+            $mspecial = $mctc - $net_ctc;
+            $mspecial = number_format(ceilingHR($mspecial, 10), 2, '.', '');
+            $ctc_arr['MSPL'] = $mspecial;
+        } else {
+            $diff = $mctc - $net_ctc;
+            $ctc_arr['MHRA'] = number_format(ceilingHR(($ctc_arr['MHRA'] + $diff), 10), 2, '.', '');
+        }
+		
+    } else {
+        $diff = $net_ctc - $mctc;
+        $ctc_arr['MHRA'] = number_format(ceilingHR(($ctc_arr['MHRA'] - $diff), 10), 2, '.', '');
+    } 
+    
+    return 
+        $ctc_arr;
+    
+}
+
+function ceilingHR($number, $significance) {
+    if ($significance != null) {
+        return (is_numeric($number) && is_numeric($significance) ) ? (ceil($number / $significance) * $significance) : $number;
+    } else {
+        return $number;
+    }
+
+}
+
 /* ===========================================
    AGE CALCULATION FUNCTION
 =========================================== */
