@@ -1,5 +1,4 @@
 <?php
-include_once('db.php');
 
 // if (!isset($_POST['texttransform']))
 	// $_POST = array_change_value_case($_POST, CASE_UPPER);
@@ -123,24 +122,6 @@ function getDivsnfromReq($reqid)
 	return $comp['DIVSN_ID'];
 }
 
-//function to encrypt the string
-function encode($str)
-{
-	for ($i = 0; $i < 5; $i++) {
-		$str = strrev(base64_encode($str)); //apply base64 first and then reverse the string
-	}
-	return $str;
-}
-//function to decrypt the string
-function decode($str)
-{
-	if (is_array($str)) return;
-	for ($i = 0; $i < 5; $i++) {
-		//if($_SERVER['REQUEST_METHOD']=='GET' && !empty($_SERVER['QUERY_STRING']))
-		$str = base64_decode(strrev($str)); //apply base64 first and then reverse the string}
-	}
-	return $str;
-}
 function requestDecoder()
 {
 	foreach ($_REQUEST as $key => $val) {
@@ -181,29 +162,16 @@ function myReq($request = null)
 		print_r($request);
 	echo '</pre>';
 }
-function arr($request = null)
-{
-	#requestDecoder();
-	echo '<pre>';
-	if (empty($request))
-		print_r($_REQUEST);
-	else
-		print_r($request);
-	echo '</pre>';
-}
-function redirect($url)
-{
-	header('location:' . $url);
-}
 
-// function getEmpInfoByCode($id)
-// {
-// 	$EmpName = singRec("SELECT FNAME,LNAME 
-// 						FROM HR_EMPLOYEE_INFO
-// 						WHERE EMP_CODE = '" . $id . "'");
-// 	$name = $EmpName['FNAME'] . ' ' . $EmpName['LNAME'];
-// 	return ucwords(strtolower($name));
-// }
+
+function getEmpInfoByCode($id)
+{
+	$EmpName = singRec("SELECT FNAME,LNAME 
+						FROM HR_EMPLOYEE_INFO
+						WHERE EMP_CODE = '" . $id . "'");
+	$name = $EmpName['FNAME'] . ' ' . $EmpName['LNAME'];
+	return ucwords(strtolower($name));
+}
 function insertLog()
 {
 	$page_name = end(explode("/", $_SERVER["PHP_SELF"]));
@@ -2089,5 +2057,40 @@ function inr_ctc($num) {
 		$num = $remaining . ',' . $lastThree;
 	}
 	return $num . $decimal;
+}
+
+/**
+ * Get active company IDs assigned to an employee profile using multiRec.
+ *
+ * @param string $empCode Employee code
+ * @return array List of COMP_ID values (e.g., ['01', '02'])
+ */
+function getUserCompanyIds(string $empCode): array
+{
+	if (empty($empCode)) {
+		return [];
+	}
+
+	$sql = "
+   SELECT PC.COMP_ID 
+   FROM HR_PROFILE_COMPANY PC 
+   INNER JOIN HR_EMP_PROFILE EP ON EP.PROFILE_ID = PC.PROFILE_ID
+   WHERE EP.EMP_CODE = :emp_code 
+   AND PC.STATUS = 'A' 
+   AND SYSDATE BETWEEN EP.EFFEC_FROM AND NVL(EP.EFFEC_TO, TO_DATE('01-MAR-3000', 'DD-MON-YYYY'))
+  ";
+
+	$binds = [
+		':emp_code' => $empCode
+	];
+
+	$records = multiRec($sql, $binds);
+
+	if (empty($records)) {
+		return [];
+	}
+
+	// Extract flat array of COMP_ID values
+	return array_column($records, 'COMP_ID');
 }
  ?>
