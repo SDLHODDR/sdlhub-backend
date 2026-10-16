@@ -127,6 +127,11 @@ function registerTelegramEvents() {
           {
             telegram_user_id: telegramUserId,
             telegram_group_id: telegramGroupId
+          },
+          {
+            headers: {
+              "X-Internal-Key": internalApiKey
+            }
           }
         );
 

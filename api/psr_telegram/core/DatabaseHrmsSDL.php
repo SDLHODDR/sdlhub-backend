@@ -10,7 +10,7 @@ class DatabaseHrmsSDL
 
             $config = require __DIR__ . '/../config/databasehrmssdl.php';
 
-            self::$connection = oci_connect(
+            self::$connection = @oci_connect(
                 $config['username'],
                 $config['password'],
                 $config['host'],

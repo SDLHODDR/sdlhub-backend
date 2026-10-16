@@ -17,7 +17,7 @@ class Database
             //     $config['charset']
             // );
 
-            self::$connection = oci_connect($config['username'], $config['password'], $config['host']);
+            self::$connection = @oci_connect($config['username'], $config['password'], $config['host']);
             
 
             if (!self::$connection) {

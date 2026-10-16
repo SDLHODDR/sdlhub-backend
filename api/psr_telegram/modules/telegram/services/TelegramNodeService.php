@@ -1,5 +1,8 @@
 <?php
 
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+
 class TelegramNodeService
 {
     private $baseUrl;
@@ -7,14 +10,15 @@ class TelegramNodeService
 
     public function __construct()
     {
-        $baseUrl = getenv('TELEGRAM_MTPROTO_URL') ?: ($_ENV['TELEGRAM_MTPROTO_URL'] ?? $_SERVER['TELEGRAM_MTPROTO_URL'] ?? 'http://127.0.0.1:5001');
-        $this->baseUrl = rtrim($baseUrl, '/');
-        $this->internalApiKey = getenv('TELEGRAM_INTERNAL_API_KEY') ?: ($_ENV['TELEGRAM_INTERNAL_API_KEY'] ?? $_SERVER['TELEGRAM_INTERNAL_API_KEY'] ?? '');
+        $config = require __DIR__ . '/../../../config/telegram.php';
+        
+        $this->baseUrl = $config['telegram_mtproto_url'] ?? '';
+        $this->internalApiKey = $config['telegram_internal_api_key'] ?? '';
     }
 
     public function createGroup($data)
     {
-        return $this->post('/create-group', $data);
+       return $this->post('/create-group', $data);
     }
 
     public function generateEmployeeInvite($data)

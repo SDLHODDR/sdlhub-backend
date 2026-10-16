@@ -37,6 +37,12 @@ class HrmsSDLRepository extends BaseHrmsSDLRepository
 
     public function getHRMSMembers($data)
     {
+        if (!isset($data['divsn_id'], $data['dept_id']) ||
+            !is_numeric($data['divsn_id']) ||
+            !is_numeric($data['dept_id'])) {
+            return [];
+        }
+
         $sql = "
                 SELECT
                     HEOD.EMP_CODE,
@@ -59,12 +65,15 @@ class HrmsSDLRepository extends BaseHrmsSDLRepository
                     ON HEOD.DEPT_ID = HDEPT.DEPT_ID
                 INNER JOIN HR_DESIGNATION HDESGN
                     ON HEOD.DESI_ID = HDESGN.DESI_ID
-                WHERE HEOD.DIVSN_ID = {$data['divsn_id']}
-                AND HEOD.DEPT_ID = {$data['dept_id']}
+                WHERE HEOD.DIVSN_ID = :division_id
+                AND HEOD.DEPT_ID = :department_id
                 AND HEI.STATUS NOT IN ('R')
                 ";
 
-        $stmt = $this->execute($sql);
+        $stmt = $this->execute($sql, [
+            ':division_id' => $data['divsn_id'],
+            ':department_id' => $data['dept_id'],
+        ]);
 
         return $this->fetchAll($stmt);
     }

@@ -80,7 +80,15 @@ class MemberRepository extends BaseRepository
 
       $ids = implode( ',', $memberIds );
 
-      $sql = " SELECT MEMBER_ID, MEMBER_TELEGRAM_ID FROM PSR_MEMBER_GROUP_MAPPING WHERE MEMBER_ID IN ($ids) ";
+            $sql = "
+                SELECT DISTINCT
+                    MGM.MEMBER_ID,
+                    M.TELEGRAM_CHAT_ID AS MEMBER_TELEGRAM_ID
+                FROM PSR_MEMBER_GROUP_MAPPING MGM
+                INNER JOIN PSR_TELEGRAM_MEMBERS M ON M.ID = MGM.MEMBER_ID
+                WHERE MGM.MEMBER_ID IN ($ids)
+                    AND M.TELEGRAM_CHAT_ID IS NOT NULL
+            ";
 
       $stmt = $this->execute( $sql );
 
@@ -93,16 +101,19 @@ class MemberRepository extends BaseRepository
       foreach ( $data['member_data'] as $member ) {
         $telegramId = $member[ 'member_telegram_id' ];
 
-        $sql = " INSERT INTO PSR_MESSAGE_QUEUE ( MESSAGE_TYPE, USER_CHAT_ID, USER_TELEGRAM_ID, PAYLOAD, STATUS, CREATED_ON ) VALUES (
-          'TELEGRAM_MEMBER_DM',
-          '{$telegramId}',
-          '{$telegramId}',
-          '{$payload}',
-          'PENDING',
-          SYSDATE
-        )";
+                if (empty($telegramId)) {
+                    throw new InvalidArgumentException('A Telegram chat ID is required for each recipient.');
+                }
 
-        $this->execute( $sql );
+                $sql = "INSERT INTO PSR_MESSAGE_QUEUE
+                    (MESSAGE_TYPE, USER_CHAT_ID, USER_TELEGRAM_ID, PAYLOAD, STATUS, CREATED_ON)
+                    VALUES ('TELEGRAM_MEMBER_DM', :chat_id, :telegram_user_id, :payload, 'PENDING', SYSDATE)";
+
+                $this->execute($sql, [
+                    ':chat_id' => $telegramId,
+                    ':telegram_user_id' => $telegramId,
+                    ':payload' => $payload,
+                ]);
       }
       return true;
     }
@@ -169,8 +180,8 @@ class MemberRepository extends BaseRepository
         $memberId = $data['emp_code'] ?? null;
         $chatId = $data['telegram_chat_id'] ?? null;
 
-        $groupSql = "SELECT INVITE_LINK, TITLE FROM PSR_TELEGRAM_GROUPS WHERE TELEGRAM_GROUP_ID = '{$groupId}'";
-        $groupStmt = $this->execute($groupSql);
+        $groupSql = "SELECT INVITE_LINK, TITLE FROM PSR_TELEGRAM_GROUPS WHERE TELEGRAM_GROUP_ID = :group_id";
+        $groupStmt = $this->execute($groupSql, [':group_id' => $groupId]);
         $groupArrs = $this->fetchAll($groupStmt);
         $inviteLink = $groupArrs[0]["INVITE_LINK"] ?? null;
 
@@ -338,9 +349,9 @@ class MemberRepository extends BaseRepository
     {
         $sql = "INSERT INTO
             PSR_MEMBER_GROUP_MAPPING
-            ( MEMBER_ID, MEMBER_FULLNAME, MEMBER_PHONE, MEMBER_EMPCODE, MEMBER_TELEGRAM_ID, GROUP_ID, GROUP_STATUS, CREATED_ON )
+            ( MEMBER_ID, MEMBER_FULLNAME, MEMBER_PHONE, MEMBER_EMPCODE, GROUP_ID, GROUP_STATUS, CREATED_ON )
             VALUES
-            ( :member_id, :member_name, :member_phone, :member_empcode, :telegram_id, :group_id, 'PENDING', SYSDATE )";
+            ( :member_id, :member_name, :member_phone, :member_empcode, :group_id, 'PENDING', SYSDATE )";
 
         $stmt = oci_parse( $this->conn, $sql );
 
@@ -349,9 +360,6 @@ class MemberRepository extends BaseRepository
         oci_bind_by_name( $stmt, ":member_phone", $member['mobile'] );
         oci_bind_by_name( $stmt, ":member_empcode", $member['employeeCode'] );
 
-        $telegramId = $member['username'] ?? null;
-
-        oci_bind_by_name( $stmt, ":telegram_id", $telegramId );
         oci_bind_by_name( $stmt, ":group_id", $groupId );
         oci_execute($stmt);
     }
@@ -385,7 +393,7 @@ class MemberRepository extends BaseRepository
 
     private function getTelegramMember( $employeeCode )
     {
-        $sql = " SELECT * FROM PSR_TELEGRAM_MEMBER WHERE EMPLOYEE_CODE = :employee_code AND ACTIVE_FLAG = 'Y' ";
+        $sql = " SELECT * FROM PSR_TELEGRAM_MEMBERS WHERE EMPLOYEE_CODE = :employee_code AND ACTIVE_FLAG = 'Y' ";
 
         $stmt = oci_parse( $this->conn, $sql );
 
@@ -460,19 +468,6 @@ class MemberRepository extends BaseRepository
         $groupId = $group['ID'];
         /*
         |--------------------------------------------------------------------------
-        | Update Queue
-        |--------------------------------------------------------------------------
-        */
-
-        $queueSql = " UPDATE PSR_MESSAGE_QUEUE SET USER_TELEGRAM_ID = :telegram_user_id 
-        WHERE USER_CHAT_ID = :telegram_user_id ";
-
-        $queueStmt = oci_parse( $this->conn, $queueSql );
-        oci_bind_by_name( $queueStmt, ":telegram_user_id", $telegramUserId );
-        oci_execute( $queueStmt, OCI_NO_AUTO_COMMIT );
-
-        /*
-        |--------------------------------------------------------------------------
         | Update Member
         |--------------------------------------------------------------------------
         */
@@ -490,10 +485,9 @@ class MemberRepository extends BaseRepository
         |--------------------------------------------------------------------------
         */
 
-        $mappingSql = "UPDATE PSR_MEMBER_GROUP_MAPPING SET MEMBER_TELEGRAM_ID = :telegram_user_id, GROUP_STATUS = 'JOINED', JOINED_ON = SYSDATE WHERE MEMBER_EMPCODE = :emp_code AND GROUP_ID = :group_id";
+        $mappingSql = "UPDATE PSR_MEMBER_GROUP_MAPPING SET GROUP_STATUS = 'JOINED', JOINED_ON = SYSDATE WHERE MEMBER_EMPCODE = :emp_code AND GROUP_ID = :group_id";
 
         $mappingStmt = oci_parse( $this->conn, $mappingSql );
-        oci_bind_by_name( $mappingStmt, ":telegram_user_id", $telegramUserId );
         oci_bind_by_name( $mappingStmt, ":emp_code",$empCode);
         oci_bind_by_name( $mappingStmt, ":group_id", $groupId );
         oci_execute( $mappingStmt, OCI_NO_AUTO_COMMIT );

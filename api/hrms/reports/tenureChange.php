@@ -43,6 +43,12 @@ try {
         } else if (isset($data['closeConfirmInt']) && $data['closeConfirmInt'] == true) {
             require_once "closeConfirmation.php";
             exit; 
+        } else if (isset($data['saveCTCBreakup']) && $data['saveCTCBreakup'] == true) {
+            require_once "saveCTCBreakup.php";
+            exit; 
+        } else if (isset($data['closeTenureCTCTask']) && $data['closeTenureCTCTask'] == true) {
+            require_once "closeTenureCTCTask.php";
+            exit; 
         }
         
     } else {
