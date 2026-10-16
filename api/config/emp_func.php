@@ -1,95 +1,108 @@
 <?php
 
-	function getEmpInfoByCode($id)
-	{
-		$EmpName = singRec("SELECT EMP_FNAME, EMP_LNAME 
+function getEmpInfoByCode($id)
+{
+	$EmpName = singRec("SELECT EMP_FNAME, EMP_LNAME 
 								FROM EPT_bcs_employee
 								WHERE emp_code = '" . $id . "'");
-		$name = $EmpName['EMP_FNAME'] . ' ' . $EmpName['EMP_LNAME'];
-		return ucwords(strtolower($name));
-	}
+	$name = $EmpName['EMP_FNAME'] . ' ' . $EmpName['EMP_LNAME'];
+	return ucwords(strtolower($name));
+}
 
-	function getEmpInfoByCodeHR($id)
-	{
-		$EmpName = singRec("SELECT FNAME,LNAME 
+function getEmpInfoByCodeHR($id)
+{
+	$EmpName = singRec("SELECT FNAME,LNAME 
 							FROM HR_EMPLOYEE_INFO
 							WHERE EMP_CODE = '" . $id . "'");
-		$name = $EmpName['FNAME'] . ' ' . $EmpName['LNAME'];
-		return ucwords(strtolower($name));
-	}
+	$name = $EmpName['FNAME'] . ' ' . $EmpName['LNAME'];
+	return ucwords(strtolower($name));
+}
 
-	function findParentOrgEmp($empCode)
-	{
-		$office = singRec("SELECT  ORG_ID,ORG_LOC_ID FROM 
+function getEmpoffice($empId)
+{
+	$res = singRec("SELECT ddmonyyyy(b.doj)doj , ddmonyyyy(b.dol)dol , get_division_name(a.divsn_id)div , get_dept_name(a.dept_id)dept , 
+							get_design_name(a.desi_id)desig , get_org_loc_name(org_loc_id)loc , a.org_id,a.divsn_id,a.dept_id,c.company,d.TITLE_DESC
+							FROM hr_emp_office_det a 
+							inner join hr_employee_info b on a.emp_code=b.emp_code
+							inner join hr_organogram c on a.org_id = c.id 
+							inner join hr_titles d on d.title_id = b.title
+							where trunc(sysdate) between effec_from and nvl(effec_to , '01-Mar-3000') and a.emp_code='" . $empId . "'");
+	return $res;
+}
+
+function findParentOrgEmp($empCode)
+{
+	$office = singRec("SELECT  ORG_ID,ORG_LOC_ID FROM 
 			(SELECT ORG_ID ,ORG_LOC_ID FROM HRMSLIVE.HR_EMP_OFFICE_DET 
-				WHERE emp_code = '".$empCode."' order by EFFEC_TO desc 
+				WHERE emp_code = '" . $empCode . "' order by EFFEC_TO desc 
 			) WHERE ROWNUM=1");
 
-		$report = singRec("SELECT PARENT_ORGID , PARENT_LOCID from hrmslive.hr_org_loc_parent 
-						WHERE org_id = '".$office['ORG_ID']."' and 
+	$report = singRec("SELECT PARENT_ORGID , PARENT_LOCID from hrmslive.hr_org_loc_parent 
+						WHERE org_id = '" . $office['ORG_ID'] . "' and 
 						SYSDATE between effec_from and nvl(effec_to , '01-Mar-3000') 
-						and ORG_LOC_ID ='".$office['ORG_LOC_ID']."'");
+						and ORG_LOC_ID ='" . $office['ORG_LOC_ID'] . "'");
 
-		$orgEmp = singRec("SELECT HO.EMP_CODE FROM hrmslive.HR_EMPLOYEE_INFO HO
+	$orgEmp = singRec("SELECT HO.EMP_CODE FROM hrmslive.HR_EMPLOYEE_INFO HO
 					INNER JOIN hrmslive.HR_EMP_OFFICE_DET HD ON HD.EMP_CODE = HO.EMP_CODE
-					WHERE HD.ORG_ID ='".$report['PARENT_ORGID']."'
-					AND HD.ORG_LOC_ID ='".$report['PARENT_LOCID']."' AND HO.STATUS='A'");
+					WHERE HD.ORG_ID ='" . $report['PARENT_ORGID'] . "'
+					AND HD.ORG_LOC_ID ='" . $report['PARENT_LOCID'] . "' AND HO.STATUS='A'");
 
-		return $orgEmp['EMP_CODE'];
-	}
-	function getbtwn_twodate($fromDate, $toDate, $format = 'd-M-Y')
-	{
-		$dates = array();
-		$current = strtotime($fromDate);
-		$date2 = strtotime($toDate);
-		$stepVal = '+1 day';
-		while ($current <= $date2) {
-			$dates[] = date($format, $current);
-			$current = strtotime($stepVal, $current);
-		}
-		return $dates;
-	}
+	return $orgEmp['EMP_CODE'];
+}
 
-	function generateTask(
-		$task_grp = null,
-		$tran_code = null,
-		$tran_desc = null,
-		$user = null,
-		$status = null,
-		$remarks = null,
-		$ref_task_id = null,
-		$emp_code_for = null,
-		$created_on = null,
-		$task_grp_desc = null,
-		$siteCode = null,
-		$udf1 = null,
-		$udf2 = null
-	) {
-		if (empty($user)) {
-			$user = $_SESSION['emp_code']; //$_SESSION['ept']['eptuserId'];
-		}
-		if (empty($status)) {
-			$status = 'O';
-		}
-		$tsk = singRec("SELECT * FROM EPT_TASK_MASTER 
+function getbtwn_twodate($fromDate, $toDate, $format = 'd-M-Y')
+{
+	$dates = array();
+	$current = strtotime($fromDate);
+	$date2 = strtotime($toDate);
+	$stepVal = '+1 day';
+	while ($current <= $date2) {
+		$dates[] = date($format, $current);
+		$current = strtotime($stepVal, $current);
+	}
+	return $dates;
+}
+
+function generateTask(
+	$task_grp = null,
+	$tran_code = null,
+	$tran_desc = null,
+	$user = null,
+	$status = null,
+	$remarks = null,
+	$ref_task_id = null,
+	$emp_code_for = null,
+	$created_on = null,
+	$task_grp_desc = null,
+	$siteCode = null,
+	$udf1 = null,
+	$udf2 = null
+) {
+	if (empty($user)) {
+		$user = $_SESSION['emp_code'];  // $_SESSION['ept']['eptuserId'];
+	}
+	if (empty($status)) {
+		$status = 'O';
+	}
+	$tsk = singRec("SELECT * FROM EPT_TASK_MASTER 
 						WHERE TASK_GRP = '" . $task_grp . "'");
-		if ($tsk['TASK_TYPE'] == 'N') //Notifiaction
-		{
-			$taskAccess = multiRec("SELECT u.EMP_CODE 
+	if ($tsk['TASK_TYPE'] == 'N')  // Notifiaction
+	{
+		$taskAccess = multiRec("SELECT u.EMP_CODE 
 									FROM EPT_PROFILE_TASK pt 
 									INNER JOIN BCS_USER_RIGHTS r on pt.PROFILE_ID=r.PROFILE_ID 
 									INNER JOIN BCS_USERS u on r.USER_CODE=u.CODE
 									WHERE pt.TASK_ID ='" . $tsk['ID'] . "' 
 									AND r.STATUS='A' and u.STATUS='A'
 									AND u.code <> '" . $user . "'");
-			$newId = null;
-			$newIdArr = null;
-			foreach ($taskAccess as $u) {
-				$userNoti = singRec("SELECT ID FROM ept_user_tasks 
+		$newId = null;
+		$newIdArr = null;
+		foreach ($taskAccess as $u) {
+			$userNoti = singRec("SELECT ID FROM ept_user_tasks 
 									WHERE task_id='" . $tsk['ID'] . "'
 									AND upper(tran_code)='" . strtoupper($tran_code) . "' ");
-				if ($userNoti['ID']) {
-					$newId = executeQry("insert into EPT_USER_TASKS(ID, TASK_ID, 
+			if ($userNoti['ID']) {
+				$newId = executeQry("insert into EPT_USER_TASKS(ID, TASK_ID, 
 																	CREATED_ON, CREATED_BY, 
 																	EXPIRE_ON, STATUS,TRAN_CODE,
 																	TASK_TYPE,TRAN_DESC,TASK_GRP_DESC,
@@ -109,33 +122,32 @@
 																	'" . $remarks . "',
 																	'" . $ref_task_id . "',
 																	'" . $u['EMP_CODE'] . "')returning ID into :newId", 'newId');
-					execQry(array(
-						'type' => 'insert', 'table' => 'EPT_USER_TASKS_LOG',
-						'data' => array(
-							'USER_TASKID' => $newId,
-							'TASK_ID' => $tsk['ID'], 'TRAN_CODE' => trim(strtoupper($tran_code)),
-							'SITE_CODE' => ($siteCode ? $siteCode : $_SESSION['ept']['eptSiteCode']),
-							'STATUS' => $status, 'REMARKS' => $remarks,
-							'EMP_CODE_FOR' => $u['EMP_CODE'], 'IP_ADDR' => $_SERVER['REMOTE_ADDR'],
-							'CHG_ON' => 'SYSDATE', 'CHG_BY' => $_SESSION['ept']['eptuserId']
-						), 'return' => '',
-						'print' => 0
-					));
-					$newIdArr[] = $newId;
-				}
+				execQry(array(
+					'type' => 'insert', 'table' => 'EPT_USER_TASKS_LOG',
+					'data' => array(
+						'USER_TASKID' => $newId,
+						'TASK_ID' => $tsk['ID'], 'TRAN_CODE' => trim(strtoupper($tran_code)),
+						'SITE_CODE' => ($siteCode ? $siteCode : $_SESSION['ept']['eptSiteCode']),
+						'STATUS' => $status, 'REMARKS' => $remarks,
+						'EMP_CODE_FOR' => $u['EMP_CODE'], 'IP_ADDR' => $_SERVER['REMOTE_ADDR'],
+						'CHG_ON' => 'SYSDATE', 'CHG_BY' => $_SESSION['ept']['eptuserId']
+					), 'return' => '',
+					'print' => 0
+				));
+				$newIdArr[] = $newId;
 			}
-			return $newIdArr;
-		} else  //Task 
-		{
-
-			$res = singRec("SELECT a.ID , a.task_id
+		}
+		return $newIdArr;
+	} else  // Task
+	{
+		$res = singRec("SELECT a.ID , a.task_id
 							FROM EPT_USER_TASKS a,ept_task_master b
 							WHERE b.task_grp='" . $task_grp . "' 
 							AND a.tran_code='" . strtoupper($tran_code) . "'
 							AND b.id=a.task_id 
 							AND a.SITE_CODE = '" . ($siteCode ? $siteCode : $_SESSION['ept']['eptSiteCode']) . "'");
-			if ($res['ID'] && $res['TASK_ID'] != '7') {
-				$newId = executeQry("UPDATE EPT_USER_TASKS 
+		if ($res['ID'] && $res['TASK_ID'] != '7') {
+			$newId = executeQry("UPDATE EPT_USER_TASKS 
 									SET CREATED_ON=nvl('" . $created_on . "',SYSDATE), 
 										CREATED_BY='" . trim(strtoupper($user)) . "',
 										EXPIRE_ON=to_date(nvl('" . $created_on . "',SYSDATE)) + " . $tsk['EXPIRY_DAYS'] . ", 
@@ -145,21 +157,21 @@
 										EMP_CODE_FOR='" . $emp_code_for . "',REMARKS='" . $remarks . "'
 									WHERE id='" . $res['ID'] . "'
 									returning ID into :newId", 'newId');
-				execQry(
-					array(
-						'type' => 'insert', 'table' => 'EPT_USER_TASKS_LOG',
-						'data' => array(
-							'USER_TASKID' => $newId, 'TASK_ID' => $tsk['ID'], 'TRAN_CODE' => trim(strtoupper($tran_code)),
-							'SITE_CODE' => ($siteCode ? $siteCode : $_SESSION['ept']['eptSiteCode']), 'STATUS' => $status, 'REMARKS' => $remarks,
-							'EMP_CODE_FOR' => $emp_code_for, 'IP_ADDR' => $_SERVER['REMOTE_ADDR'],
-							'CHG_ON' => 'SYSDATE', 'CHG_BY' => $_SESSION['ept']['eptuserId']
-						),
-						'return' => '',
-						'print' => 0
-					)
-				);
-			} else {
-				$newId = executeQry("insert into EPT_USER_TASKS
+			execQry(
+				array(
+					'type' => 'insert', 'table' => 'EPT_USER_TASKS_LOG',
+					'data' => array(
+						'USER_TASKID' => $newId, 'TASK_ID' => $tsk['ID'], 'TRAN_CODE' => trim(strtoupper($tran_code)),
+						'SITE_CODE' => ($siteCode ? $siteCode : $_SESSION['ept']['eptSiteCode']), 'STATUS' => $status, 'REMARKS' => $remarks,
+						'EMP_CODE_FOR' => $emp_code_for, 'IP_ADDR' => $_SERVER['REMOTE_ADDR'],
+						'CHG_ON' => 'SYSDATE', 'CHG_BY' => $_SESSION['ept']['eptuserId']
+					),
+					'return' => '',
+					'print' => 0
+				)
+			);
+		} else {
+			$newId = executeQry("insert into EPT_USER_TASKS
 										(ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, 
 										TRAN_CODE,TASK_TYPE,TRAN_DESC,TASK_GRP_DESC,SITE_CODE,REMARKS,REF_TASK_ID,EMP_CODE_FOR, UDF_1, UDF_2)
 										values(
@@ -180,88 +192,55 @@
 										'" . $udf2 . "'
 										) 
 										returning ID into :newId", 'newId');
-				execQry(
-					array(
-						'type' => 'insert', 'table' => 'EPT_USER_TASKS_LOG',
-						'data' => array(
-							'USER_TASKID' => $newId, 'TASK_ID' => $tsk['ID'], 'TRAN_CODE' => trim(strtoupper($tran_code)),
-							'SITE_CODE' => ($siteCode ? $siteCode : $_SESSION['ept']['eptSiteCode']), 'STATUS' => $status, 'REMARKS' => $remarks,
-							'EMP_CODE_FOR' => $emp_code_for, 'IP_ADDR' => $_SERVER['REMOTE_ADDR'],
-							'CHG_ON' => 'SYSDATE', 'CHG_BY' => $_SESSION['ept']['eptuserId']
-						),
-						'return' => '',
-						'print' => 0
-					)
-				);
-			}
-			return $newId;
+			execQry(
+				array(
+					'type' => 'insert', 'table' => 'EPT_USER_TASKS_LOG',
+					'data' => array(
+						'USER_TASKID' => $newId, 'TASK_ID' => $tsk['ID'], 'TRAN_CODE' => trim(strtoupper($tran_code)),
+						'SITE_CODE' => ($siteCode ? $siteCode : $_SESSION['ept']['eptSiteCode']), 'STATUS' => $status, 'REMARKS' => $remarks,
+						'EMP_CODE_FOR' => $emp_code_for, 'IP_ADDR' => $_SERVER['REMOTE_ADDR'],
+						'CHG_ON' => 'SYSDATE', 'CHG_BY' => $_SESSION['ept']['eptuserId']
+					),
+					'return' => '',
+					'print' => 0
+				)
+			);
 		}
+		return $newId;
 	}
+}
 
-	// function arr($request = null)
-	// {
-	// #requestDecoder();
-	// echo '<pre>';
-	// if (empty($request))
-	// 	print_r($_REQUEST);
-	// else
-	// 	print_r($request);
-	// echo '</pre>';
-	// }
+// function arr($request = null)
+// {
+// #requestDecoder();
+// echo '<pre>';
+// if (empty($request))
+// 	print_r($_REQUEST);
+// else
+// 	print_r($request);
+// echo '</pre>';
+// }
 
-	function sum_the_time($time1, $time2)
-	{
-		$times = array($time1, $time2);
-		$seconds = 0;
-		foreach ($times as $time) {
-			list($hour, $minute, $second) = explode(':', $time);
-			$seconds += $hour * 3600;
-			$seconds += $minute * 60;
-			$seconds += $second;
-		}
-		$hours = floor($seconds / 3600);
-		$seconds -= $hours * 3600;
-		$minutes  = floor($seconds / 60);
-		$seconds -= $minutes * 60;
-		// return "{$hours}:{$minutes}:{$seconds}";
-		if ($seconds > 0)
-			return sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
-		else
-			return sprintf('%02d:%02d', $hours, $minutes);
+function sum_the_time($time1, $time2)
+{
+	$times = array($time1, $time2);
+	$seconds = 0;
+	foreach ($times as $time) {
+		list($hour, $minute, $second) = explode(':', $time);
+		$seconds += $hour * 3600;
+		$seconds += $minute * 60;
+		$seconds += $second;
 	}
+	$hours = floor($seconds / 3600);
+	$seconds -= $hours * 3600;
+	$minutes = floor($seconds / 60);
+	$seconds -= $minutes * 60;
+	// return "{$hours}:{$minutes}:{$seconds}";
+	if ($seconds > 0)
+		return sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
+	else
+		return sprintf('%02d:%02d', $hours, $minutes);
+}
 
-	/**
-  * Get active company IDs assigned to an employee profile using multiRec.
-  *
-  * @param string $empCode Employee code
-  * @return array List of COMP_ID values (e.g., ['01', '02'])
-  */
- function getUserCompanyIds(string $empCode): array
- {
-  if (empty($empCode)) {
-   return [];
-  }
 
-  $sql = "
-   SELECT PC.COMP_ID 
-   FROM HR_PROFILE_COMPANY PC 
-   INNER JOIN HR_EMP_PROFILE EP ON EP.PROFILE_ID = PC.PROFILE_ID
-   WHERE EP.EMP_CODE = :emp_code 
-   AND PC.STATUS = 'A' 
-   AND SYSDATE BETWEEN EP.EFFEC_FROM AND NVL(EP.EFFEC_TO, TO_DATE('01-MAR-3000', 'DD-MON-YYYY'))
-  ";
-
-  $binds = [
-   ':emp_code' => $empCode
-  ];
-
-  $records = multiRec($sql, $binds);
-
-  if (empty($records)) {
-   return [];
-  }
-
-  // Extract flat array of COMP_ID values
-  return array_column($records, 'COMP_ID');
- }
 ?>
