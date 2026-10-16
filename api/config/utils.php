@@ -306,6 +306,15 @@ function ceilingHR($number, $significance) {
 
 }
 
+function getEmpInfoByCodeHRUtils($id)
+{
+    $EmpName = singRec("SELECT FNAME,LNAME 
+                        FROM HR_EMPLOYEE_INFO
+                        WHERE EMP_CODE = '" . $id . "'");
+    $name = $EmpName['FNAME'] . ' ' . $EmpName['LNAME'];
+    return ucwords(strtolower($name));
+}
+
 /* ===========================================
    AGE CALCULATION FUNCTION
 =========================================== */
