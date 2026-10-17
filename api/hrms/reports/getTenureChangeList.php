@@ -115,6 +115,8 @@ try {
           AND A.EMP_CODE IN (SELECT EMP_CODE FROM HR_EMP_TENURE WHERE ETYPE_ID IN (2, 5, 6))
           AND TRUNC(A.EFF_TO) >= TRUNC(SYSDATE)
           AND TRUNC(A.EFF_TO) <= TRUNC(SYSDATE + {$emp_days})
+          OR (TRUNC(A.EFF_TO) < TRUNC(SYSDATE)
+          AND TRUNC(A.EFF_TO) >= TRUNC(SYSDATE - 365))
         ORDER BY A.EFF_TO ASC
     ");
 
