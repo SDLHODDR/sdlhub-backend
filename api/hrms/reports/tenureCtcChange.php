@@ -1,0 +1,368 @@
+<?php
+
+define('CURRENT_PORTAL', 'hrms');
+require_once __DIR__ . '/../../config/session.php';
+require_once __DIR__ . '/../../cors.php';
+require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../../config/validateCsrf.php';
+
+$sql___func___con = db_hrms();
+require_once __DIR__ . '/../../config/functions.php';
+require_once __DIR__ . '/../../config/utils.php';
+require_once __DIR__ . '/../../config/emp_func.php';
+
+header('Content-Type: application/json; charset=UTF-8');
+
+if (!$sql___func___con) {
+    apiResponse(false, 'Database connection failed.', null, 500);
+    exit;
+}
+
+$empCode = trim((string)($_SESSION['emp_code'] ?? $_SESSION['EmpCode'] ?? ''));
+if ($empCode === '') {
+    apiResponse(false, 'Session expired. Please login again.', null, 401);
+    exit;
+}
+
+$method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+$input = json_decode(file_get_contents('php://input'), true) ?: [];
+$transactionStarted = false;
+
+function tenureCtcSafeCode($value) {
+    $value = trim((string)$value);
+    return $value !== '' && preg_match('/^[A-Za-z0-9_-]+$/', $value) ? $value : '';
+}
+
+function tenureCtcResolveSalaryType($employeeCode, $adCode) {
+    // Task 26 creates tenure CTC rows, whose salary type is T.
+    return 'T';
+}
+
+function tenureCtcCeiling($number, $step) {
+    return is_numeric($number) && is_numeric($step) && (float)$step !== 0.0
+        ? ceil((float)$number / (float)$step) * (float)$step
+        : (float)$number;
+}
+
+function tenureCtcBuildStructure($ctc, $headRows, $pfInput = 0) {
+    $monthlyCtc = (float)$ctc / 12;
+    $structure = [];
+    $basic = 0.0;
+    foreach ($headRows as $head) {
+        $code = (string)$head['AD_CODE'];
+        $calcKey = strtoupper((string)($head['CALC_KEY'] ?? ''));
+        $value = (float)($head['CALC_VAL'] ?? 0);
+        $amount = 0.0;
+
+        if ($code === 'MBAS') {
+            if ($calcKey === 'C') $basic = tenureCtcCeiling($monthlyCtc * $value / 100, 50);
+            elseif ($calcKey === 'F') $basic = $value;
+            $amount = $basic;
+        } elseif ($code !== 'MSPL') {
+            if ($code === 'CPF') {
+                $amount = $basic < 15000 ? $basic * 12 / 100 : ($pfInput == 1 ? $value : $basic * 12 / 100);
+            } elseif ($calcKey === 'C') {
+                $amount = $monthlyCtc * $value / 100;
+            } elseif ($calcKey === 'B') {
+                $amount = $basic * $value / 100;
+            } elseif ($calcKey === 'F') {
+                $amount = $value;
+            }
+
+        }
+
+        if ($code !== 'MSPL' && (($head['RND_OFF'] ?? 'N') !== 'N' || $code === 'MHRA') && $calcKey !== 'F') {
+            $amount = tenureCtcCeiling($amount, $head['RND_TO'] ?? 0);
+        }
+
+        if ($code !== 'MSPL' && $code !== '') $structure[$code] = round($amount, 2);
+    }
+
+    $net = array_sum($structure);
+    if ($net <= $monthlyCtc) {
+        $specialRowExists = false;
+        foreach ($headRows as $head) if (($head['AD_CODE'] ?? '') === 'MSPL') $specialRowExists = true;
+        if ($specialRowExists) {
+            $structure['MSPL'] = round($monthlyCtc - $net, 2);
+        } elseif (isset($structure['MHRA'])) {
+            $structure['MHRA'] = round(tenureCtcCeiling($structure['MHRA'] + $monthlyCtc - $net, 10), 2);
+        }
+    } elseif (isset($structure['MHRA'])) {
+        $structure['MHRA'] = round(tenureCtcCeiling($structure['MHRA'] - ($net - $monthlyCtc), 10), 2);
+    }
+    return $structure;
+}
+
+function tenureCtcLoadRequest($userTaskId, $employeeCode, $workflowTaskId = 26) {
+    $taskId = (int)$userTaskId;
+    $workflowTaskId = (int)$workflowTaskId;
+    $employeeCode = str_replace("'", "''", $employeeCode);
+    if ($taskId <= 0 || $workflowTaskId !== 26) {
+        throw new RuntimeException('Invalid tenure CTC task.');
+    }
+
+    $task = singRec("SELECT ID, TASK_ID, TRAN_CODE, STATUS, EMP_CODE_FOR, COMP_ID, DIVSN_ID, DEPT_ID
+        FROM HR_USER_TASKS
+        WHERE ID = '{$taskId}' AND TASK_ID = 26 AND STATUS = 'O'");
+    if (empty($task) || trim((string)($task['TRAN_CODE'] ?? '')) !== $employeeCode) {
+        throw new RuntimeException('The pending task was not found or is no longer available.');
+    }
+    $sessionEmp = trim((string)($_SESSION['emp_code'] ?? $_SESSION['EmpCode'] ?? ''));
+    $assignedToUser = trim((string)($task['EMP_CODE_FOR'] ?? '')) === $sessionEmp;
+    $scopeMatch = false;
+    foreach (['COMP_ID' => 'compId', 'DIVSN_ID' => 'divId', 'DEPT_ID' => 'deptId'] as $taskField => $sessionField) {
+        $allowedIds = $_SESSION[$sessionField] ?? [];
+        if (!is_array($allowedIds)) $allowedIds = preg_split('/\s*,\s*/', (string)$allowedIds, -1, PREG_SPLIT_NO_EMPTY);
+        $allowedIds = array_map(static fn($id) => trim((string)$id, " \"'"), $allowedIds);
+        if ($allowedIds) {
+            $scopeMatch = true;
+            if (!in_array(trim((string)($task[$taskField] ?? '')), $allowedIds, true)) {
+                $scopeMatch = false;
+                break;
+            }
+        }
+    }
+    if (!$assignedToUser && !$scopeMatch) {
+        throw new RuntimeException('You are not authorized to open this tenure CTC task.');
+    }
+
+    $tenure = singRec("SELECT * FROM HR_EMP_TENURE_CHANGE
+        WHERE EMP_CODE = '{$employeeCode}' AND STATUS = 'T'
+        ORDER BY ID DESC FETCH FIRST 1 ROWS ONLY");
+    if (empty($tenure)) {
+        throw new RuntimeException('The employee tenure change record is not available.');
+    }
+
+    return [$task, $tenure];
+}
+
+try {
+    if ($method === 'GET') {
+        $taskId = (int)($_GET['task_id'] ?? 26);
+        $userTaskId = (int)($_GET['user_task_id'] ?? 0);
+        $employeeCode = tenureCtcSafeCode($_GET['emp_code'] ?? '');
+        if ($employeeCode === '') {
+            apiResponse(false, 'Employee code is required.', null, 422);
+            exit;
+        }
+
+        [$task, $tenure] = tenureCtcLoadRequest($userTaskId, $employeeCode, $taskId);
+        $office = singRec("SELECT * FROM (
+                SELECT O.ORG_ID, O.ORG_LOC_ID, O.DESI_ID,
+                    TO_CHAR(O.EFFEC_FROM, 'DD-MON-YYYY') AS DOJ, O.EFFEC_FROM, O.EFFEC_TO
+                FROM HR_EMP_OFFICE_DET O
+                WHERE O.EMP_CODE = '{$employeeCode}'
+                  AND SYSDATE BETWEEN O.EFFEC_FROM AND NVL(O.EFFEC_TO, DATE '3000-03-01')
+                ORDER BY O.EFFEC_FROM DESC
+            ) WHERE ROWNUM = 1");
+        $employeeRow = singRec("SELECT I.EMP_CODE, I.FNAME, I.LNAME,
+                GET_DEPT_NAME(O.DEPT_ID) AS DEPARTMENT,
+                GET_ORG_LOC_NAME(O.ORG_LOC_ID) AS LOCATION,
+                GET_DESIGN_NAME(O.DESI_ID) AS DESIGNATION,
+                T.EMP_TYPE AS EMPLOYEE_TYPE
+            FROM HR_EMPLOYEE_INFO I
+            LEFT JOIN HR_EMP_OFFICE_DET O ON O.EMP_CODE = I.EMP_CODE
+                AND SYSDATE BETWEEN O.EFFEC_FROM AND NVL(O.EFFEC_TO, DATE '3000-03-01')
+            LEFT JOIN HR_EMP_TYPE T ON T.ETYPE_ID = '{$tenure['ETYPE_ID']}'
+            WHERE I.EMP_CODE = '{$employeeCode}'
+            ORDER BY O.EFFEC_FROM DESC FETCH FIRST 1 ROWS ONLY");
+        $tenureRowId = (int)$tenure['ID'];
+        $orgId = (int)($office['ORG_ID'] ?? 0);
+        if ($orgId <= 0) {
+            throw new RuntimeException('Active employee organization details were not found.');
+        }
+
+        $org = singRec("SELECT JD_ID, COMPANY FROM HR_ORGANOGRAM WHERE ID = '{$orgId}'");
+        $jobId = (int)($org['JD_ID'] ?? 0);
+        if ($jobId <= 0) {
+            throw new RuntimeException('No job description is configured for the employee organization.');
+        }
+
+        $headRows = multiRec("SELECT H.AD_CODE, B.SH_DESCR AS DESCR, H.KEY AS CALC_KEY, H.VAL AS CALC_VAL,
+                B.RND_OFF, B.RND_TO, B.SEQ_NO
+            FROM HR_JD_CTC_HEADS H
+            INNER JOIN HR_BCS_ALLW_DEDN B ON B.ID = H.AD_ID
+            WHERE H.JD_ID = '{$jobId}'
+              AND SYSDATE BETWEEN H.EFFEC_FROM AND NVL(H.EFFEC_TO, DATE '3000-03-01')
+            ORDER BY B.SEQ_NO");
+        if (empty($headRows)) {
+            throw new RuntimeException('No CTC heads are configured for the employee organization.');
+        }
+
+        $savedHeadRows = multiRec("SELECT AD_CODE, AMOUNT_MNTH
+            FROM HR_EMP_CTC_HEADS
+            WHERE EMP_CODE = '{$employeeCode}' AND REF_ID = '{$tenureRowId}'");
+        $savedAmounts = [];
+        foreach ($savedHeadRows ?: [] as $savedHead) {
+            $savedAmounts[(string)$savedHead['AD_CODE']] = $savedHead['AMOUNT_MNTH'];
+        }
+        $structure = tenureCtcBuildStructure(
+            (float)($tenure['PROP_CTC'] ?? $tenure['CURR_CTC'] ?? 0),
+            $headRows,
+            $savedAmounts['XPFBS'] ?? 0
+        );
+        $ctcHeads = [];
+        foreach ($headRows as $head) {
+            $code = trim((string)$head['AD_CODE']);
+            if ($code === '') continue;
+            $monthly = (float)($structure[$code] ?? 0);
+            $ctcHeads[] = [
+                'code' => $code,
+                'name' => $head['DESCR'] ?: $code,
+                'structureMonthly' => $monthly,
+                'structureAnnual' => $monthly * 12,
+                'monthlyAmount' => $savedAmounts[$code] ?? '',
+            ];
+        }
+
+        $empName = trim(($employeeRow['FNAME'] ?? '') . ' ' . ($employeeRow['LNAME'] ?? ''));
+        $details = [
+            'employee' => [
+                'code' => $employeeCode,
+                'name' => $empName,
+                'department' => $employeeRow['DEPARTMENT'] ?? '',
+                'employeeType' => $employeeRow['EMPLOYEE_TYPE'] ?? '',
+                'location' => $employeeRow['LOCATION'] ?? '',
+                'designation' => $employeeRow['DESIGNATION'] ?? '',
+                'doj' => $office['DOJ'] ?? '',
+            ],
+            'assessment' => [
+                'currentCtc' => (float)($tenure['CURR_CTC'] ?? 0),
+                'proposedCtc' => (float)($tenure['PROP_CTC'] ?? 0),
+                'effectiveFrom' => $tenure['CTC_EFF_FROM'] ?? $tenure['EFF_FROM'] ?? '',
+                'remarks' => $tenure['REMARKS'] ?? '',
+                'period' => $tenure['ETYPE_PERIOD'] ?? '0',
+                'employeeType' => $tenure['ETYPE_ID'] ?? '',
+            ],
+            'pfInput' => $savedAmounts['XPFBS'] ?? 0,
+            'ctcHeads' => $ctcHeads,
+            'tenureChangeId' => $tenureRowId,
+        ];
+        apiResponse(true, 'Tenure CTC details fetched successfully.', $details, 200);
+        exit;
+    }
+
+    if ($method !== 'POST') {
+        apiResponse(false, 'Invalid request method.', null, 405);
+        exit;
+    }
+
+    $workflowTaskId = (int)($input['task_id'] ?? 0);
+    $userTaskId = (int)($input['user_task_id'] ?? 0);
+    $employeeCode = tenureCtcSafeCode($input['emp_code'] ?? '');
+    $pfInput = filter_var($input['pf_input'] ?? null, FILTER_VALIDATE_INT);
+    $rows = $input['ctc_heads'] ?? null;
+    if ($employeeCode === '' || $pfInput === false || !is_array($rows) || count($rows) === 0) {
+        apiResponse(false, 'Employee, PF selection, and CTC head values are required.', null, 422);
+        exit;
+    }
+
+    [$task, $tenure] = tenureCtcLoadRequest($userTaskId, $employeeCode, $workflowTaskId);
+    $tenureId = (int)$tenure['ID'];
+    $office = singRec("SELECT * FROM (
+            SELECT ORG_ID FROM HR_EMP_OFFICE_DET WHERE EMP_CODE = '{$employeeCode}'
+              AND SYSDATE BETWEEN EFFEC_FROM AND NVL(EFFEC_TO, DATE '3000-03-01')
+            ORDER BY EFFEC_FROM DESC
+        ) WHERE ROWNUM = 1");
+    $org = singRec("SELECT COMPANY FROM HR_ORGANOGRAM WHERE ID = '" . (int)($office['ORG_ID'] ?? 0) . "'");
+    $allowedHeads = multiRec("SELECT AD_CODE FROM HR_JD_CTC_HEADS
+        WHERE JD_ID = (SELECT JD_ID FROM HR_ORGANOGRAM WHERE ID = '" . (int)($office['ORG_ID'] ?? 0) . "')
+          AND SYSDATE BETWEEN EFFEC_FROM AND NVL(EFFEC_TO, DATE '3000-03-01')");
+    $allowed = array_fill_keys(array_map(static fn($r) => (string)$r['AD_CODE'], $allowedHeads ?: []), true);
+    $totalMonthly = 0.0;
+    $validatedRows = [];
+    foreach ($rows as $row) {
+        $code = tenureCtcSafeCode($row['ad_code'] ?? '');
+        $monthly = $row['monthly'] ?? null;
+        if ($code === '' || !isset($allowed[$code]) || !is_numeric($monthly) || (float)$monthly < 0) {
+            apiResponse(false, 'One or more CTC head values are invalid.', null, 422);
+            exit;
+        }
+        $totalMonthly += (float)$monthly;
+        $validatedRows[$code] = (float)$monthly;
+    }
+    if (count($validatedRows) !== count($rows)) {
+        apiResponse(false, 'Duplicate CTC head codes are not allowed.', null, 422);
+        exit;
+    }
+
+    $salaryTypes = [];
+    foreach (array_keys($validatedRows) as $code) {
+        $salaryTypes[$code] = tenureCtcResolveSalaryType($employeeCode, $code);
+        if ($salaryTypes[$code] === '') {
+            apiResponse(false, "Could not determine the required salary type for CTC head {$code}.", null, 422);
+            exit;
+        }
+    }
+    $pfSalaryType = tenureCtcResolveSalaryType($employeeCode, 'XPFBS');
+    if ($pfSalaryType === '') {
+        $pfSalaryType = reset($salaryTypes);
+    }
+    if ($pfSalaryType === '') {
+        apiResponse(false, 'Could not determine the required salary type for the PF selection.', null, 422);
+        exit;
+    }
+
+    startQry();
+    $transactionStarted = true;
+    if (!executeQry("DELETE FROM HR_EMP_CTC_HEADS WHERE EMP_CODE = '{$employeeCode}' AND REF_ID = '{$tenureId}'")) {
+        throw new RuntimeException('Could not replace the employee CTC head values.');
+    }
+    foreach ($validatedRows as $code => $monthly) {
+        $saved = execQry([
+            'type' => 'insert', 'table' => 'HR_EMP_CTC_HEADS',
+            'data' => [
+                'ID' => '', 'EMP_CODE' => $employeeCode, 'AD_CODE' => $code,
+                'AMOUNT_MNTH' => $monthly, 'REF_ID' => (string)$tenureId,
+                'SALARY_TYPE' => $salaryTypes[$code], 'STATUS' => 'T',
+                'CHG_ON' => 'SYSDATE', 'CHG_BY' => $empCode,
+            ], 'print' => 0,
+        ]);
+        if ($saved === false) throw new RuntimeException('Could not save a CTC head value.');
+    }
+    $savedPf = execQry([
+        'type' => 'insert', 'table' => 'HR_EMP_CTC_HEADS',
+        'data' => [
+            'ID' => '', 'EMP_CODE' => $employeeCode, 'AD_CODE' => 'XPFBS',
+            'AMOUNT_MNTH' => $pfInput, 'REF_ID' => (string)$tenureId,
+            'SALARY_TYPE' => $pfSalaryType, 'STATUS' => 'T',
+            'CHG_ON' => 'SYSDATE', 'CHG_BY' => $empCode,
+        ], 'print' => 0,
+    ]);
+    if ($savedPf === false) throw new RuntimeException('Could not save the PF selection.');
+    $savedProposal = execQry([
+        'type' => 'update', 'table' => 'HR_EMP_TENURE_CHANGE',
+        'data' => ['PROP_CTC' => $totalMonthly * 12, 'CHG_ON' => 'SYSDATE', 'CHG_BY' => $empCode],
+        'where' => ['ID' => (string)$tenureId], 'print' => 0,
+    ]);
+    if ($savedProposal === false) throw new RuntimeException('Could not save the proposed CTC total.');
+
+    $companyId = $task['COMP_ID'] ?: ($org['COMPANY'] ?? '');
+    $approvalTaskId = generateTaskHR(
+        'AUTH_TNU_CHG_LTR', $employeeCode,
+        'Tenure CTC approval for ' . getEmpInfoByCodeHR($employeeCode), '',
+        'A', 'O', '', $empCode, $companyId, $task['DIVSN_ID'], $task['DEPT_ID']
+    );
+    if (empty($approvalTaskId)) {
+        throw new RuntimeException('Could not create the final authorization task.');
+    }
+    taskUpdateHR('C', '', $userTaskId, null, null);
+    if (($GLOBALS['qry_____result'] ?? 0) == 1) {
+        throw new RuntimeException('Could not close the current task.');
+    }
+    endQry();
+    $transactionStarted = false;
+    apiResponse(true, 'CTC changes saved and sent for final authorization.', [
+        'task_id' => $approvalTaskId,
+        'proposed_ctc' => $totalMonthly * 12,
+    ], 200);
+    exit;
+} catch (Throwable $e) {
+    if ($transactionStarted && !empty($sql___func___con)) {
+        oci_rollback($sql___func___con);
+    }
+    logOracleError(['message' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()], 'tenureCtcChange.php');
+    apiResponse(false, $e->getMessage(), null, 500);
+} finally {
+    if (!empty($sql___func___con)) oci_close($sql___func___con);
+}
