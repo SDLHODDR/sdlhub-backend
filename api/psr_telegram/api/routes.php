@@ -26,6 +26,7 @@ return [
         '/api/telegram/members/save-member-dm' => ['MemberController', 'saveMemberDM'],
     ],
     'GET' => [
+        '/api/telegram/counts' => ['TelegramCountController', 'getCounts'],
         '/api/telegram/groups/list' => ['GroupController', 'list'],
         '/api/telegram/members/list' => ['MemberController', 'listGroupMembers']
     ]
