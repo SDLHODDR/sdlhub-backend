@@ -61,6 +61,19 @@ const client = new TelegramClient(
   }
 );
 
+function getMarkedChannelId(telegramGroupId) {
+  const id = String(telegramGroupId).trim();
+  if (/^-100\d+$/.test(id)) return id;
+  if (!/^\d+$/.test(id)) {
+    throw new Error("telegram_group_id must be a Telegram channel ID.");
+  }
+  return `-${1000000000000n + BigInt(id)}`;
+}
+
+async function getTelegramChannelEntity(telegramGroupId) {
+  return client.getEntity(getMarkedChannelId(telegramGroupId));
+}
+
 async function initTelegram() {
   await client.start({
     phoneNumber: async () => await input.text("Phone: "),
@@ -242,59 +255,84 @@ app.post("/create-group", async (req, res) => {
 
 app.post("/generate-employee-invite", async (req, res) => {
   try {
-
     const {
       telegram_group_id,
-      employee_code
+      employee_code,
+      expiry_days = 30,
+      usage_limit = 1
     } = req.body;
 
-    const groupEntity = await client.getEntity(
-      Number(telegram_group_id)
-    );
+    if (!telegram_group_id || !employee_code || !Number.isInteger(Number(expiry_days)) || Number(expiry_days) < 1 || Number(expiry_days) > 365 || Number(usage_limit) !== 1) {
+      return res.status(400).json({ success: false, message: "A group, employee code, expiry from 1 to 365 days, and a one-use limit are required." });
+    }
+
+    const groupEntity = await getTelegramChannelEntity(telegram_group_id);
+    const expiresAt = Math.floor(Date.now() / 1000) + (Number(expiry_days) * 24 * 60 * 60);
 
     const invite = await client.invoke(
       new Api.messages.ExportChatInvite({
         peer: groupEntity,
-
-        // one employee = one link
+        expireDate: expiresAt,
         usageLimit: 1,
-
-        // optional expiry after 7 days
-        expireDate:
-          Math.floor(Date.now() / 1000) +
-          (7 * 24 * 60 * 60)
+        title: `SDLHUB Employee ${employee_code}`,
+        requestNeeded: false,
       })
     );
 
     const inviteLink = invite.link;
-
-    const inviteHash =
-      inviteLink.includes("+")
-        ? inviteLink.split("+")[1]
-        : inviteLink;
-
-    console.log("EMPLOYEE:", employee_code);
-    console.log("INVITE:", inviteLink);
+    const inviteHash = inviteLink.match(/(?:\+|joinchat\/)([^/?]+)/)?.[1] || "";
 
     res.json({
       success: true,
       data: {
         employee_code,
-        telegram_group_id,
+        telegram_group_id: String(groupEntity.id),
         invite_link: inviteLink,
-        invite_hash: inviteHash
+        invite_hash: inviteHash,
+        expires_at: expiresAt,
+        usage_limit: 1,
       }
     });
-
   } catch (err) {
-
     console.log(err);
-
     res.status(500).json({
       success: false,
       message: err.message
     });
+  }
+});
 
+app.post("/resolve-invite-join", async (req, res) => {
+  try {
+    const { telegram_group_id, telegram_user_id, invitations } = req.body;
+    if (!telegram_group_id || !telegram_user_id || !Array.isArray(invitations)) {
+      return res.status(400).json({ success: false, message: "Group, Telegram user, and invitation links are required." });
+    }
+
+    const groupEntity = await getTelegramChannelEntity(telegram_group_id);
+    for (const invitation of invitations) {
+      if (!invitation.employee_code || !invitation.invite_link) continue;
+      const importers = await client.invoke(
+        new Api.messages.GetChatInviteImporters({
+          peer: groupEntity,
+          link: invitation.invite_link,
+          offsetDate: 0,
+          offsetUser: new Api.InputUserSelf(),
+          limit: 100,
+        })
+      );
+      const joined = (importers.importers || []).some(
+        (importer) => String(importer.userId) === String(telegram_user_id)
+      );
+      if (joined) {
+        return res.json({ success: true, data: { employee_code: invitation.employee_code } });
+      }
+    }
+
+    return res.json({ success: true, data: { employee_code: null } });
+  } catch (err) {
+    console.log("INVITE JOIN RESOLUTION ERROR:", err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 

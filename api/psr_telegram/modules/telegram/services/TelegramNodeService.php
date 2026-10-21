@@ -29,6 +29,11 @@ class TelegramNodeService
         );
     }
 
+    public function resolveInviteJoin($data)
+    {
+        return $this->post('/resolve-invite-join', $data);
+    }
+
     private function post($url, $payload)
     {
         if ($this->internalApiKey === '') {

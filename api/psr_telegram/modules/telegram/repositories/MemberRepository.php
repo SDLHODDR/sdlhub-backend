@@ -510,5 +510,158 @@ class MemberRepository extends BaseRepository
             'group_id' => $groupId
         ];
     }
+
+    public function getPendingInvitationsForGroup($telegramGroupId)
+    {
+        $sql = "SELECT MGM.MEMBER_EMPCODE AS EMPLOYEE_CODE, MGM.INVITE_LINK
+                FROM PSR_MEMBER_GROUP_MAPPING MGM
+                INNER JOIN PSR_TELEGRAM_GROUPS TG ON TG.ID = MGM.GROUP_ID
+                WHERE TG.TELEGRAM_GROUP_ID = :telegram_group_id
+                  AND MGM.GROUP_STATUS = 'PENDING'
+                  AND MGM.INVITE_LINK IS NOT NULL
+                  AND (MGM.EXPIRES_ON IS NULL OR MGM.EXPIRES_ON > SYSDATE)";
+        $stmt = $this->execute($sql, [':telegram_group_id' => $telegramGroupId]);
+        return $this->fetchAll($stmt);
+    }
+
+    public function markInvitationJoined($employeeCode, $telegramGroupId, $telegramUserId)
+    {
+        $groupSql = 'SELECT ID FROM PSR_TELEGRAM_GROUPS WHERE TELEGRAM_GROUP_ID = :telegram_group_id';
+        $groupStmt = $this->execute($groupSql, [':telegram_group_id' => $telegramGroupId]);
+        $group = $this->fetchAll($groupStmt)[0] ?? null;
+        if (!$group) {
+            throw new Exception('Telegram group not found.');
+        }
+
+        $memberSql = "UPDATE PSR_TELEGRAM_MEMBERS
+                      SET TELEGRAM_CHAT_ID = :telegram_user_id, TELEGRAM_JOINED = 1
+                      WHERE EMPLOYEE_CODE = :employee_code";
+        $this->execute($memberSql, [
+            ':telegram_user_id' => $telegramUserId,
+            ':employee_code' => $employeeCode,
+        ]);
+
+        $mappingSql = "UPDATE PSR_MEMBER_GROUP_MAPPING
+                       SET GROUP_STATUS = 'JOINED', JOINED_ON = SYSDATE, TELEGRAM_USER_ID = :telegram_user_id
+                       WHERE MEMBER_EMPCODE = :employee_code AND GROUP_ID = :group_id";
+        $this->execute($mappingSql, [
+            ':telegram_user_id' => $telegramUserId,
+            ':employee_code' => $employeeCode,
+            ':group_id' => $group['ID'],
+        ]);
+
+        return [
+            'success' => true,
+            'employee_code' => $employeeCode,
+            'telegram_user_id' => $telegramUserId,
+            'telegram_group_id' => $telegramGroupId,
+            'group_id' => $group['ID'],
+        ];
+    }
+
+    public function getInvitationForEmployeeGroup($employeeCode, $groupId)
+    {
+        $sql = "SELECT GROUP_STATUS, INVITE_LINK,
+                   TO_CHAR(EXPIRES_ON, 'DD-MON-YYYY HH:MI AM') AS EXPIRES_AT,
+                   CASE WHEN EXPIRES_ON > SYSDATE THEN 1 ELSE 0 END AS IS_ACTIVE
+                FROM PSR_MEMBER_GROUP_MAPPING
+                WHERE MEMBER_EMPCODE = :employee_code AND GROUP_ID = :group_id";
+        $stmt = $this->execute($sql, [
+            ':employee_code' => $employeeCode,
+            ':group_id' => $groupId,
+        ]);
+        return $this->fetchAll($stmt)[0] ?? null;
+    }
+
+    public function saveEmployeeInvitation($employee, $groupId, $invitation)
+    {
+        $memberSql = 'SELECT ID FROM PSR_TELEGRAM_MEMBERS WHERE EMPLOYEE_CODE = :employee_code';
+        $memberStmt = $this->execute($memberSql, [':employee_code' => $employee['employee_code']]);
+        $member = $this->fetchAll($memberStmt)[0] ?? null;
+        if (!$member) {
+            $insertMemberSql = "INSERT INTO PSR_TELEGRAM_MEMBERS
+                        (EMPLOYEE_CODE, MOBILE_NUMBER, FIRST_NAME, LAST_NAME,
+                         DEPARTMENT_ID, DIVISION_ID, CREATED_ON)
+                        VALUES (:employee_code, :mobile_number, :first_name, :last_name,
+                            :department_id, :division_id, SYSDATE)";
+            $this->execute($insertMemberSql, [
+                ':employee_code' => $employee['employee_code'],
+                ':mobile_number' => $employee['mobile_number'] ?? null,
+                ':first_name' => $employee['first_name'] ?? '',
+                ':last_name' => $employee['last_name'] ?? '',
+                ':department_id' => $employee['department_id'] ?? null,
+                ':division_id' => $employee['division_id'] ?? null,
+            ]);
+            $memberStmt = $this->execute($memberSql, [':employee_code' => $employee['employee_code']]);
+            $member = $this->fetchAll($memberStmt)[0] ?? null;
+        }
+        if (!$member) {
+            throw new Exception('Unable to register Telegram employee mapping.');
+        }
+
+        $existing = $this->getInvitationForEmployeeGroup($employee['employee_code'], $groupId);
+        if (($existing['GROUP_STATUS'] ?? '') === 'JOINED') {
+            return ['status' => 'JOINED', 'invite_link' => null, 'expires_at' => null];
+        }
+
+        $expiry = (int)$invitation['expires_at'];
+        $bindings = [
+            ':member_id' => $member['ID'],
+            ':member_name' => trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? '')),
+            ':member_phone' => $employee['mobile_number'] ?? null,
+            ':member_empcode' => $employee['employee_code'],
+            ':group_id' => $groupId,
+            ':invite_link' => $invitation['invite_link'],
+            ':invite_hash' => $invitation['invite_hash'],
+            ':expires_at' => $expiry,
+        ];
+
+        if ($existing) {
+            $sql = "UPDATE PSR_MEMBER_GROUP_MAPPING
+                    SET INVITE_LINK = :invite_link, INVITE_HASH = :invite_hash,
+                        EXPIRES_ON = TO_DATE('1970-01-01', 'YYYY-MM-DD') + :expires_at / 86400,
+                        GROUP_STATUS = 'PENDING', CREATED_ON = SYSDATE
+                    WHERE MEMBER_EMPCODE = :member_empcode AND GROUP_ID = :group_id";
+        } else {
+            $sql = "INSERT INTO PSR_MEMBER_GROUP_MAPPING
+                    (MEMBER_ID, MEMBER_FULLNAME, MEMBER_PHONE, MEMBER_EMPCODE, GROUP_ID,
+                     GROUP_STATUS, INVITE_LINK, INVITE_HASH, EXPIRES_ON, CREATED_ON)
+                    VALUES (:member_id, :member_name, :member_phone, :member_empcode, :group_id,
+                            'PENDING', :invite_link, :invite_hash,
+                            TO_DATE('1970-01-01', 'YYYY-MM-DD') + :expires_at / 86400, SYSDATE)";
+        }
+        if ($existing) {
+            $bindings = [
+                ':member_empcode' => $employee['employee_code'],
+                ':group_id' => $groupId,
+                ':invite_link' => $invitation['invite_link'],
+                ':invite_hash' => $invitation['invite_hash'],
+                ':expires_at' => $expiry,
+            ];
+        }
+        $this->execute($sql, $bindings);
+
+        return [
+            'status' => 'GENERATED',
+            'invite_link' => $invitation['invite_link'],
+            'expires_at' => $expiry,
+        ];
+    }
+
+    public function listInvitationsForEmployee($employeeCode)
+    {
+           $sql = "SELECT MGM.MAP_ID, TG.TITLE AS GROUP_NAME, MGM.INVITE_LINK,
+                       TO_CHAR(MGM.EXPIRES_ON, 'DD-MON-YYYY HH:MI AM') AS EXPIRES_AT,
+                       CASE WHEN MGM.GROUP_STATUS = 'PENDING' AND MGM.EXPIRES_ON <= SYSDATE
+                           THEN 'EXPIRED' ELSE MGM.GROUP_STATUS END AS GROUP_STATUS,
+                       CASE WHEN MGM.GROUP_STATUS = 'PENDING' AND MGM.EXPIRES_ON > SYSDATE
+                           THEN 1 ELSE 0 END AS IS_ACTIVE
+                FROM PSR_MEMBER_GROUP_MAPPING MGM
+                INNER JOIN PSR_TELEGRAM_GROUPS TG ON TG.ID = MGM.GROUP_ID
+                WHERE MGM.MEMBER_EMPCODE = :employee_code
+                ORDER BY MGM.CREATED_ON DESC";
+        $stmt = $this->execute($sql, [':employee_code' => $employeeCode]);
+        return $this->fetchAll($stmt);
+    }
    
 }

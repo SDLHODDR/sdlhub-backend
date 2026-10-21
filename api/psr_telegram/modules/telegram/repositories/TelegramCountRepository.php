@@ -9,7 +9,9 @@ class TelegramCountRepository extends BaseRepository
         $sql = "
             SELECT
                 (SELECT COUNT(*) FROM PSR_TELEGRAM_GROUPS) AS GROUP_COUNT,
-                (SELECT COUNT(*) FROM PSR_TELEGRAM_MEMBERS) AS MEMBER_COUNT,
+                (SELECT COUNT(DISTINCT MEMBER_ID)
+                 FROM PSR_MEMBER_GROUP_MAPPING
+                 WHERE GROUP_STATUS = 'JOINED') AS MEMBER_COUNT,
                 (
                     SELECT COUNT(*)
                     FROM PSR_MESSAGE_QUEUE

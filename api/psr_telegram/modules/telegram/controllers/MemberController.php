@@ -54,7 +54,7 @@ class MemberController
         $result = $this->service->groupJoined( $payload );
 
         Response::json( true, 'Group Joined', $result );
-}
+    }
 
     public function list()
     {

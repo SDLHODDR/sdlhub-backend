@@ -78,6 +78,18 @@ class HrmsSDLRepository extends BaseHrmsSDLRepository
         return $this->fetchAll($stmt);
     }
 
+    public function getHRMSMemberByCode($employeeCode)
+    {
+        $sql = "SELECT HEOD.EMP_CODE, HEOD.DIVSN_ID, HEOD.DEPT_ID,
+                       HEI.FNAME, HEI.LNAME, HEI.CELL
+                FROM HR_EMP_OFFICE_DET HEOD
+                INNER JOIN HR_EMPLOYEE_INFO HEI ON HEOD.EMP_CODE = HEI.EMP_CODE
+                WHERE HEOD.EMP_CODE = :employee_code
+                  AND HEI.STATUS NOT IN ('R')";
+        $stmt = $this->execute($sql, [':employee_code' => $employeeCode]);
+        return $this->fetchAll($stmt)[0] ?? null;
+    }
+
     
 
     public function getHQDivision($data)

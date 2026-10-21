@@ -14,6 +14,7 @@ return [
         '/api/telegram/members/list-region' => ['MemberController', 'listRegion'],
         '/api/telegram/broadcast/create' => ['BroadcastController', 'create'],
         '/api/telegram/invite/generate' => ['InviteController', 'generate'],
+        '/api/telegram/invitations/generate' => ['InvitationController', 'generate'],
         '/api/telegram/webhook' => ['WebhookController', 'handle'],
         '/api/telegram/members/list-members' => ['MemberController', 'getMembers'],
         '/api/telegram/groups/list-hrms-members' => ['GroupController', 'getHRMSMembers'],
@@ -28,6 +29,7 @@ return [
     'GET' => [
         '/api/telegram/counts' => ['TelegramCountController', 'getCounts'],
         '/api/telegram/groups/list' => ['GroupController', 'list'],
-        '/api/telegram/members/list' => ['MemberController', 'listGroupMembers']
+        '/api/telegram/members/list' => ['MemberController', 'listGroupMembers'],
+        '/api/telegram/invitations/mine' => ['InvitationController', 'mine']
     ]
 ];
