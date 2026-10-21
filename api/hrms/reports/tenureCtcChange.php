@@ -97,13 +97,13 @@ function tenureCtcLoadRequest($userTaskId, $employeeCode, $workflowTaskId = 26) 
     $taskId = (int)$userTaskId;
     $workflowTaskId = (int)$workflowTaskId;
     $employeeCode = str_replace("'", "''", $employeeCode);
-    if ($taskId <= 0 || $workflowTaskId !== 26) {
+    if ($taskId <= 0 || !in_array($workflowTaskId, [26, 27], true)) {
         throw new RuntimeException('Invalid tenure CTC task.');
     }
 
     $task = singRec("SELECT ID, TASK_ID, TRAN_CODE, STATUS, EMP_CODE_FOR, COMP_ID, DIVSN_ID, DEPT_ID
         FROM HR_USER_TASKS
-        WHERE ID = '{$taskId}' AND TASK_ID = 26 AND STATUS = 'O'");
+        WHERE ID = '{$taskId}' AND TASK_ID = '{$workflowTaskId}' AND STATUS = 'O'");
     if (empty($task) || trim((string)($task['TRAN_CODE'] ?? '')) !== $employeeCode) {
         throw new RuntimeException('The pending task was not found or is no longer available.');
     }
@@ -330,30 +330,47 @@ try {
         ], 'print' => 0,
     ]);
     if ($savedPf === false) throw new RuntimeException('Could not save the PF selection.');
+    $isFinalCtcStep = $workflowTaskId === 27;
     $savedProposal = execQry([
         'type' => 'update', 'table' => 'HR_EMP_TENURE_CHANGE',
-        'data' => ['PROP_CTC' => $totalMonthly * 12, 'CHG_ON' => 'SYSDATE', 'CHG_BY' => $empCode],
+        'data' => [
+            'PROP_CTC' => $totalMonthly * 12,
+            'STATUS' => $isFinalCtcStep ? 'A' : 'T',
+            'CHG_ON' => 'SYSDATE',
+            'CHG_BY' => $empCode,
+        ],
         'where' => ['ID' => (string)$tenureId], 'print' => 0,
     ]);
     if ($savedProposal === false) throw new RuntimeException('Could not save the proposed CTC total.');
 
     $companyId = $task['COMP_ID'] ?: ($org['COMPANY'] ?? '');
-    $approvalTaskId = generateTaskHR(
-        'AUTH_TNU_CHG_LTR', $employeeCode,
-        'Tenure CTC approval for ' . getEmpInfoByCodeHR($employeeCode), '',
-        'A', 'O', '', $empCode, $companyId, $task['DIVSN_ID'], $task['DEPT_ID']
-    );
-    if (empty($approvalTaskId)) {
-        throw new RuntimeException('Could not create the final authorization task.');
+    if ($isFinalCtcStep) {
+        $nextTaskId = generateTaskHR(
+            'PRT_TNU_CHG_LTR', $employeeCode,
+            'Print Tenure Change Letter for ' . getEmpInfoByCodeHR($employeeCode), '',
+            'A', 'O', '', $empCode, $companyId, $task['DIVSN_ID'], $task['DEPT_ID']
+        );
+        $successMessage = 'Final CTC saved and sent for tenure letter printing.';
+        $taskError = 'Could not create the Print Tenure Change Letter task.';
+    } else {
+        $nextTaskId = generateTaskHR(
+            'AUTH_TNU_CHG_LTR', $employeeCode,
+            'Tenure CTC approval for ' . getEmpInfoByCodeHR($employeeCode), '',
+            'A', 'O', '', $empCode, $companyId, $task['DIVSN_ID'], $task['DEPT_ID']
+        );
+        $successMessage = 'CTC changes saved and sent for final authorization.';
+        $taskError = 'Could not create the final authorization task.';
     }
+    if (empty($nextTaskId)) throw new RuntimeException($taskError);
+
     taskUpdateHR('C', '', $userTaskId, null, null);
     if (($GLOBALS['qry_____result'] ?? 0) == 1) {
         throw new RuntimeException('Could not close the current task.');
     }
     endQry();
     $transactionStarted = false;
-    apiResponse(true, 'CTC changes saved and sent for final authorization.', [
-        'task_id' => $approvalTaskId,
+    apiResponse(true, $successMessage, [
+        'task_id' => $nextTaskId,
         'proposed_ctc' => $totalMonthly * 12,
     ], 200);
     exit;

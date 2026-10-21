@@ -166,11 +166,13 @@ $pdf->writeHTML($signHtml, true, 0, true, true);
 
 // 4. Annexure-A Salary Breakup (if CTC changed)
 if (!empty($tenure['PROP_CTC']) && $tenure['CURR_CTC'] != $tenure['PROP_CTC']) {
-    $CTC_table = multiRec("SELECT a.emp_code, a.ad_code, b.seq_no, b.sh_descr, a.type, a.amount, b.cost_company
-                           FROM epplive.bcs_employee_ad a, epplive.bcs_allw_dedn b 
-                           WHERE a.emp_code = '" . $empCode . "' AND b.cost_company = 'Y' 
-                             AND a.ad_code = b.ad_code 
-                             AND '" . $ctcEffFrom . "' BETWEEN a.eff_date AND a.exp_date 
+    $CTC_table = multiRec("SELECT a.emp_code, a.ad_code, b.seq_no, b.sh_descr, a.salary_type AS type,
+                                  a.amount_mnth AS amount, b.cost_company
+                           FROM HR_EMP_CTC_HEADS a
+                           INNER JOIN HR_BCS_ALLW_DEDN b ON b.ad_code = a.ad_code
+                           WHERE a.emp_code = '" . $empCode . "'
+                             AND a.ref_id = '" . (int)($tenure['ID'] ?? 0) . "'
+                             AND b.cost_company = 'Y'
                            ORDER BY b.seq_no");
 
     $pdf->AddPage();
