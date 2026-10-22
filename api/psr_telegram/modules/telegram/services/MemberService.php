@@ -5,18 +5,21 @@
 require_once __DIR__ . '/../repositories/MemberRepository.php';
 require_once __DIR__ . '/../repositories/TeamSDLRepository.php';
 require_once __DIR__ . '/WhatsAppNodeService.php';
+require_once __DIR__ . '/TelegramNodeService.php';
 
 class MemberService
 {
     private $repo;
     private $teamSDL;
     private $whatsApp;
+    private $telegram;
 
     public function __construct()
     {
         $this->repo = new MemberRepository();
         //$this->teamSDL = new TeamSDLRepository();
         $this->whatsApp = new WhatsAppNodeService();
+        $this->telegram = new TelegramNodeService();
     }
 
    
@@ -103,7 +106,30 @@ class MemberService
 
     public function groupJoined( $data )
     {
-        return $this->repo->groupJoined( $data );
+        $pendingInvitations = $this->repo->getPendingInvitationsForGroup($data['telegram_group_id'] ?? '');
+        if (!empty($pendingInvitations)) {
+            $match = $this->telegram->resolveInviteJoin([
+                'telegram_group_id' => $data['telegram_group_id'],
+                'telegram_user_id' => $data['telegram_user_id'] ?? '',
+                'invitations' => $pendingInvitations,
+            ]);
+            $employeeCode = $match['data']['employee_code'] ?? null;
+            if (!empty($match['success']) && $employeeCode !== null) {
+                return $this->repo->markInvitationJoined(
+                    $employeeCode,
+                    $data['telegram_group_id'],
+                    $data['telegram_user_id']
+                );
+            }
+            return [
+                'success' => true,
+                'matched' => false,
+                'telegram_user_id' => $data['telegram_user_id'] ?? null,
+                'telegram_group_id' => $data['telegram_group_id'] ?? null,
+            ];
+        }
+
+        return $this->repo->groupJoined($data);
     }
 
     public function saveMembersGroups($data)

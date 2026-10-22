@@ -61,9 +61,23 @@ class GroupRepository extends BaseRepository
         return $this->fetchAll($stmt);
     }
 
+    public function getById($groupId)
+    {
+        $sql = 'SELECT ID, TELEGRAM_GROUP_ID, TITLE, ACTIVE_FLAG FROM PSR_TELEGRAM_GROUPS WHERE ID = :group_id';
+        $stmt = $this->execute($sql, [':group_id' => $groupId]);
+        return $this->fetchAll($stmt)[0] ?? null;
+    }
+
+    public function getByTelegramGroupId($telegramGroupId)
+    {
+        $sql = 'SELECT ID, TELEGRAM_GROUP_ID, TITLE, ACTIVE_FLAG FROM PSR_TELEGRAM_GROUPS WHERE TELEGRAM_GROUP_ID = :telegram_group_id';
+        $stmt = $this->execute($sql, [':telegram_group_id' => $telegramGroupId]);
+        return $this->fetchAll($stmt)[0] ?? null;
+    }
+
     public function getMemberCount($telegram_group_id)
     {
-        $sql = "SELECT COUNT(*) as member_count 
+        $sql = "SELECT COUNT(DISTINCT MEMBER_ID) as member_count
         FROM PSR_MEMBER_GROUP_MAPPING 
         WHERE GROUP_ID = :telegram_group_id and GROUP_STATUS = 'JOINED'";
 
