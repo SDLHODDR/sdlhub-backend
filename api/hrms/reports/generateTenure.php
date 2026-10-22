@@ -18,6 +18,7 @@ try {
             WHERE HEOD.EMP_CODE = '" . $data['EMP_CODE'] . "'");
 
         $checkTenure = singRec("SELECT ID, EMP_CODE, STATUS FROM HR_EMP_TENURE_CHANGE WHERE EMP_CODE = '" . $data['EMP_CODE'] . "' AND STATUS = 'N'");
+        
 
         if($checkTenure && (isset($checkTenure['EMP_CODE']) && $checkTenure['EMP_CODE'] === $data['EMP_CODE'])){
             apiResponse(false, "Teneure Change already exists. ", null, 200);
