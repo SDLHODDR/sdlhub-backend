@@ -67,10 +67,12 @@ try {
 
     $additionalWhereDT = !empty($conditionsDT) ? implode(' AND ', $conditionsDT) : '1=1';
 
-    $joining_taskarr = [4, 13, 35, 36, 37, 38, 39, 41, 42, 43, 44, 45, 50, 51, 55];
-    $exit_task_ids   = ['18', '19', '20', '23', '24'];
+    //$joining_taskarr = [4, 13, 35, 36, 37, 38, 39, 41, 42, 43, 44, 45, 50, 51, 55];
+    $joining_taskarr = [4,13,35,36,37,38,39,41,42,43,44,45,50,51];
+    $exit_task_ids   = ['18','19','20','23','24'];
 
     $taskGrpFilter  = !empty($data['TASK_GRP']) ? "AND TM.ID IN (" . intval($data['TASK_GRP']) . ")" : "";
+
     $exclude46      = "AND TA.TASK_ID != '46'";
     $is_special_exc = ($empCode === '00152') ? $exclude46 : "";
 
@@ -79,8 +81,7 @@ try {
 
     // 1. DISTINCT TASKS
     $distinct_tasks = multiRec("
-        SELECT 
-            TASK_ID, DISP_SEQ, TASK_TYPE, COUNT(TASK_ID) AS CNT
+        SELECT TASK_ID, DISP_SEQ, TASK_TYPE, COUNT(TASK_ID) AS CNT
         FROM (
             SELECT TA.TASK_ID, TM.DISP_SEQ, TM.TASK_TYPE
             FROM HR_USER_TASKS TA
@@ -95,7 +96,7 @@ try {
             FROM HR_USER_TASKS TA
             INNER JOIN HR_TASK_MASTER TM ON TM.ID = TA.TASK_ID
             WHERE {$additionalWhereDT}
-              AND (TA.EMP_CODE_FOR IS NULL OR TA.TASK_ID = {$taskIdd})
+              AND TA.EMP_CODE_FOR IS NULL
               AND TA.STATUS = 'O'
               {$taskGrpFilter} {$is_special_exc}
         ) tasks
@@ -104,6 +105,8 @@ try {
     ");
 
     $tasks_grouped = [];
+
+    //AND (TA.EMP_CODE_FOR IS NULL OR TA.TASK_ID = {$taskIdd})
 
     if (!empty($distinct_tasks)) {
         $allTaskIds = array_column($distinct_tasks, 'TASK_ID');
@@ -156,7 +159,7 @@ try {
                   AND TA.DIVSN_ID  IN ({$divIdsString})
                   AND TA.DEPT_ID   IN ({$deptCodesString})
                   AND TA.TASK_ID   IN ({$taskIdsIn})
-                  AND (TA.EMP_CODE_FOR IS NULL OR TA.TASK_ID = {$taskIdd})
+                  AND TA.EMP_CODE_FOR IS NULL
                   AND TA.STATUS = 'O'
                   {$is_special_exc}
             ) tasks
