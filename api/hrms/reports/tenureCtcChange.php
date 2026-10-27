@@ -247,6 +247,12 @@ try {
         exit;
     }
 
+    $action = strtolower(trim((string)($input['action'] ?? 'submit')));
+    if (!in_array($action, ['save', 'submit'], true)) {
+        apiResponse(false, 'Invalid CTC action.', null, 422);
+        exit;
+    }
+
     $workflowTaskId = (int)($input['task_id'] ?? 0);
     $userTaskId = (int)($input['user_task_id'] ?? 0);
     $employeeCode = tenureCtcSafeCode($input['emp_code'] ?? '');
@@ -335,13 +341,22 @@ try {
         'type' => 'update', 'table' => 'HR_EMP_TENURE_CHANGE',
         'data' => [
             'PROP_CTC' => $totalMonthly * 12,
-            'STATUS' => $isFinalCtcStep ? 'A' : 'T',
+            'STATUS' => $isFinalCtcStep && $action === 'submit' ? 'A' : 'T',
             'CHG_ON' => 'SYSDATE',
             'CHG_BY' => $empCode,
         ],
         'where' => ['ID' => (string)$tenureId], 'print' => 0,
     ]);
     if ($savedProposal === false) throw new RuntimeException('Could not save the proposed CTC total.');
+
+    if ($action === 'save') {
+        endQry();
+        $transactionStarted = false;
+        apiResponse(true, 'CTC values saved successfully.', [
+            'proposed_ctc' => $totalMonthly * 12,
+        ], 200);
+        exit;
+    }
 
     $companyId = $task['COMP_ID'] ?: ($org['COMPANY'] ?? '');
     if ($isFinalCtcStep) {

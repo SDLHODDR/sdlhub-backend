@@ -2,7 +2,7 @@
 ini_set('display_errors', '0');
 
 /******** Central Login DB ********/
-$login_conn = @oci_connect("sdlusers","google10","192.168.20.150:1521/ora19csdl");
+$login_conn = @oci_connect("sdlusers","Google10","192.168.20.150:1521/ora19csdl");
 if(!$login_conn){ die("Central DB connection failed"); }
 
 /******** App DB connections ********/
