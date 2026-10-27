@@ -89,7 +89,8 @@ $officeDetails = multiRec("
         TO_CHAR(o.EFFEC_FROM, 'YYYY-MM-DD') AS EFFEC_FROM,
         TO_CHAR(o.EFFEC_TO, 'YYYY-MM-DD') AS EFFEC_TO
     FROM HRMSLIVE.HR_EMP_OFFICE_DET o
-    WHERE o.EMP_ID = '" . addslashes($employeeId) . "'
+    WHERE (o.EMP_ID = '" . addslashes($employeeId) . "'
+        OR TRIM(o.EMP_CODE) = TRIM('" . addslashes($employee['EMP_CODE']) . "'))
     ORDER BY o.EFFEC_FROM DESC
 ");
 
