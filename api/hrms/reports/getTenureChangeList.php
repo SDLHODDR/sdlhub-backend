@@ -253,15 +253,16 @@ try {
                 if($getDocType && isset($getDocType['ORG_LOC_ID'])){
                     $getAppraser = singRec("SELECT
                         HL.ID,
+                        get_org_loc_emp_code(HL.ID, SYSDATE) AS MGRCODE,
                         (
                             HL.ID || ' - ' ||
-                            GET_EMP_NAME(get_org_loc_emp_code(HL.ID, SYSDATE)) || ' - ' ||
+                            GET_EMP_NAME(get_org_loc_emp_code(HL.ID, SYSDATE)) || ' - ' || get_org_loc_emp_code(HL.ID, SYSDATE) || ' - ' ||
                             GET_SHCOMP_NAME(COMPANY) || ' - ' ||
                             GET_DIVISION_NAME(DIVSN_ID) || ' - ' ||
                             GET_DEPT_NAME(DEPT_ID) || ' - ' ||
                             GET_DESIGN_NAME(DESI_ID) || ' - ' ||
                             HL.GEO_DESC
-                        ) AS Manager
+                        ) AS Manager 
                     FROM HR_ORGANOGRAM HO
                     INNER JOIN HR_ORGANOGRAM_LOC HL ON HL.ORG_ID = HO.ID
                     WHERE HL.ID = '". $getDocType['ORG_LOC_ID'] ."'
@@ -292,7 +293,8 @@ try {
                 //'approvalText'  => !empty($approvalLevelsList) ? implode("\n", array_column($approvalLevelsList, 'display')) : 'Not Set',
                 'manager'       => [
                     'empCode' => $firstMgrEmpCode,
-                    'empName' => $firstMgrName
+                    'empName' => $firstMgrName,
+                    'manager_code' => $getAppraser['MGRCODE'] ?? '-',
                 ],
                 'actionType'    => $hasJdQuestions ? 'ADD_JD' : 'SEND_REQUEST',
                 'jd'            => [
@@ -300,6 +302,9 @@ try {
                     'title' => $jd['SH_DESC'] ?? ''
                 ]
             ];
+
+            $appraserName = '';
+            $getAppraser = [];
         }
     }
 

@@ -1,9 +1,11 @@
 <?php
 
 try {
-    if (isset($data['closeConfirmInt']) && $data['closeConfirmInt'] == true){
+    if (isset($data['CloseConfirmInt']) && $data['CloseConfirmInt'] == true){
         startQry();
-        
+        print '<pre/>';
+        print_r($data);
+        exit;
         $jd_id = singRec("SELECT * FROM HR_ORGANOGRAM
         WHERE ID IN (
             SELECT ORG_ID FROM HR_EMP_OFFICE_DET WHERE

@@ -1,9 +1,6 @@
 <?php
 
 try {
-
-    
-
     if (isset($data['generateTenure']) && $data['generateTenure'] == true){
         startQry();
         $tmp = $data['EMP_CODE'];
