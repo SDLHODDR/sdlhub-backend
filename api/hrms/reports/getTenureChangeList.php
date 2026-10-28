@@ -139,7 +139,9 @@ try {
 
             // 2. Job Description Assessment check
             $jd_id = singRec("SELECT JD_ID FROM HR_ORGANOGRAM WHERE ID = '" . ($offDet['ORG_ID'] ?? '') . "'");
-            
+
+            $empDetailsDN = singRec("SELECT COMPANY, DEPT_ID, DESI_ID, DIVSN_ID FROM HR_ORGANOGRAM WHERE ID = '" . ($offDet['ORG_ID'] ?? '') . "'");
+
             $jd = null;
             if (!empty($jd_id['JD_ID'])) {
                 $jd = singRec("
@@ -232,6 +234,46 @@ try {
                 }
             }
 
+            $appraserName = '';
+            if($empDetailsDN && isset($empDetailsDN['COMPANY']) && isset($empDetailsDN['DEPT_ID']) && isset($empDetailsDN['DESI_ID']) && isset($empDetailsDN['DIVSN_ID'])) {
+                $getDocType = singRec("
+                    SELECT DISTINCT DOCTYP_ID, DOCTYP_DESC, ORG_LOC_ID
+                    FROM HR_DIVSN_DOC HJD
+                    RIGHT JOIN HR_DOC_TYPES HDT ON HJD.DOC_ID = HDT.DOCTYP_ID
+                    WHERE 
+                        HDT.DOC_TYPE ='D' 
+                        AND HJD.COMP_ID='".$empDetailsDN['COMPANY']."' 
+                        AND HJD.DIVSN_ID='".$empDetailsDN['DIVSN_ID']."' 
+                        AND HJD.DEPT_ID='".$empDetailsDN['DEPT_ID']."' 
+                        AND HJD.DESI_ID in ('".$empDetailsDN['DESI_ID']."')
+                        AND HDT.DOCTYP_ID = '14' 
+                        ORDER BY 1"
+                );
+
+                if($getDocType && isset($getDocType['ORG_LOC_ID'])){
+                    $getAppraser = singRec("SELECT
+                        HL.ID,
+                        get_org_loc_emp_code(HL.ID, SYSDATE) AS MGRCODE,
+                        (
+                            HL.ID || ' - ' ||
+                            GET_EMP_NAME(get_org_loc_emp_code(HL.ID, SYSDATE)) || ' - ' || get_org_loc_emp_code(HL.ID, SYSDATE) || ' - ' ||
+                            GET_SHCOMP_NAME(COMPANY) || ' - ' ||
+                            GET_DIVISION_NAME(DIVSN_ID) || ' - ' ||
+                            GET_DEPT_NAME(DEPT_ID) || ' - ' ||
+                            GET_DESIGN_NAME(DESI_ID) || ' - ' ||
+                            HL.GEO_DESC
+                        ) AS Manager 
+                    FROM HR_ORGANOGRAM HO
+                    INNER JOIN HR_ORGANOGRAM_LOC HL ON HL.ORG_ID = HO.ID
+                    WHERE HL.ID = '". $getDocType['ORG_LOC_ID'] ."'
+                    ORDER BY HL.ID ASC");
+                    
+                    if($getAppraser && isset($getAppraser['MANAGER'])){
+                        $appraserName = $getAppraser['MANAGER'];
+                    }
+                }
+            }
+
             // Determine action mode
             $hasJdQuestions = isset($jd['CNT']) && (int)$jd['CNT'] > 0;
 
@@ -245,11 +287,14 @@ try {
                 'doj'           => $offDet['EFFEC_FROM'] ?? '',
                 'tenureDue'     => $tenure['EFF_TO'] ?? '',
                 'orgId'         => $currentOrgId,
-                'approvalLevels'=> $approvalLevelsList,
-                'approvalText'  => !empty($approvalLevelsList) ? implode("\n", array_column($approvalLevelsList, 'display')) : 'Not Set',
+                'approvalLevels'=> [],
+                'approvalText'  => $appraserName,
+                //'approvalLevels'=> $approvalLevelsList,
+                //'approvalText'  => !empty($approvalLevelsList) ? implode("\n", array_column($approvalLevelsList, 'display')) : 'Not Set',
                 'manager'       => [
                     'empCode' => $firstMgrEmpCode,
-                    'empName' => $firstMgrName
+                    'empName' => $firstMgrName,
+                    'manager_code' => $getAppraser['MGRCODE'] ?? '-',
                 ],
                 'actionType'    => $hasJdQuestions ? 'ADD_JD' : 'SEND_REQUEST',
                 'jd'            => [
@@ -257,6 +302,9 @@ try {
                     'title' => $jd['SH_DESC'] ?? ''
                 ]
             ];
+
+            $appraserName = '';
+            $getAppraser = [];
         }
     }
 

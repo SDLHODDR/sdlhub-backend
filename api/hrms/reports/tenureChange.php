@@ -40,7 +40,7 @@ try {
         } else if (isset($data['saveConfirmation']) && $data['saveConfirmation'] == true) {
             require_once "saveConfirmation.php";
             exit; 
-        } else if (isset($data['closeConfirmInt']) && $data['closeConfirmInt'] == true) {
+        } else if (isset($data['CloseConfirmInt']) && $data['CloseConfirmInt'] == true) {
             require_once "closeConfirmation.php";
             exit; 
         } else if (isset($data['saveCTCBreakup']) && $data['saveCTCBreakup'] == true) {

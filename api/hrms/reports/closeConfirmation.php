@@ -1,7 +1,7 @@
 <?php
 
 try {
-    if (isset($data['closeConfirmInt']) && $data['closeConfirmInt'] == true){
+    if (isset($data['CloseConfirmInt']) && $data['CloseConfirmInt'] == true){
         startQry();
 		$employeeCode = trim((string)($data['EMP_CODE'] ?? ''));
 		$effectiveFrom = trim((string)($data['EFF_FROM'] ?? ''));
@@ -19,62 +19,21 @@ try {
         $jd_id = singRec("SELECT * FROM HR_ORGANOGRAM
         WHERE ID IN (
             SELECT ORG_ID FROM HR_EMP_OFFICE_DET WHERE
-                EMP_CODE = :employee_code AND SYSDATE
-                BETWEEN EFFEC_FROM AND NVL(EFFEC_TO, DATE '3000-03-01'))", [
-			':employee_code' => $employeeCode
-		]);
-		if (empty($jd_id['COMPANY']) || empty($jd_id['DIVSN_ID']) || empty($jd_id['DEPT_ID'])) {
-			throw new RuntimeException('Could not resolve the employee\'s company, division, and department.');
-		}
-		$taskConditions = "TASK_ID = :task_id
-			AND TRAN_CODE = :employee_code
-			AND EMP_CODE_FOR = :approver_code
-			AND STATUS = 'O'";
-		$taskBinds = [
-			':task_id' => $workflowTaskId,
-			':employee_code' => $employeeCode,
-			':approver_code' => $empCode
-		];
-		if ($userTaskId !== '') {
-			$taskConditions .= ' AND ID = :user_task_id';
-			$taskBinds[':user_task_id'] = $userTaskId;
-		}
-		$openTasks = multiRec(
-			"SELECT ID FROM HR_USER_TASKS WHERE {$taskConditions} FOR UPDATE NOWAIT",
-			$taskBinds
-		);
-		if (count($openTasks) !== 1 || empty($openTasks[0]['ID'])) {
-			throw new RuntimeException('The selected manager task is unavailable or already being processed. Refresh the task and try again.');
-		}
-		$userTaskId = $openTasks[0]['ID'];
+                EMP_CODE = '" . $data['EMP_CODE'] . "' AND SYSDATE 
+                BETWEEN EFFEC_FROM AND NVL(EFFEC_TO, '01-Mar-3000'))");
 
-		$tenure_chg = singRec("SELECT ID, ETYPE_ID, CURR_CTC, PROP_CTC FROM HR_EMP_TENURE_CHANGE
-		WHERE ID = :tenure_change_id AND EMP_CODE = :employee_code AND STATUS = 'T'", [
-			':tenure_change_id' => $tenureChangeId,
-			':employee_code' => $employeeCode
-		]);
-		if (empty($tenure_chg['ID'])) {
-			throw new RuntimeException('The submitted tenure change was not found or has already been processed. Refresh the task and try again.');
-		}
+        $tenure_chg = singRec("SELECT ID, ETYPE_ID, CURR_CTC, PROP_CTC FROM HR_EMP_TENURE_CHANGE 
+        WHERE EMP_CODE = '".$data['EMP_CODE']."' AND STATUS = 'T'");
 
-        if(is_numeric($tenure_chg['CURR_CTC'] ?? null)
-			&& is_numeric($tenure_chg['PROP_CTC'] ?? null)
-			&& (float)$tenure_chg['CURR_CTC'] == (float)$tenure_chg['PROP_CTC']){
-            $tenureEffDate = singRec("SELECT * FROM HR_EMP_TENURE_CHANGE WHERE ID = :tenure_id", [
-				':tenure_id' => $tenure_chg['ID']
-			]);
-			if (empty($tenureEffDate['ID'])) {
-				throw new RuntimeException('Could not load the submitted tenure details.');
-			}
-			$tnu = singRec("SELECT * FROM (
-			  SELECT * FROM HR_EMP_TENURE WHERE EMP_CODE = :employee_code ORDER BY ID DESC)
-			  WHERE ROWNUM = 1", [':employee_code' => $employeeCode]);
-			if (empty($tnu['ID'])) {
-				throw new RuntimeException('Could not find the current tenure row for employee ' . $employeeCode . '.');
-			}
+        if($tenure_chg['CURR_CTC'] == $tenure_chg['PROP_CTC']){
+            $tenureEffDate = singRec("SELECT * FROM HR_EMP_TENURE_CHANGE WHERE ID = '".$tenure_chg['ID']."'");
+            $tnu = singRec("SELECT * FROM (
+              SELECT * FROM HR_EMP_TENURE WHERE EMP_CODE = '".$data['EMP_CODE']."' ORDER BY ID DESC)
+              WHERE ROWNUM = 1");
 
-			$eff_period = trim((string)($tenureEffDate['ETYPE_PERIOD'] ?? ''));
-			$effToAd = $effectiveDate->modify('-1 day')->format('Y-m-d');
+            $eff_period = trim($tenureEffDate['ETYPE_PERIOD']);
+            $effFrom = $data['EFF_FROM'];
+            $effToAd = date('d-M-y', strtotime($effFrom . ' -1 day'));
             if(!empty($eff_period)){
                 $effToDate = $effectiveDate->modify('+' . (int)$eff_period . ' months');
 				$eff_to = "TO_DATE('" . $effToDate->format('Y-m-d') . "', 'YYYY-MM-DD')";
@@ -110,7 +69,7 @@ try {
                         'CHG_ON' => 'SYSDATE',
                         'CHG_BY' => trim($empCode)
                     ),
-                    'where' => array('EMP_CODE' => trim($data['EMP_CODE'])),
+                    'where' => array('EMP_CODE' => trim($data['emp_code'])),
                     'return' => '',
                     'print' => 0
                 )
@@ -129,7 +88,7 @@ try {
                     'ETYPE_PERIOD' => trim($eff_period),
                     'EFF_FROM' => $effFromOracle,
                     'EFF_TO' => $eff_to,
-                    'CHG_ON' => 'SYSDATE',
+                    'CHG_ON' => SYSDATE,
                     'CHG_BY' => trim($empCode)
                 ),
                 'return' => '',
@@ -143,8 +102,8 @@ try {
 
             generateTaskHR(
                 'PRT_TNU_CHG_LTR',
-                $employeeCode,
-                'Print CTC Change Letter for ' . $employeeName,
+                $data['EMP_CODE'],
+                'Print CTC Change Letter for ' . getEmpInfoByCode($data['EMP_CODE']),
                 '',
                 'A',
                 'O',
@@ -155,26 +114,18 @@ try {
                 $jd_id['DEPT_ID']
             );
             if($tenure_chg['ETYPE_ID'] == '1' || $tenure_chg['ETYPE_ID'] == '2'){
-				$sessionEmployee = singRec(
-					"SELECT WORK_SITE FROM HR_BCS_EMPLOYEE WHERE EMP_CODE = :emp_code",
-					[':emp_code' => $empCode]
-				);
-				$workSite = trim((string)($sessionEmployee['WORK_SITE'] ?? ''));
-				if ($workSite === '') {
-					throw new RuntimeException('Could not determine the submitting employee\'s work site.');
-				}
-
-				$tran_desc = 'Leave Credit for ' . $employeeName;
+    
+                $tran_desc = 'Leave Credit for '. getEmpInfoByCode($data['EMP_CODE']);
             
                 $leaveTaskId = execQry( array(
                     'type' => 'insert', 
                     'table' => 'HR_BCS_USER_TASKS',
                     'data' => array(
                         'TASK_ID' => '373',
-                        'CREATED_ON' => 'SYSDATE',  
-                        'EXPIRE_ON' => 'SYSDATE + 2',
+                        'CREATED_ON' => SYSDATE,  
+                        'EXPIRE_ON' => SYSDATE + 2,
                         'STATUS' => 'O',
-                        'TRAN_CODE' => $employeeCode,
+                        'TRAN_CODE' => $data['EMP_CODE'],
                         'TASK_TYPE' => 'A',
                         'TRAN_DESC' => $tran_desc,
                         'SITE_CODE' => $workSite,
@@ -190,8 +141,8 @@ try {
         } else {
             generateTaskHR(
                 'TNU_CHG_LTR',
-                $employeeCode,
-                'CTC Change Letter for ' . getEmpInfoByCode($employeeCode),
+                $data['EMP_CODE'],
+                'CTC Change Letter for ' . getEmpInfoByCode($data['EMP_CODE']),
                 '',
                 'A',
                 'O',
@@ -203,10 +154,7 @@ try {
             );
         }
 
-		taskUpdateHR('C', '', $userTaskId, null, null);
-		if (($GLOBALS['qry_____result'] ?? 0) == 1) {
-			throw new RuntimeException('Could not close the current manager task.');
-		}
+        taskUpdateHR('C', '', $data['TASK_ID'], null, null);
         endQry();
         apiResponse(true, "Manager Task Closed and New Task generate for further processing", null, 200);
         
