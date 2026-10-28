@@ -17,7 +17,7 @@ try {
         $num = 100;
         if($num > $diff){
             $data['SALARY_TYPE'] = 'T';
-            $effto = singRec("SELECT * FROM EPPLIVE.BCS_ACCT_PERIOD 
+            $effto = singRec("SELECT * FROM HR_BCS_ACCT_PERIOD 
             WHERE SYSDATE BETWEEN FR_DATE AND TO_DATE");
 
             execQry(array(

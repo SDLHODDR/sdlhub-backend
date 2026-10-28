@@ -1,7 +1,7 @@
 <?php
 
-// ini_set('display_errors', 1);
-// error_reporting(E_ALL);
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 
 define('CURRENT_PORTAL', 'hrms');
 
@@ -13,7 +13,7 @@ require_once __DIR__ . "/../../config/validateCsrf.php";
 $sql___func___con = db_hrms();
 
 require_once __DIR__ . "/../../config/functions.php";
-require_once __DIR__ . "/../../config/emp_func.php";
+require_once __DIR__ . "/../../config/hr_func.php";
 require_once __DIR__ . "/../../config/utils.php";
 
 header("Content-Type: application/json");
@@ -64,7 +64,7 @@ try {
         "tenureChange.php"
     );
 
-    apiResponse(false, "Unable to generate Task.12", null, 500);
+    apiResponse(false, "Unable to generate Task.", null, 500);
 } finally {
     if (!empty($sql___func___con)) {
         oci_close($sql___func___con);

@@ -30,7 +30,7 @@ if (empty($empCode)) {
 $notifications = [];
 $stmt = null;
 
-$portalParam = $_GET['portal'];
+$portalParam = $_GET['portal']? '' . $_GET['portal'] : 'hrms';
 $tableNotificaiton = fetchNoficaitonTable($portalParam);
 
 try {

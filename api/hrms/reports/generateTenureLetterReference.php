@@ -169,7 +169,7 @@ try {
      */
     $sessionRows = referenceQuery("
         SELECT work_site, dept_code 
-        FROM epplive.bcs_employee 
+        FROM hr_bcs_employee 
         WHERE emp_code = :emp_code
     ", [
         ':emp_code' => $loggedInEmp
@@ -272,7 +272,7 @@ try {
      * 8. Insert into BCS_OUTWARD_REF (Outward Dispatch Register)
      */
     $insertOutwardSql = "
-        INSERT INTO epplive.BCS_OUTWARD_REF (
+        INSERT INTO HR_BCS_OUTWARD_REF (
             ID, OUTWARD_DATE, OUTWARD_TYPE, DOC_REF, DEPT_CODE, 
             OUTWARD_FROM, OUTWARD_TO, PLACE, REMARKS, 
             CHG_ON, CHG_BY, SITE_CODE

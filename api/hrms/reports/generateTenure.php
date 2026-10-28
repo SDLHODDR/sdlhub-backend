@@ -1,27 +1,33 @@
 <?php
 
 try {
+    if (isset($data['generateTenure']) && $data['generateTenure'] == true) {
+        $employeeCode = trim((string) ($data['EMP_CODE'] ?? ''));
+        $managerCode = trim((string) ($data['MGR_CODE'] ?? ''));
+        if ($employeeCode === '') {
+            throw new InvalidArgumentException('Employee code is required to generate a tenure task.');
+        }
+        if ($managerCode === '') {
+            throw new InvalidArgumentException('Manager code is required to generate a tenure task.');
+        }
+        $data['EMP_CODE'] = $employeeCode;
+        $data['MGR_CODE'] = $managerCode;
 
-    
-
-    if (isset($data['generateTenure']) && $data['generateTenure'] == true){
         startQry();
-        $tmp = $data['EMP_CODE'];
-        $data['EMP_CODE'] = '01148';
-        $ctc = singRec("SELECT GET_TOTAL_CTC('" . $data['EMP_CODE'] . "', '31-MAR-2025') VAL FROM DUAL");
-        $data['EMP_CODE'] = $tmp;
-        //$empDet = getEmpOffice($data['EMP_CODE']);
-        $empDet = singRec("SELECT HRC.COMP_ID, HEOD.DIVSN_ID, HEOD.DEPT_ID 
+        $ctc = singRec("SELECT GET_TOTAL_CTC(:employee_code, '31-MAR-2025') VAL FROM DUAL", [':employee_code' => $employeeCode]);
+        $empDet = singRec('SELECT HRC.COMP_ID, HEOD.DIVSN_ID, HEOD.DEPT_ID 
             FROM HR_EMP_OFFICE_DET HEOD
             INNER JOIN HR_ORGANOGRAM HRO ON HEOD.ORG_ID = HRO.ID
             INNER JOIN HR_COMPANY HRC ON HRO.COMPANY = HRC.COMP_ID
-            WHERE HEOD.EMP_CODE = '" . $data['EMP_CODE'] . "'");
+            WHERE HEOD.EMP_CODE = :employee_code', [':employee_code' => $employeeCode]);
+        if (empty($empDet['COMP_ID'])) {
+            throw new RuntimeException('Could not resolve company, division, and department for employee ' . $employeeCode . '.');
+        }
 
-        $checkTenure = singRec("SELECT ID, EMP_CODE, STATUS FROM HR_EMP_TENURE_CHANGE WHERE EMP_CODE = '" . $data['EMP_CODE'] . "' AND STATUS = 'N'");
-        
+        $checkTenure = singRec("SELECT ID, EMP_CODE, STATUS FROM HR_EMP_TENURE_CHANGE WHERE EMP_CODE = :employee_code AND STATUS = 'N'", [':employee_code' => $employeeCode]);
 
-        if($checkTenure && (isset($checkTenure['EMP_CODE']) && $checkTenure['EMP_CODE'] === $data['EMP_CODE'])){
-            apiResponse(false, "Teneure Change already exists. ", null, 200);
+        if ($checkTenure && (isset($checkTenure['EMP_CODE']) && $checkTenure['EMP_CODE'] === $data['EMP_CODE'])) {
+            apiResponse(false, 'Teneure Change already exists. ', null, 200);
             exit;
         } else {
             $tnu_id = execQry(array(
@@ -38,25 +44,26 @@ try {
                 'return' => 'ID',
                 'print' => 0
             ));
-        
-            $data['MGR_CODE'] = '00575'; //Temporary added need to remove post implementation
-            $task_id =  generateTaskHR(
-                'TNU_CHG', 
-                $data['EMP_CODE'], 
-                'Confirmation/Tenure change of ' . getEmpInfoByCodeHR($data['EMP_CODE']), 
-                '', 
-                'A', 
-                'O', 
-                $data['MGR_CODE'], 
-                $empCode, 
-                $empDet['COMP_ID'], 
-                $empDet['DIVSN_ID'], 
+            if ($tnu_id === false || $tnu_id === null || $tnu_id === '') {
+                throw new RuntimeException('Could not create the tenure change record for employee ' . $employeeCode . '.');
+            }
+
+            $task_id = generateTaskHR(
+                'TNU_CHG',
+                $data['EMP_CODE'],
+                'Confirmation/Tenure change of ' . getEmpInfoByCodeHR($data['EMP_CODE']),
+                '',
+                'A',
+                'O',
+                $managerCode,
+                $empCode,
+                $empDet['COMP_ID'],
+                $empDet['DIVSN_ID'],
                 $empDet['DEPT_ID']
             );
-                    
             // $emp_mgr_id = execQry(
             //     array(
-            //         'type' => 'insert', 
+            //         'type' => 'insert',
             //         'table' => 'HR_EMP_TENURE_MGR',
             //         'data' => array(
             //             'ID' => null,
@@ -73,28 +80,23 @@ try {
             //         'return' => 'ID',
             //         'print' => 0
             //     )
-            // ); //Need to confirm with Tamankar sir/Savita madam for flow then uncomment 
+            // ); //Need to confirm with Tamankar sir/Savita madam for flow then uncomment
 
             endQry();
-            apiResponse(true, "Teneure Change Task generated successfully. ", [
-                "teneureId" => $tnu_id,
-                "task_id" => $task_id
+            apiResponse(true, 'Tenure Change Task generated successfully. ', [
+                'tenureId' => $tnu_id,
+                'task_id' => $task_id
             ]);
         }
     } else {
-        apiResponse(false, "Form data is empty.", null, 200);       
+        apiResponse(false, 'Form data is empty.', null, 200);
     }
 } catch (Throwable $e) {
-    logOracleError(
-        [
-            "message" => $e->getMessage(),
-            "file" => $e->getFile(),
-            "line" => $e->getLine(),
-        ],
-        "generateTenure.php"
-    );
-
-    apiResponse(false, "Unable to generate Task.22", null, 500);
+    logOracleError($e);
+    if (!empty($sql___func___con)) {
+        oci_rollback($sql___func___con);
+    }
+    apiResponse(false, 'Unable to generate Task.', null, 500);
 } finally {
     if (!empty($sql___func___con)) {
         oci_close($sql___func___con);

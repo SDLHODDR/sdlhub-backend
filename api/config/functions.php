@@ -3,12 +3,37 @@ require_once "logger.php";
 
 function logOracleError($oracleError, $sql = "")
 {
-    $fileName = basename($_SERVER['SCRIPT_NAME']);
+    $fileName = basename($_SERVER['SCRIPT_NAME'] ?? '');
 
-    $message =
-        "Oracle Error : " . $oracleError['message'];
+    // Handle PHP exceptions and errors, including TypeError.
+    if ($oracleError instanceof Throwable) {
 
-    if (!empty($fileName)) {
+        $message = "PHP Error (" . get_class($oracleError) . ") : "
+            . $oracleError->getMessage();
+
+        $message .= " | Error File : " . $oracleError->getFile();
+        $message .= " | Error Line : " . $oracleError->getLine();
+
+    } elseif (is_array($oracleError)) {
+
+        // Handle Oracle errors returned by oci_error().
+        $message = "Oracle Error : "
+            . ($oracleError['message'] ?? 'Unknown Oracle error');
+
+        if (isset($oracleError['code'])) {
+            $message .= " | Oracle Code : " . $oracleError['code'];
+        }
+
+    } elseif (is_string($oracleError)) {
+
+        $message = "Error : " . $oracleError;
+
+    } else {
+
+        $message = "Unknown Error : " . print_r($oracleError, true);
+    }
+
+    if ($fileName !== '') {
         $message .= " | File : " . $fileName;
     }
 
@@ -110,45 +135,98 @@ function multiRec($sqlVal, $binds = [], $options = [])
 
     $options = array_merge($defaults, $options);
 
-    if ($options['debug']) {
-        echo $sqlVal . '<hr style="border:2px solid #000;" />';
+    /* ===========================================
+       VALIDATE DATABASE CONNECTION
+    =========================================== */
+
+    if (!$sql___func___con) {
+        logOracleError("Oracle database connection is not available.", $sqlVal);
+        return [];
     }
+
+    /* ===========================================
+       DEBUG SQL
+    =========================================== */
+
+    if ($options['debug']) {
+        echo htmlspecialchars($sqlVal, ENT_QUOTES, 'UTF-8')
+            . '<hr style="border:2px solid #000;" />';
+    }
+
+    /* ===========================================
+       PARSE SQL
+    =========================================== */
 
     $stmt = oci_parse($sql___func___con, $sqlVal);
 
     if (!$stmt) {
-        $e = oci_error($sql___func___con);
-        logOracleError($e, $sqlVal);
+        $error = oci_error($sql___func___con);
+
+        logOracleError(
+            $error ?: "Unable to parse Oracle SQL.",
+            $sqlVal
+        );
+
         return [];
     }
 
-   /* foreach ($binds as $key => &$value) {
-        oci_bind_by_name($stmt, $key, $value);
-    }*/
+    /* ===========================================
+       BIND PARAMETERS
+    =========================================== */
 
-	foreach ($binds as $key => &$value) {
-		if (!is_string($key) || !str_starts_with($key, ':')) {
-			continue;
-		}
+    foreach ($binds as $key => &$value) {
 
-		if (!oci_bind_by_name($stmt, $key, $value)) {
-			$e = oci_error($stmt);
-			logOracleError($e, $sqlVal);
-			oci_free_statement($stmt);
-			return [];
-		}
-	}
+        if (!is_string($key) || !str_starts_with($key, ':')) {
+            continue;
+        }
+
+        if (!oci_bind_by_name($stmt, $key, $value)) {
+
+            $error = oci_error($stmt);
+
+            logOracleError(
+                $error ?: "Unable to bind Oracle parameter: " . $key,
+                $sqlVal
+            );
+
+            oci_free_statement($stmt);
+
+            return [];
+        }
+    }
+
+    unset($value);
+
+    /* ===========================================
+       EXECUTE SQL
+    =========================================== */
 
     if (!oci_execute($stmt, OCI_DEFAULT)) {
-        $e = oci_error($stmt);
-        logOracleError($e, $sqlVal);
+
+        $error = oci_error($stmt);
+
+        logOracleError(
+            $error ?: "Oracle SQL execution failed.",
+            $sqlVal
+        );
+
         oci_free_statement($stmt);
+
         return [];
     }
+
+    /* ===========================================
+       FETCH RECORDS
+    =========================================== */
 
     $records = [];
 
-    while ($row = oci_fetch_array($stmt, OCI_ASSOC + OCI_RETURN_NULLS)) {
+    while (
+        $row = oci_fetch_array(
+            $stmt,
+            OCI_ASSOC | OCI_RETURN_NULLS
+        )
+    ) {
 
         foreach ($row as $key => $value) {
 
@@ -167,6 +245,20 @@ function multiRec($sqlVal, $binds = [], $options = [])
 
         $records[] = $row;
     }
+
+    /* ===========================================
+       CHECK FETCH ERRORS
+    =========================================== */
+
+    $fetchError = oci_error($stmt);
+
+    if ($fetchError) {
+        logOracleError($fetchError, $sqlVal);
+    }
+
+    /* ===========================================
+       CLEANUP
+    =========================================== */
 
     oci_free_statement($stmt);
 
@@ -892,26 +984,20 @@ function generateTaskHR(
 	$div_id = null,
 	$dept_id = null
 ) {
-	$task_id = singRec("select id from hr_task_master where task_grp='" . $task_group . "'");
-	// print_r($task_id);
-	// echo '<br/>STATUS : ' . $status;
-	// echo '<br/>tran_code : ' . $tran_code;
-	// echo '<br/>task_type : ' . $task_type;
-	// echo '<br/>tran_desc : ' . $tran_desc;
-	// echo '<br/>task_grp_desc : ' . $task_grp_desc;
-	// echo '<br/>emp_code_for : ' . $emp_code_for;
-	// echo '<br/>comp_id : ' . $comp_id;
-	// echo '<br/>div_id : ' . $div_id;
-	// echo '<br/>dept_id : ' . $dept_id;
-	// echo '<br/>created_by : ' . $created_by;
-	// exit;
+	$task = singRec(
+		"SELECT ID FROM HR_TASK_MASTER WHERE TASK_GRP = :task_group",
+		[':task_group' => $task_group]
+	);
+	if (empty($task['ID'])) {
+		throw new RuntimeException('No HR task master entry found for task group ' . (string)$task_group . '.');
+	}
 
 	$newId = execQry(array(
 		'type' => 'insert',
 		'table' => 'HR_USER_TASKS',
 		'data' => array(
 			'ID' => '',
-			'TASK_ID' => trim($task_id['ID']),
+			'TASK_ID' => trim($task['ID']),
 			'STATUS' => $status,
 			'TRAN_CODE' => $tran_code,
 			'TASK_TYPE' => $task_type,
@@ -927,6 +1013,9 @@ function generateTaskHR(
 		'return' => 'ID',
 		'print' => 0
 	));
+	if ($newId === false || $newId === null || $newId === '') {
+		throw new RuntimeException('Could not insert HR user task for task group ' . (string)$task_group . '.');
+	}
 	return $newId;
 }
 
@@ -938,12 +1027,14 @@ function taskUpdateHR($status, $remark, $task_id, $taskGrp = null, $notChek = 0)
 	if (empty($taskGrp))
 		$task = singRec("select TASK_GRP from HR_TASK_MASTER where id='" . $chk['TASK_ID'] . "' ");
 	if ($task_id) {
+		$authBy = trim((string)($_SESSION['emp_code'] ?? $_SESSION['EmpCode'] ?? ''));
+		$remoteAddress = $_SERVER['REMOTE_ADDR'] ?? '';
 		executeQry("update HR_USER_TASKS set
 			STATUS='" . trim(strtoupper($status)) . "',
-			AUTH_BY='" . trim(strtoupper($empCode)) . "',
+			AUTH_BY='" . trim(strtoupper($authBy)) . "',
 			AUTH_ON=SYSDATE,
 			REMARKS='" . trim(strtoupper($remark)) . "',
-			IP_ADDR='" . $_SERVER['REMOTE_ADDR'] . "'
+			IP_ADDR='" . str_replace("'", "''", $remoteAddress) . "'
 			where id='" . $task_id . "' ");
 	}
 }
