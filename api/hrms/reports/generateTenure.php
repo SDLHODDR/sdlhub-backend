@@ -14,14 +14,24 @@ try {
         $data['MGR_CODE'] = $managerCode;
 
         startQry();
-        $ctc = singRec("SELECT GET_TOTAL_CTC(:employee_code, '31-MAR-2025') VAL FROM DUAL", [':employee_code' => $employeeCode]);
-        $empDet = singRec('SELECT HRC.COMP_ID, HEOD.DIVSN_ID, HEOD.DEPT_ID 
+        $ctc = singRec("SELECT GET_TOTAL_CTC(:employee_code, SYSDATE) VAL FROM DUAL", [':employee_code' => $employeeCode]);
+        $empDet = singRec("SELECT HRC.COMP_ID, HEOD.DIVSN_ID, HEOD.DEPT_ID
             FROM HR_EMP_OFFICE_DET HEOD
             INNER JOIN HR_ORGANOGRAM HRO ON HEOD.ORG_ID = HRO.ID
             INNER JOIN HR_COMPANY HRC ON HRO.COMPANY = HRC.COMP_ID
-            WHERE HEOD.EMP_CODE = :employee_code', [':employee_code' => $employeeCode]);
+            WHERE HEOD.EMP_CODE = :employee_code
+              AND SYSDATE BETWEEN HEOD.EFFEC_FROM AND NVL(HEOD.EFFEC_TO, DATE '3000-03-01')",
+            [':employee_code' => $employeeCode]);
         if (empty($empDet['COMP_ID'])) {
             throw new RuntimeException('Could not resolve company, division, and department for employee ' . $employeeCode . '.');
+        }
+
+        $manager = singRec(
+            'SELECT EMP_CODE FROM HR_EMPLOYEE_INFO WHERE EMP_CODE = :manager_code',
+            [':manager_code' => $managerCode]
+        );
+        if (empty($manager['EMP_CODE'])) {
+            throw new RuntimeException('Manager ' . $managerCode . ' was not found in HR employee records.');
         }
 
         $checkTenure = singRec("SELECT ID, EMP_CODE, STATUS FROM HR_EMP_TENURE_CHANGE WHERE EMP_CODE = :employee_code AND STATUS = 'N'", [':employee_code' => $employeeCode]);
@@ -51,7 +61,7 @@ try {
             $task_id = generateTaskHR(
                 'TNU_CHG',
                 $data['EMP_CODE'],
-                'Confirmation/Tenure change of ' . getEmpInfoByCodeHR($data['EMP_CODE']),
+                'Confirmation/Tenure change of ' . getEmpInfoByCode($data['EMP_CODE']),
                 '',
                 'A',
                 'O',
@@ -96,7 +106,7 @@ try {
     if (!empty($sql___func___con)) {
         oci_rollback($sql___func___con);
     }
-    apiResponse(false, 'Unable to generate Task.', null, 500);
+    apiResponse(false, $e->getMessage(), null, 500);
 } finally {
     if (!empty($sql___func___con)) {
         oci_close($sql___func___con);
