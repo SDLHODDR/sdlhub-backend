@@ -24,11 +24,16 @@ if (in_array($origin, $allowed_origins)) {
 header("Content-Type: application/json");
 
 if (isset($_SESSION['emp_code'])) {
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+
     echo json_encode([
         "logged_in" => true,
         "emp_code" => $_SESSION['emp_code'],
         "name" => ucfirst($_SESSION['name']),
-        "profile_image" => $_SESSION['profile_image'] ?? null
+        "profile_image" => $_SESSION['profile_image'] ?? null,
+        "csrf_token" => $_SESSION['csrf_token'] ?? null
     ]);
 } else {
     echo json_encode([
