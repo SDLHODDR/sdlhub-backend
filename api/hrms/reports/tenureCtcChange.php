@@ -271,10 +271,15 @@ try {
             ORDER BY EFFEC_FROM DESC
         ) WHERE ROWNUM = 1");
     $org = singRec("SELECT COMPANY FROM HR_ORGANOGRAM WHERE ID = '" . (int)($office['ORG_ID'] ?? 0) . "'");
-    $allowedHeads = multiRec("SELECT AD_CODE FROM HR_JD_CTC_HEADS
-        WHERE JD_ID = (SELECT JD_ID FROM HR_ORGANOGRAM WHERE ID = '" . (int)($office['ORG_ID'] ?? 0) . "')
-          AND SYSDATE BETWEEN EFFEC_FROM AND NVL(EFFEC_TO, DATE '3000-03-01')");
-    $allowed = array_fill_keys(array_map(static fn($r) => (string)$r['AD_CODE'], $allowedHeads ?: []), true);
+    $allowedHeads = multiRec("SELECT H.AD_CODE, B.AD_TYPE
+        FROM HR_JD_CTC_HEADS H
+        INNER JOIN HR_BCS_ALLW_DEDN B ON B.ID = H.AD_ID
+        WHERE H.JD_ID = (SELECT JD_ID FROM HR_ORGANOGRAM WHERE ID = '" . (int)($office['ORG_ID'] ?? 0) . "')
+          AND SYSDATE BETWEEN H.EFFEC_FROM AND NVL(H.EFFEC_TO, DATE '3000-03-01')");
+    $allowed = [];
+    foreach ($allowedHeads ?: [] as $allowedHead) {
+        $allowed[(string)$allowedHead['AD_CODE']] = (string)($allowedHead['AD_TYPE'] ?? '');
+    }
     $totalMonthly = 0.0;
     $validatedRows = [];
     foreach ($rows as $row) {
@@ -309,38 +314,128 @@ try {
         exit;
     }
 
+    $period = singRec("SELECT TO_CHAR(T.CTC_EFF_FROM, 'YYYY-MM-DD') AS EFF_FROM,
+            TO_CHAR(P.TO_DATE, 'YYYY-MM-DD') AS EFF_TO
+        FROM HR_EMP_TENURE_CHANGE T
+        CROSS JOIN EPPLIVE.BCS_ACCT_PERIOD P
+        WHERE T.ID = '{$tenureId}'
+          AND SYSDATE BETWEEN P.FR_DATE AND P.TO_DATE");
+    if (empty($period['EFF_FROM']) || empty($period['EFF_TO'])) {
+        throw new RuntimeException('The tenure effective date or current payroll period was not found.');
+    }
+    $effectiveFromSql = "TO_DATE('{$period['EFF_FROM']}', 'YYYY-MM-DD')";
+    $effectiveToSql = "TO_DATE('{$period['EFF_TO']}', 'YYYY-MM-DD')";
+    $effectiveFromIso = $period['EFF_FROM'];
+    $proposedCtc = round($totalMonthly * 12, 2);
+    $eppConnection = db_epplive();
+    if (!$eppConnection) throw new RuntimeException('EPP database connection failed.');
+    $hrmsConnection = $sql___func___con;
+
     startQry();
     $transactionStarted = true;
-    if (!executeQry("DELETE FROM HR_EMP_CTC_HEADS WHERE EMP_CODE = '{$employeeCode}' AND REF_ID = '{$tenureId}'")) {
-        throw new RuntimeException('Could not replace the employee CTC head values.');
-    }
+    $saveCtcHead = static function ($code, $monthly, $salaryType, $calcType) use (
+        $employeeCode, $tenureId, $proposedCtc, $effectiveFromSql,
+        $effectiveToSql, $empCode
+    ) {
+        $annual = round((float)$monthly * 12, 2);
+        $existing = singRec("SELECT ID FROM HR_EMP_CTC_HEADS
+            WHERE EMP_CODE = '{$employeeCode}' AND REF_ID = '{$tenureId}'
+              AND AD_CODE = '{$code}' AND SALARY_TYPE = '{$salaryType}'");
+        $data = [
+            'EMP_CODE' => $employeeCode,
+            'AD_CODE' => $code,
+            'AMOUNT_MNTH' => $monthly,
+            'REF_ID' => (string)$tenureId,
+            'SALARY_TYPE' => $salaryType,
+            'STATUS' => 'T',
+            'CALC_TYPE' => $calcType,
+            'EFF_FROM' => $effectiveFromSql,
+            'EFF_TO' => $effectiveToSql,
+            'CHG_ON' => 'SYSDATE',
+            'CHG_BY' => $empCode,
+        ];
+        if ($code !== 'XPFBS') {
+            $data['AMOUNT_YRLY'] = $annual;
+            $data['CTC'] = $proposedCtc;
+        }
+        if (!empty($existing['ID'])) {
+            $saved = execQry([
+                'type' => 'update', 'table' => 'HR_EMP_CTC_HEADS',
+                'data' => $data, 'where' => ['ID' => (string)$existing['ID']], 'print' => 0,
+            ]);
+        } else {
+            $data = ['ID' => ''] + $data;
+            $saved = execQry([
+                'type' => 'insert', 'table' => 'HR_EMP_CTC_HEADS',
+                'data' => $data, 'print' => 0,
+            ]);
+        }
+        if ($saved === false) throw new RuntimeException("Could not save CTC head {$code}.");
+    };
+
+    $saveEppSalary = static function ($code, $monthly, $type) use (
+        $employeeCode, $effectiveFromSql, $effectiveToSql, $effectiveFromIso,
+        $empCode, $eppConnection, $hrmsConnection
+    ) {
+        $GLOBALS['sql___func___con'] = $eppConnection;
+        try {
+            $existing = singRec("SELECT ID FROM BCS_EMPLOYEE_AD
+                WHERE EMP_CODE = '{$employeeCode}' AND AD_CODE = '{$code}'
+                  AND TRUNC(EFF_DATE) = TO_DATE('{$effectiveFromIso}', 'YYYY-MM-DD')
+                  AND ROWNUM = 1");
+            $data = [
+                'TYPE' => $type,
+                'EFF_DATE' => $effectiveFromSql,
+                'EXP_DATE' => $effectiveToSql,
+                'AMOUNT' => $monthly,
+                'CONFIRMED' => 'Y',
+                'CONF_DATE' => 'SYSDATE',
+                'CHG_ON' => 'SYSDATE',
+                'CHG_BY' => $empCode,
+                'EMP_CODE_APRV' => $empCode,
+            ];
+            if (!empty($existing['ID'])) {
+                $saved = execQry([
+                    'type' => 'update', 'table' => 'BCS_EMPLOYEE_AD',
+                    'data' => $data, 'where' => ['ID' => (string)$existing['ID']], 'print' => 0,
+                ]);
+            } else {
+                $overlapUpdated = executeQry("UPDATE BCS_EMPLOYEE_AD
+                    SET EXP_DATE = {$effectiveFromSql} - 1
+                    WHERE EMP_CODE = '{$employeeCode}' AND AD_CODE = '{$code}'
+                      AND CONFIRMED = 'Y' AND EFF_DATE < {$effectiveFromSql}
+                      AND EXP_DATE >= {$effectiveFromSql}");
+                if ($overlapUpdated === false) {
+                    throw new RuntimeException("Could not close the prior EPP salary period for {$code}.");
+                }
+                $data = ['ID' => '', 'EMP_CODE' => $employeeCode, 'AD_CODE' => $code] + $data;
+                $saved = execQry([
+                    'type' => 'insert', 'table' => 'BCS_EMPLOYEE_AD',
+                    'data' => $data, 'print' => 0,
+                ]);
+            }
+            if ($saved === false) throw new RuntimeException("Could not update EPP salary head {$code}.");
+        } finally {
+            $GLOBALS['sql___func___con'] = $hrmsConnection;
+        }
+    };
+
     foreach ($validatedRows as $code => $monthly) {
-        $saved = execQry([
-            'type' => 'insert', 'table' => 'HR_EMP_CTC_HEADS',
-            'data' => [
-                'ID' => '', 'EMP_CODE' => $employeeCode, 'AD_CODE' => $code,
-                'AMOUNT_MNTH' => $monthly, 'REF_ID' => (string)$tenureId,
-                'SALARY_TYPE' => $salaryTypes[$code], 'STATUS' => 'T',
-                'CHG_ON' => 'SYSDATE', 'CHG_BY' => $empCode,
-            ], 'print' => 0,
-        ]);
-        if ($saved === false) throw new RuntimeException('Could not save a CTC head value.');
+        $adType = $allowed[$code] ?? '';
+        $calcType = $adType === 'A' ? 'F' : ($adType === 'D' ? 'P' : '');
+        if ($calcType === '') throw new RuntimeException("Could not determine the calculation type for {$code}.");
+        $eppType = $calcType === 'P' ? 'P' : 'F';
+        $saveCtcHead($code, $monthly, $salaryTypes[$code], $calcType);
+        $saveEppSalary($code, $monthly, $eppType);
     }
-    $savedPf = execQry([
-        'type' => 'insert', 'table' => 'HR_EMP_CTC_HEADS',
-        'data' => [
-            'ID' => '', 'EMP_CODE' => $employeeCode, 'AD_CODE' => 'XPFBS',
-            'AMOUNT_MNTH' => $pfInput, 'REF_ID' => (string)$tenureId,
-            'SALARY_TYPE' => $pfSalaryType, 'STATUS' => 'T',
-            'CHG_ON' => 'SYSDATE', 'CHG_BY' => $empCode,
-        ], 'print' => 0,
-    ]);
-    if ($savedPf === false) throw new RuntimeException('Could not save the PF selection.');
+    $pfCalcType = 'F';
+    $saveCtcHead('XPFBS', $pfInput, $pfSalaryType, $pfCalcType);
+    $saveEppSalary('XPFBS', $pfInput, 'F');
     $isFinalCtcStep = $workflowTaskId === 27;
     $savedProposal = execQry([
         'type' => 'update', 'table' => 'HR_EMP_TENURE_CHANGE',
         'data' => [
-            'PROP_CTC' => $totalMonthly * 12,
+            'PROP_CTC' => $proposedCtc,
             'STATUS' => $isFinalCtcStep && $action === 'submit' ? 'A' : 'T',
             'CHG_ON' => 'SYSDATE',
             'CHG_BY' => $empCode,
@@ -353,7 +448,7 @@ try {
         endQry();
         $transactionStarted = false;
         apiResponse(true, 'CTC values saved successfully.', [
-            'proposed_ctc' => $totalMonthly * 12,
+            'proposed_ctc' => $proposedCtc,
         ], 200);
         exit;
     }
@@ -386,7 +481,7 @@ try {
     $transactionStarted = false;
     apiResponse(true, $successMessage, [
         'task_id' => $nextTaskId,
-        'proposed_ctc' => $totalMonthly * 12,
+        'proposed_ctc' => $proposedCtc,
     ], 200);
     exit;
 } catch (Throwable $e) {
@@ -396,5 +491,6 @@ try {
     logOracleError(['message' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()], 'tenureCtcChange.php');
     apiResponse(false, $e->getMessage(), null, 500);
 } finally {
+    if (!empty($eppConnection)) oci_close($eppConnection);
     if (!empty($sql___func___con)) oci_close($sql___func___con);
 }
