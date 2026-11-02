@@ -101,6 +101,27 @@ try {
     ";
     $tenure_chg = singRec($tenureChgSql, [':emp_code' => $empCode]);
 
+    $remarksColumn = singRec("
+        SELECT DATA_LENGTH
+        FROM ALL_TAB_COLUMNS
+        WHERE OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
+          AND TABLE_NAME = 'HR_EMP_TENURE_CHANGE'
+          AND COLUMN_NAME = 'REMARKS'
+    ");
+    if (empty($remarksColumn['DATA_LENGTH'])) {
+        $remarksColumn = singRec("
+            SELECT DATA_LENGTH
+            FROM ALL_TAB_COLUMNS
+            WHERE OWNER = 'HRMSLIVE'
+              AND TABLE_NAME = 'HR_EMP_TENURE_CHANGE'
+              AND COLUMN_NAME = 'REMARKS'
+        ");
+    }
+    $remarksMaxBytes = (int)($remarksColumn['DATA_LENGTH'] ?? 0);
+    if ($remarksMaxBytes <= 0) {
+        $remarksMaxBytes = 1000;
+    }
+
     /* ===========================================
        CALCULATE DATES (MATCHING OLD LOGIC)
     =========================================== */
@@ -170,18 +191,14 @@ try {
                       AND EMP_CODE_INTRV = :interviewer 
                       AND TENURE_CHG_ID = :tenure_chg_id
                 ";
-                $ansRow = singRec($ansSql, [
+                $ansRows = multiRec($ansSql, [
                     ':ques_id'        => $quesId,
                     ':emp_code'       => $empCode,
                     ':interviewer'    => $interviewerEmpCode,
                     ':tenure_chg_id'  => $tenureChgId
                 ]);
-
+                $ansRow = $ansRows[0] ?? [];
                 $savedAnswer = trim((string)($ansRow['EMP_ANS_TEXT'] ?? ''));
-
-                if ($savedAnswer === '') {
-                    $allAreFilled = false;
-                }
 
                 // Fetch Options
                 $optsSql = "SELECT OPTS_TEXT FROM HR_QUESTION_OPTS WHERE QUESTION_ID = :ques_id ORDER BY ID ASC";
@@ -193,6 +210,42 @@ try {
                     $type = 'radio';
                 } elseif ($q['RATING_TYPE'] === 'C') {
                     $type = 'checkbox';
+                }
+
+                if ($type === 'checkbox' && $savedAnswer !== '') {
+                    // Older saves may contain repeatedly HTML-encoded labels.
+                    $decodeEntities = static function ($value): string {
+                        $decoded = (string)$value;
+                        for ($i = 0; $i < 10; $i++) {
+                            $next = html_entity_decode(
+                                $decoded,
+                                ENT_QUOTES | ENT_HTML5,
+                                'UTF-8'
+                            );
+                            if ($next === $decoded) {
+                                break;
+                            }
+                            $decoded = $next;
+                        }
+                        return preg_replace("/'{2,}/", "'", $decoded) ?? $decoded;
+                    };
+
+                    $savedValues = [];
+                    foreach (explode(',', $decodeEntities($savedAnswer)) as $savedValue) {
+                        $savedValues[] = trim($decodeEntities($savedValue));
+                    }
+
+                    $selectedOptions = [];
+                    foreach ($options as $option) {
+                        if (in_array(trim($decodeEntities($option)), $savedValues, true)) {
+                            $selectedOptions[] = $option;
+                        }
+                    }
+                    $savedAnswer = implode(',', array_values(array_unique($selectedOptions)));
+                }
+
+                if ($savedAnswer === '') {
+                    $allAreFilled = false;
                 }
 
                 $questionsData[] = [
@@ -239,6 +292,7 @@ try {
             'effective_from'     => !empty($tenure_chg['EFF_FROM_FORMATTED']) ? $tenure_chg['EFF_FROM_FORMATTED'] : $defaultEffectiveDate,
             'min_effective_date' => $firstDayOfNextMonth,
             'remarks'            => $tenure_chg['REMARKS'] ?? '',
+            'remarks_max_bytes'  => $remarksMaxBytes,
             'can_submit'         => $canSubmit,
         ],
         'employee_type_options' => $empTypeOptions,
