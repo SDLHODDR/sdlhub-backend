@@ -54,12 +54,51 @@ try {
         }
     }
 
+    // HR_TENURE_INTRV.EMP_ANS_TEXT is VARCHAR2(1000 BYTE).
+    foreach ($normalizedAnswers as $answer) {
+        $answerText = is_array($answer) ? implode(',', $answer) : (string)$answer;
+        if (strlen($answerText) > 1000) {
+            throw new InvalidArgumentException(
+                'Assessment answers must be 1000 bytes or fewer. Shorten the Area of Improvement or Appraiser comments and try again.'
+            );
+        }
+    }
+
     $sqlQuote = static function ($value): string {
         return str_replace("'", "''", trim((string)$value));
     };
     $employeeType = $data['ETYPE_ID'] ?? $data['etype_id'] ?? $tenure['ETYPE_ID'];
     $period = $data['ETYPE_PERIOD'] ?? $data['etype_period'] ?? $tenure['ETYPE_PERIOD'];
     $remarks = $data['REMARKS'] ?? $data['remarks'] ?? $tenure['REMARKS'];
+    $remarks = (string)$remarks;
+
+    // Read the actual byte limit because REMARKS is stored on a different table.
+    $remarksColumn = singRec("
+        SELECT DATA_LENGTH
+        FROM ALL_TAB_COLUMNS
+        WHERE OWNER = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
+          AND TABLE_NAME = 'HR_EMP_TENURE_CHANGE'
+          AND COLUMN_NAME = 'REMARKS'
+    ");
+    if (empty($remarksColumn['DATA_LENGTH'])) {
+        $remarksColumn = singRec("
+            SELECT DATA_LENGTH
+            FROM ALL_TAB_COLUMNS
+            WHERE OWNER = 'HRMSLIVE'
+              AND TABLE_NAME = 'HR_EMP_TENURE_CHANGE'
+              AND COLUMN_NAME = 'REMARKS'
+        ");
+    }
+    $remarksMaxBytes = (int)($remarksColumn['DATA_LENGTH'] ?? 0);
+    if ($remarksMaxBytes <= 0) {
+        // Keep the save path bounded if metadata visibility is restricted.
+        $remarksMaxBytes = 1000;
+    }
+    if ($remarksMaxBytes > 0 && strlen($remarks) > $remarksMaxBytes) {
+        throw new InvalidArgumentException(
+            "Assessment Remarks must be {$remarksMaxBytes} bytes or fewer. Shorten the text and try again."
+        );
+    }
     $currentCtc = $data['CURR_CTC'] ?? $data['curr_ctc'] ?? $tenure['CURR_CTC'];
     $proposedCtc = $data['PROP_CTC'] ?? $data['proposed_ctc'] ?? $tenure['PROP_CTC'];
     if (trim((string)$proposedCtc) === '') {
@@ -91,33 +130,59 @@ try {
         throw new RuntimeException('Could not save tenure assessment details.');
     }
 
-    if (executeQry("DELETE FROM HR_TENURE_INTRV WHERE TENURE_CHG_ID='" . $sqlQuote($tenure['ID']) . "'") === false) {
-        throw new RuntimeException('Could not replace the existing assessment answers.');
-    }
     foreach ($normalizedAnswers as $questionId => $answer) {
         $answerText = is_array($answer)
-            ? implode(',', array_map($sqlQuote, $answer))
-            : $sqlQuote($answer);
-        $inserted = execQry([
-            'type' => 'insert',
-            'table' => 'HR_TENURE_INTRV',
-            'data' => [
-                'ID' => '',
-                'TENURE_CHG_ID' => $sqlQuote($tenure['ID']),
-                'EMP_CODE' => $sqlQuote($employeeCode),
-                'ASON_DATE' => 'SYSDATE',
-                'EMP_CODE_INTRV' => $sqlQuote($empCode),
-                'JD_ID' => $sqlQuote($data['jd_id'] ?? $data['JD_ID'] ?? ''),
-                'QUES_ID' => $sqlQuote($questionId),
-                'EMP_OPTS_ID' => '',
-                'EMP_ANS_TEXT' => $sqlQuote($answerText),
-                'CHG_BY' => $sqlQuote($empCode),
-                'CHG_ON' => 'SYSDATE'
-            ],
-            'return' => '',
-            'print' => 0
-        ]);
-        if ($inserted === false) {
+            ? implode(',', array_map(static fn($value) => (string)$value, $answer))
+            : (string)$answer;
+        $answerKey = [
+            ':tenure_change_id' => $tenure['ID'],
+            ':question_id' => $questionId,
+            ':employee_code' => $employeeCode,
+            ':interviewer_code' => $empCode
+        ];
+        $existingAnswer = singRec(
+            "SELECT ID FROM HR_TENURE_INTRV
+             WHERE TENURE_CHG_ID = :tenure_change_id
+               AND QUES_ID = :question_id
+               AND EMP_CODE = :employee_code
+               AND EMP_CODE_INTRV = :interviewer_code",
+            $answerKey
+        );
+
+        $answerData = [
+            'TENURE_CHG_ID' => $sqlQuote($tenure['ID']),
+            'EMP_CODE' => $sqlQuote($employeeCode),
+            'ASON_DATE' => 'SYSDATE',
+            'EMP_CODE_INTRV' => $sqlQuote($empCode),
+            'JD_ID' => $sqlQuote($data['jd_id'] ?? $data['JD_ID'] ?? ''),
+            'QUES_ID' => $sqlQuote($questionId),
+            'EMP_OPTS_ID' => '',
+            'EMP_ANS_TEXT' => $sqlQuote($answerText),
+            'CHG_BY' => $sqlQuote($empCode),
+            'CHG_ON' => 'SYSDATE'
+        ];
+
+        if (!empty($existingAnswer['ID'])) {
+            $saved = execQry([
+                'type' => 'update',
+                'table' => 'HR_TENURE_INTRV',
+                'data' => $answerData,
+                'where' => ['ID' => $sqlQuote($existingAnswer['ID'])],
+                'return' => '',
+                'print' => 0
+            ]);
+        } else {
+            $answerData = ['ID' => ''] + $answerData;
+            $saved = execQry([
+                'type' => 'insert',
+                'table' => 'HR_TENURE_INTRV',
+                'data' => $answerData,
+                'return' => '',
+                'print' => 0
+            ]);
+        }
+
+        if ($saved === false) {
             throw new RuntimeException('Could not save an assessment answer.');
         }
     }
@@ -133,7 +198,8 @@ try {
         'file' => $e->getFile(),
         'line' => $e->getLine()
     ], 'saveConfirmation.php');
-    apiResponse(false, $e->getMessage(), null, 500);
+    $httpCode = $e instanceof InvalidArgumentException ? 422 : 500;
+    apiResponse(false, $e->getMessage(), null, $httpCode);
 } finally {
     if (!empty($sql___func___con)) {
         oci_close($sql___func___con);

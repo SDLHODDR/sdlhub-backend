@@ -92,7 +92,7 @@ try {
             A.EMP_CODE, 
             GET_EMP_NAME(A.EMP_CODE) AS ENAME,
             A.ETYPE_ID, 
-            TO_CHAR(A.EFF_TO, 'DD-MON-YYYY') AS EFF_TO, 
+            TO_CHAR(A.EFF_TO, 'DD-Mon-YYYY') AS EFF_TO, 
             C.EMP_TYPE
         FROM (
             SELECT EMP_CODE, ETYPE_ID, MAX(EFF_TO) AS EFF_TO 
@@ -143,6 +143,7 @@ try {
             $empDetailsDN = singRec("SELECT COMPANY, DEPT_ID, DESI_ID, DIVSN_ID FROM HR_ORGANOGRAM WHERE ID = '" . ($offDet['ORG_ID'] ?? '') . "'");
 
             $jd = null;
+            $hasTenureQuestions = false;
             if (!empty($jd_id['JD_ID'])) {
                 $jd = singRec("
                     SELECT 
@@ -156,6 +157,16 @@ try {
                     GROUP BY A.SH_DESC, A.ID 
                     ORDER BY A.ID
                 ");
+
+                $tenureQuestions = singRec("
+                    SELECT COUNT(*) AS CNT
+                    FROM HR_JD_QUESTIONS A
+                    INNER JOIN HR_QUESTION_MASTER B ON A.QUESTION_ID = B.ID
+                    WHERE A.JD_ID = '{$jd_id['JD_ID']}'
+                      AND A.QGRP_TYPE = 'T'
+                ");
+                $hasTenureQuestions = isset($tenureQuestions['CNT'])
+                    && (int)$tenureQuestions['CNT'] > 0;
             }
 
             // 3. Company code / short desc
@@ -235,6 +246,7 @@ try {
             }
 
             $appraserName = '';
+            $appraisalManager = '';
             if($empDetailsDN && isset($empDetailsDN['COMPANY']) && isset($empDetailsDN['DEPT_ID']) && isset($empDetailsDN['DESI_ID']) && isset($empDetailsDN['DIVSN_ID'])) {
                 $getDocType = singRec("
                     SELECT DISTINCT DOCTYP_ID, DOCTYP_DESC, ORG_LOC_ID
@@ -254,22 +266,25 @@ try {
                     $getAppraser = singRec("SELECT
                         HL.ID,
                         get_org_loc_emp_code(HL.ID, SYSDATE) AS MGRCODE,
-                        (
-                            HL.ID || ' - ' ||
-                            GET_EMP_NAME(get_org_loc_emp_code(HL.ID, SYSDATE)) || ' - ' || get_org_loc_emp_code(HL.ID, SYSDATE) || ' - ' ||
-                            GET_SHCOMP_NAME(COMPANY) || ' - ' ||
-                            GET_DIVISION_NAME(DIVSN_ID) || ' - ' ||
-                            GET_DEPT_NAME(DEPT_ID) || ' - ' ||
-                            GET_DESIGN_NAME(DESI_ID) || ' - ' ||
-                            HL.GEO_DESC
-                        ) AS Manager 
+                        GET_EMP_NAME(get_org_loc_emp_code(HL.ID, SYSDATE)) AS MGRNAME
                     FROM HR_ORGANOGRAM HO
                     INNER JOIN HR_ORGANOGRAM_LOC HL ON HL.ORG_ID = HO.ID
                     WHERE HL.ID = '". $getDocType['ORG_LOC_ID'] ."'
                     ORDER BY HL.ID ASC");
                     
-                    if($getAppraser && isset($getAppraser['MANAGER'])){
-                        $appraserName = $getAppraser['MANAGER'];
+                    if($getAppraser && isset($getAppraser['ID'])){
+                        $managerName = trim((string)($getAppraser['MGRNAME'] ?? ''));
+                        $managerEmpCode = trim((string)($getAppraser['MGRCODE'] ?? ''));
+                        $appraisalManager = $managerName;
+                        if ($managerName !== '') {
+                            $appraserName = $managerEmpCode !== ''
+                                ? $managerName . ' (' . $managerEmpCode . ')'
+                                : $managerName;
+                        } elseif ($managerEmpCode !== '') {
+                            $appraserName = '-Not Set (' . $managerEmpCode . ')';
+                        } else {
+                            $appraserName = '-';
+                        }
                     }
                 }
             }
@@ -289,6 +304,8 @@ try {
                 'orgId'         => $currentOrgId,
                 'approvalLevels'=> [],
                 'approvalText'  => $appraserName,
+                'appraisalManager' => $appraisalManager,
+                'questions_set' => $hasTenureQuestions ? 1 : 0,
                 //'approvalLevels'=> $approvalLevelsList,
                 //'approvalText'  => !empty($approvalLevelsList) ? implode("\n", array_column($approvalLevelsList, 'display')) : 'Not Set',
                 'manager'       => [
