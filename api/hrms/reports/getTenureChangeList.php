@@ -20,6 +20,7 @@ require_once __DIR__ . "/../../config/functions.php";
 require_once __DIR__ . "/../../config/utils.php";
 require_once __DIR__ . "/../../config/env.php";
 require_once __DIR__ . "/../../config/hr_func.php";
+require_once __DIR__ . "/../../config/hrmsAccess.php";
 
 header("Content-Type: application/json; charset=UTF-8");
 
@@ -44,6 +45,8 @@ try {
     /* ==========================================================
        COMPANY ACCESS / IDS FILTER
     ========================================================== */
+
+    loadHrmsAccess($_SESSION["emp_code"]);
 
     // HRMS stores compId as an array; legacy sessions may contain a comma-separated string.
     $rawCompanyIds = $_SESSION["compId"] ?? [];
@@ -80,8 +83,8 @@ try {
        UPCOMING TENURE WINDOW
     ========================================================== */
 
-    $emp_days = 200;
-    // $emp_days = 15;
+    // $emp_days = 200;
+    $emp_days = 15;
 
     /* ==========================================================
        FETCH UPCOMING TENURE EMPLOYEES
