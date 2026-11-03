@@ -12,6 +12,7 @@ $sql___func___con = db_hrms();
 
 require_once __DIR__ . "/../config/functions.php";
 require_once __DIR__ . "/../config/utils.php";
+require_once __DIR__ . "/../config/hrmsAccess.php";
 
 header("Content-Type: application/json");
 
@@ -27,42 +28,9 @@ if (empty($empCode)) {
 $data = json_decode(file_get_contents("php://input"), true) ?? [];
 
 try {
-    $sanitizedCompIds   = array_map('intval', $_SESSION['compId'] ?? []);
-    $sanitizedDivIds    = array_map('intval', $_SESSION['divId'] ?? []);
-    $sanitizedDeptCodes = array_map('intval', $_SESSION['deptId'] ?? []);
-    
-    $compIdsString   = !empty($sanitizedCompIds) ? implode(',', $sanitizedCompIds) : "";
-    $divIdsString    = !empty($sanitizedDivIds) ? implode(',', $sanitizedDivIds) : "";
-    $deptCodesString = !empty($sanitizedDeptCodes) ? implode(',', $sanitizedDeptCodes) : "";
-    
-    $sanitizedTaskIds = array_map('intval', $_SESSION['taskId'] ?? []);
-    if (!empty($sanitizedTaskIds)) {
-        $scopedAuthTaskIds = !empty($sanitizedCompIds) && !empty($sanitizedDivIds) && !empty($sanitizedDeptCodes)
-            ? [56, 57]
-            : [56];
-        $sanitizedTaskIds = array_values(array_unique(array_merge($sanitizedTaskIds, $scopedAuthTaskIds)));
-        $taskIdsString = implode(',', $sanitizedTaskIds);
-    } else {
-        $taskIdsString = '';
-    }
-
-    $conditionsDT = [];
-
-    if (!empty($compIdsString)) {
-        $conditionsDT[] = "TA.COMP_ID IN ($compIdsString)";
-    }
-    if (!empty($divIdsString)) {
-        $conditionsDT[] = "TA.DIVSN_ID IN ($divIdsString)";
-    }
-    if (!empty($deptCodesString)) {
-        $conditionsDT[] = "TA.DEPT_ID IN ($deptCodesString)";
-    }
-    if (!empty($taskIdsString)) {
-        $taskIdsString .= ',25,26,27,32';
-        $conditionsDT[] = "TA.TASK_ID IN ($taskIdsString)";
-    }
-
-    $additionalWhereDT = !empty($conditionsDT) ? implode(' AND ', $conditionsDT) . ' AND ' : '';
+    // Unassigned tasks are limited to the user's profile tasks and scope.
+    loadHrmsAccess($empCode);
+    $additionalWhereDT = hrmsUnassignedTaskFilter('TA') . ' AND ';
 
     $taskarr = [
         'J' => 'Joining',
