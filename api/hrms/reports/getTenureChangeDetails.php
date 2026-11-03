@@ -93,6 +93,7 @@ try {
             ETYPE_PERIOD,
             PROP_CTC,
             TO_CHAR(EFF_FROM, 'YYYY-MM-DD') AS EFF_FROM_FORMATTED,
+            TO_CHAR(NXT_APPR_DUE, 'YYYY') AS NXT_APPR_DUE_YEAR,
             REMARKS,
             STATUS
         FROM HR_EMP_TENURE_CHANGE 
@@ -290,6 +291,7 @@ try {
             'etype_period'       => $tenure_chg['ETYPE_PERIOD'] ?? '',
             'proposed_ctc'       => !empty($tenure_chg['PROP_CTC']) ? (float)$tenure_chg['PROP_CTC'] : '',
             'effective_from'     => !empty($tenure_chg['EFF_FROM_FORMATTED']) ? $tenure_chg['EFF_FROM_FORMATTED'] : $defaultEffectiveDate,
+            'next_appraisal_year'=> $tenure_chg['NXT_APPR_DUE_YEAR'] ?? '',
             'min_effective_date' => $firstDayOfNextMonth,
             'remarks'            => $tenure_chg['REMARKS'] ?? '',
             'remarks_max_bytes'  => $remarksMaxBytes,

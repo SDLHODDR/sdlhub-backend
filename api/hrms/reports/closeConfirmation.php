@@ -88,7 +88,7 @@ try {
                     'ETYPE_PERIOD' => trim($eff_period),
                     'EFF_FROM' => $effFromOracle,
                     'EFF_TO' => $eff_to,
-                    'CHG_ON' => SYSDATE,
+                    'CHG_ON' => 'SYSDATE',
                     'CHG_BY' => trim($empCode)
                 ),
                 'return' => '',
@@ -122,8 +122,8 @@ try {
                     'table' => 'HR_BCS_USER_TASKS',
                     'data' => array(
                         'TASK_ID' => '373',
-                        'CREATED_ON' => SYSDATE,  
-                        'EXPIRE_ON' => SYSDATE + 2,
+                        'CREATED_ON' => 'SYSDATE',
+                        'EXPIRE_ON' => 'SYSDATE + 2',
                         'STATUS' => 'O',
                         'TRAN_CODE' => $data['EMP_CODE'],
                         'TASK_TYPE' => 'A',
