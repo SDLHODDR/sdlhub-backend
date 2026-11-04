@@ -15,6 +15,10 @@
 // granted to every user with a company/division/department scope.
 const HRMS_UNPROFILED_TASK_IDS = [56, 57];
 
+// Department tasks that are also visible to the task department's own
+// employees (same company), in addition to profile access: Exit Activity.
+const HRMS_DEPARTMENT_TASK_IDS = [19];
+
 /**
  * Load the user's active profile tasks and scope into the session
  * (taskId, compId, divId, deptId). Reloaded on every call so profile
@@ -51,6 +55,29 @@ function loadHrmsAccess($empCode)
         FROM HR_PROFILE_DEPARTMENT DE
         INNER JOIN HR_EMP_PROFILE EP ON EP.PROFILE_ID = DE.PROFILE_ID
         WHERE {$activeProfile} AND DE.STATUS = 'A'"), 'DEPT_ID');
+
+    // The user's own current department and company (for department tasks).
+    $own = multiRec("SELECT * FROM (
+            SELECT O.DEPT_ID, E.COMP_ID FROM HR_EMP_OFFICE_DET O
+            INNER JOIN HR_EMPLOYEE_INFO E ON E.EMP_CODE = O.EMP_CODE
+            WHERE O.EMP_CODE = '{$empCode}'
+              AND SYSDATE BETWEEN O.EFFEC_FROM AND NVL(O.EFFEC_TO, DATE '3000-03-01')
+            ORDER BY O.EFFEC_FROM DESC)
+        WHERE ROWNUM = 1");
+    $_SESSION['ownDeptId'] = (string)($own[0]['DEPT_ID'] ?? '');
+    $_SESSION['ownCompId'] = (string)($own[0]['COMP_ID'] ?? '');
+}
+
+/**
+ * True when the unassigned task is a department task of the user's own
+ * department and company.
+ */
+function hrmsIsOwnDepartmentTask(array $task)
+{
+    return in_array((int)($task['TASK_ID'] ?? 0), HRMS_DEPARTMENT_TASK_IDS, true)
+        && ($_SESSION['ownDeptId'] ?? '') !== ''
+        && (string)($task['DEPT_ID'] ?? '') === $_SESSION['ownDeptId']
+        && (string)($task['COMP_ID'] ?? '') === ($_SESSION['ownCompId'] ?? '');
 }
 
 /**
@@ -75,22 +102,31 @@ function hrmsAllowedTaskIds()
 }
 
 /**
- * SQL condition (for alias $alias) limiting unassigned tasks to the
- * user's profile tasks and scope. Returns "1=0" when the user has none.
+ * SQL condition (for alias $alias) limiting unassigned tasks to the user's
+ * profile tasks and scope, plus department tasks of the user's own
+ * department and company. Returns "1=0" when the user has none.
  */
 function hrmsUnassignedTaskFilter($alias = 'TA')
 {
-    $taskIds = hrmsAllowedTaskIds();
-    if (empty($taskIds)) {
-        return '1=0';
-    }
     $in = static function ($values) {
         return implode(',', array_map('intval', $values));
     };
-    return "{$alias}.COMP_ID IN (" . $in($_SESSION['compId']) . ")"
-        . " AND {$alias}.DIVSN_ID IN (" . $in($_SESSION['divId']) . ")"
-        . " AND {$alias}.DEPT_ID IN (" . $in($_SESSION['deptId']) . ")"
-        . " AND {$alias}.TASK_ID IN (" . $in($taskIds) . ")";
+    $conditions = [];
+
+    $taskIds = hrmsAllowedTaskIds();
+    if (!empty($taskIds)) {
+        $conditions[] = "({$alias}.COMP_ID IN (" . $in($_SESSION['compId']) . ")"
+            . " AND {$alias}.DIVSN_ID IN (" . $in($_SESSION['divId']) . ")"
+            . " AND {$alias}.DEPT_ID IN (" . $in($_SESSION['deptId']) . ")"
+            . " AND {$alias}.TASK_ID IN (" . $in($taskIds) . "))";
+    }
+    if (($_SESSION['ownDeptId'] ?? '') !== '' && ($_SESSION['ownCompId'] ?? '') !== '') {
+        $conditions[] = "({$alias}.TASK_ID IN (" . $in(HRMS_DEPARTMENT_TASK_IDS) . ")"
+            . " AND {$alias}.DEPT_ID = " . (int)$_SESSION['ownDeptId']
+            . " AND {$alias}.COMP_ID = " . (int)$_SESSION['ownCompId'] . ")";
+    }
+
+    return $conditions ? '(' . implode(' OR ', $conditions) . ')' : '1=0';
 }
 
 /**
@@ -102,6 +138,9 @@ function hrmsCanActOnTask(array $task, $empCode)
     $assignedTo = trim((string)($task['EMP_CODE_FOR'] ?? ''));
     if ($assignedTo !== '') {
         return $assignedTo === trim((string)$empCode);
+    }
+    if (hrmsIsOwnDepartmentTask($task)) {
+        return true;
     }
     return in_array((int)($task['TASK_ID'] ?? 0), hrmsAllowedTaskIds(), true)
         && in_array((string)($task['COMP_ID'] ?? ''), $_SESSION['compId'] ?? [], true)
