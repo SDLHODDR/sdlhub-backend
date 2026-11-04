@@ -11,6 +11,7 @@ $sql___func___con = db_hrms();
 
 require_once __DIR__ . "/../config/functions.php";
 require_once __DIR__ . "/../config/utils.php";
+require_once __DIR__ . "/../config/hrmsAccess.php";
 
 header("Content-Type: application/json; charset=UTF-8");
 
@@ -30,42 +31,9 @@ try {
     $authTasksData = [];
     $taskIdd = isset($data['task_id']) ? (int) $data['task_id'] : 0;
 
-    // Safely parse session values
-    $rawComp = is_array($_SESSION['compId'] ?? null) ? $_SESSION['compId'] : [];
-    $rawDiv  = is_array($_SESSION['divId'] ?? null) ? $_SESSION['divId'] : [];
-    $rawDept = is_array($_SESSION['deptId'] ?? null) ? $_SESSION['deptId'] : [];
-    $rawTask = is_array($_SESSION['taskId'] ?? null) ? $_SESSION['taskId'] : [];
-
-    $sanitizedCompIds   = array_values(array_filter(array_map('intval', $rawComp)));
-    $sanitizedDivIds    = array_values(array_filter(array_map('intval', $rawDiv)));
-    $sanitizedDeptCodes = array_values(array_filter(array_map('intval', $rawDept)));
-    $sanitizedTaskIds   = array_values(array_filter(array_map('intval', $rawTask)));
-
-    // Ensure the current task_id is authorized
-    if ($taskIdd > 0 && !in_array($taskIdd, $sanitizedTaskIds, true)) {
-        $sanitizedTaskIds[] = $taskIdd;
-    }
-
-    $compIdsString   = !empty($sanitizedCompIds) ? "'" . implode("','", $sanitizedCompIds) . "'" : "'-1'";
-    $divIdsString    = !empty($sanitizedDivIds) ? "'" . implode("','", $sanitizedDivIds) . "'" : "'-1'";
-    $deptCodesString = !empty($sanitizedDeptCodes) ? "'" . implode("','", $sanitizedDeptCodes) . "'" : "'-1'";
-    $taskIdsString   = !empty($sanitizedTaskIds) ? "'" . implode("','", $sanitizedTaskIds) . "'" : "'-1'";
-
-    $conditionsDT = [];
-    if (!empty($sanitizedCompIds)) {
-        $conditionsDT[] = " TA.COMP_ID IN ($compIdsString)";
-    }
-    if (!empty($sanitizedDivIds)) {
-        $conditionsDT[] = " TA.DIVSN_ID IN ($divIdsString)";
-    }
-    if (!empty($sanitizedDeptCodes)) {
-        $conditionsDT[] = " TA.DEPT_ID IN ($deptCodesString)";
-    }
-    if (!empty($sanitizedTaskIds)) {
-        $conditionsDT[] = " TA.TASK_ID IN ($taskIdsString)";
-    }
-
-    $additionalWhereDT = !empty($conditionsDT) ? implode(' AND ', $conditionsDT) : '1=1';
+    // Unassigned tasks are limited to the user's profile tasks and scope.
+    loadHrmsAccess($empCode);
+    $additionalWhereDT = hrmsUnassignedTaskFilter('TA');
 
     //$joining_taskarr = [4, 13, 35, 36, 37, 38, 39, 41, 42, 43, 44, 45, 50, 51, 55];
     $joining_taskarr = [4,13,35,36,37,38,39,41,42,43,44,45,50,51];
@@ -155,9 +123,7 @@ try {
                        TM.DISP_SEQ
                 FROM HR_USER_TASKS TA
                 INNER JOIN HR_TASK_MASTER TM ON TM.ID = TA.TASK_ID
-                WHERE TA.COMP_ID   IN ({$compIdsString})
-                  AND TA.DIVSN_ID  IN ({$divIdsString})
-                  AND TA.DEPT_ID   IN ({$deptCodesString})
+                WHERE {$additionalWhereDT}
                   AND TA.TASK_ID   IN ({$taskIdsIn})
                   AND TA.EMP_CODE_FOR IS NULL
                   AND TA.STATUS = 'O'

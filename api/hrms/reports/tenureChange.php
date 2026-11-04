@@ -15,6 +15,7 @@ $sql___func___con = db_hrms();
 require_once __DIR__ . "/../../config/functions.php";
 require_once __DIR__ . "/../../config/hr_func.php";
 require_once __DIR__ . "/../../config/utils.php";
+require_once __DIR__ . "/../../config/hrmsAccess.php";
 
 header("Content-Type: application/json");
 
@@ -33,6 +34,26 @@ if (empty($data)) {
 }
 
 try {
+    // Task-based actions require an open task the user may act on (assigned to them,
+    // or unassigned and within their profile tasks and scope).
+    $taskActions = [
+        'saveConfirmation' => 25,
+        'CloseConfirmInt' => 25,
+        'saveCTCBreakup' => 26,
+        'closeTenureCTCTask' => 26,
+    ];
+    foreach ($taskActions as $actionFlag => $workflowTaskId) {
+        if (!empty($data[$actionFlag])) {
+            $tranCode = trim((string)($data['EMP_CODE'] ?? $data['emp_code'] ?? ''));
+            $userTaskId = trim((string)($data['user_task_id'] ?? $data['USER_TASK_ID'] ?? ''));
+            loadHrmsAccess($empCode);
+            if ($tranCode === '' || !hrmsFindActionableTask($workflowTaskId, $tranCode, $empCode, $userTaskId !== '' ? $userTaskId : null)) {
+                apiResponse(false, "You are not authorized to perform this action, or the task is no longer open.", null, 403);
+            }
+            break;
+        }
+    }
+
     if(!empty($data)) {
         if (isset($data['generateTenure']) && $data['generateTenure'] == true){
             require_once "generateTenure.php";

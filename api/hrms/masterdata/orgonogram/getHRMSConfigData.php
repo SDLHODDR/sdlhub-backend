@@ -10,6 +10,7 @@ $sql___func___con = db_hrms();
 
 require_once __DIR__ . "/../../../config/functions.php";
 require_once __DIR__ . "/../../../config/utils.php";
+require_once __DIR__ . "/../../../config/hrmsAccess.php";
 
 header("Content-Type: application/json");
 
@@ -23,33 +24,12 @@ if (empty($empCode)) {
 }
 
 try {
-    $CompDet = multiRec("SELECT PC.COMP_ID FROM HR_PROFILE_COMPANY PC 
-            INNER JOIN HR_EMP_PROFILE EP ON EP.PROFILE_ID = PC.PROFILE_ID
-            WHERE EP.EMP_CODE = '" . $empCode . "' AND PC.STATUS = 'A' and sysdate between EP.effec_from and nvl(Ep.effec_to,'01-Mar-3000')");
-    $divDet = multiRec("SELECT PD.DIVISION_ID FROM HR_PROFILE_DIVISIONS PD 
-            INNER JOIN HR_EMP_PROFILE EP ON EP.PROFILE_ID = PD.PROFILE_ID
-            WHERE EP.EMP_CODE = '" . $empCode . "' AND PD.STATUS = 'A' AND sysdate between EP.effec_from and nvl(Ep.effec_to,'01-Mar-3000')");
-    $deptDet = multiRec("SELECT DE.DEPT_ID FROM HR_PROFILE_DEPARTMENT DE 
-            INNER JOIN HR_EMP_PROFILE EP ON EP.PROFILE_ID = DE.PROFILE_ID
-            WHERE EP.EMP_CODE = '" . $empCode . "' AND DE.STATUS = 'A' AND sysdate between EP.effec_from and nvl(Ep.effec_to,'01-Mar-3000')");
-    
-    if ( empty($CompDet) || empty($divDet) || empty($deptDet)) {
+    loadHrmsAccess($empCode);
+
+    if (!hrmsHasScope()) {
         apiResponse( false, "No Data found", null, 200 );
         exit;
     } else {
-        $_SESSION['compId'] = array();
-        $_SESSION['divId'] = array();
-        $_SESSION['deptId'] = array();
-        foreach ($CompDet as $row) {
-            $_SESSION['compId'][] = $row['COMP_ID'];
-        }
-        foreach ($divDet as $row) {
-            $_SESSION['divId'][] = $row['DIVISION_ID'];
-        }
-        foreach ($deptDet as $code) {
-            $_SESSION['deptId'][] = $code['DEPT_ID'];
-        }
-
         $sanitizedCompIds = array_map('intval', $_SESSION['compId']);
         $sanitizedDivIds = array_map('intval', $_SESSION['divId']);
         $sanitizedDeptCodes = array_map('intval', $_SESSION['deptId']);

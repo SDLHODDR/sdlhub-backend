@@ -8,8 +8,8 @@ try {
 		$workflowTaskId = trim((string)($data['TASK_ID'] ?? ''));
 		$tenureChangeId = trim((string)($data['tenure_change_id'] ?? $data['TENURE_CHANGE_ID'] ?? ''));
 		$userTaskId = trim((string)($data['user_task_id'] ?? $data['USER_TASK_ID'] ?? ''));
-		if ($employeeCode === '' || $effectiveFrom === '' || $workflowTaskId === '' || $tenureChangeId === '') {
-			throw new InvalidArgumentException('Employee code, tenure change ID, effective date, and workflow task ID are required.');
+		if ($employeeCode === '' || $effectiveFrom === '' || $workflowTaskId === '' || $tenureChangeId === '' || $userTaskId === '') {
+			throw new InvalidArgumentException('Employee code, tenure change ID, effective date, workflow task ID, and user task ID are required.');
 		}
 		$effectiveDate = DateTimeImmutable::createFromFormat('!Y-m-d', $effectiveFrom);
 		if (!$effectiveDate || $effectiveDate->format('Y-m-d') !== $effectiveFrom) {
@@ -154,7 +154,8 @@ try {
             );
         }
 
-        taskUpdateHR('C', '', $data['TASK_ID'], null, null);
+        // Close the HR_USER_TASKS row (legacy TASK_ID held this row ID, not the workflow task ID).
+        taskUpdateHR('C', '', $userTaskId, null, null);
         endQry();
         apiResponse(true, "Manager Task Closed and New Task generate for further processing", null, 200);
         

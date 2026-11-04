@@ -8,6 +8,7 @@ $sql___func___con = db_hrms();
 
 require_once __DIR__ . '/../../config/functions.php';
 require_once __DIR__ . '/../../config/utils.php';
+require_once __DIR__ . '/../../config/hrmsAccess.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -87,6 +88,17 @@ try {
             'status' => false,
             'success' => false,
             'message' => 'Employee code is required.'
+        ]);
+    }
+
+    // Only a user with an open Print Tenure Change Letter task (32) for this employee may generate.
+    $authId = filter_var($input['AUTH_ID'] ?? '', FILTER_VALIDATE_INT);
+    loadHrmsAccess($loggedInEmp);
+    if (!hrmsFindActionableTask(32, $empCode, $loggedInEmp, $authId ?: null)) {
+        referenceResponse(403, [
+            'status' => false,
+            'success' => false,
+            'message' => 'You are not authorized to generate this reference, or the print task is no longer open.'
         ]);
     }
 

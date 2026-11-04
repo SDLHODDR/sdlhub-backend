@@ -10,6 +10,7 @@ $sql___func___con = db_hrms();
 require_once __DIR__ . '/../../config/functions.php';
 require_once __DIR__ . '/../../config/utils.php';
 require_once __DIR__ . '/../../config/emp_func.php';
+require_once __DIR__ . '/../../config/hrmsAccess.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -108,21 +109,8 @@ function tenureCtcLoadRequest($userTaskId, $employeeCode, $workflowTaskId = 26) 
         throw new RuntimeException('The pending task was not found or is no longer available.');
     }
     $sessionEmp = trim((string)($_SESSION['emp_code'] ?? $_SESSION['EmpCode'] ?? ''));
-    $assignedToUser = trim((string)($task['EMP_CODE_FOR'] ?? '')) === $sessionEmp;
-    $scopeMatch = false;
-    foreach (['COMP_ID' => 'compId', 'DIVSN_ID' => 'divId', 'DEPT_ID' => 'deptId'] as $taskField => $sessionField) {
-        $allowedIds = $_SESSION[$sessionField] ?? [];
-        if (!is_array($allowedIds)) $allowedIds = preg_split('/\s*,\s*/', (string)$allowedIds, -1, PREG_SPLIT_NO_EMPTY);
-        $allowedIds = array_map(static fn($id) => trim((string)$id, " \"'"), $allowedIds);
-        if ($allowedIds) {
-            $scopeMatch = true;
-            if (!in_array(trim((string)($task[$taskField] ?? '')), $allowedIds, true)) {
-                $scopeMatch = false;
-                break;
-            }
-        }
-    }
-    if (!$assignedToUser && !$scopeMatch) {
+    loadHrmsAccess($sessionEmp);
+    if (!hrmsCanActOnTask($task, $sessionEmp)) {
         throw new RuntimeException('You are not authorized to open this tenure CTC task.');
     }
 
@@ -339,6 +327,22 @@ try {
 
     startQry();
     $transactionStarted = true;
+
+    // One tenure CTC per period: other tenure records' T rows starting on/after this
+    // effective date are replaced (deleted); earlier rows running into it are closed.
+    $replaced = executeQry("DELETE FROM HR_EMP_CTC_HEADS
+        WHERE EMP_CODE = '{$employeeCode}' AND SALARY_TYPE = 'T'
+          AND NVL(REF_ID, '-1') <> '{$tenureId}'
+          AND EFF_FROM >= {$effectiveFromSql}");
+    if ($replaced === false) throw new RuntimeException('Could not replace the earlier tenure CTC rows.');
+    $closed = executeQry("UPDATE HR_EMP_CTC_HEADS
+        SET EFF_TO = {$effectiveFromSql} - 1, CHG_ON = SYSDATE, CHG_BY = '{$empCode}'
+        WHERE EMP_CODE = '{$employeeCode}' AND SALARY_TYPE = 'T'
+          AND NVL(REF_ID, '-1') <> '{$tenureId}'
+          AND EFF_FROM < {$effectiveFromSql}
+          AND NVL(EFF_TO, DATE '3000-03-01') >= {$effectiveFromSql}");
+    if ($closed === false) throw new RuntimeException('Could not close the earlier tenure CTC period.');
+
     $saveCtcHead = static function ($code, $monthly, $salaryType, $calcType) use (
         $employeeCode, $tenureId, $proposedCtc, $effectiveFromSql,
         $effectiveToSql, $empCode
@@ -389,9 +393,15 @@ try {
     ) {
         $GLOBALS['sql___func___con'] = $eppConnection;
         try {
+            // Rows starting on/after the effective date are replaced; earlier rows ending
+            // at the period end are closed the day before.
+            $replaced = executeQry("DELETE FROM BCS_EMPLOYEE_AD
+                WHERE EMP_CODE = '{$employeeCode}' AND EFF_DATE >= {$effectiveFromSql}");
+            if ($replaced === false) throw new RuntimeException('Could not replace the earlier EPP salary rows.');
             $closed = executeQry("UPDATE BCS_EMPLOYEE_AD
                 SET EXP_DATE = {$effectiveFromSql} - 1, CHG_ON = SYSDATE, CHG_BY = '{$empCode}'
-                WHERE EMP_CODE = '{$employeeCode}' AND EXP_DATE = {$effectiveToSql}");
+                WHERE EMP_CODE = '{$employeeCode}' AND EXP_DATE = {$effectiveToSql}
+                  AND EFF_DATE < {$effectiveFromSql}");
             if ($closed === false) throw new RuntimeException('Could not close the prior EPP salary period.');
 
             $heads = $validatedRows + ['XPFBS' => (float)$pfInput];
