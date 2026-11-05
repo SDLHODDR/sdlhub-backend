@@ -54,6 +54,7 @@ try {
             TO_CHAR(S.EXP_RELIV_DATE, 'DD-Mon-YYYY') AS EXP_RELIV_DATE,
             TO_CHAR(S.RESIGN_RCP_DATE, 'YYYY-MM-DD') AS RESIGN_RCP_ISO,
             TO_CHAR(S.EXP_RELIV_DATE, 'YYYY-MM-DD') AS EXP_RELIV_ISO,
+            TO_CHAR(S.ENTER_ON_EMP, 'YYYYMMDDHH24MISS') AS ENTER_ON_SORT,
             TRIM(REGEXP_REPLACE(E.FNAME || ' ' || E.MNAME || ' ' || E.LNAME, ' +', ' ')) AS EMP_NAME,
             TO_CHAR(E.DOJ, 'DD-Mon-YYYY') AS DOJ,
             TO_CHAR(E.DOJ, 'YYYY-MM-DD') AS DOJ_ISO,
@@ -67,7 +68,7 @@ try {
             FROM HR_EMP_OFFICE_DET
         ) O ON O.EMP_CODE = S.EMP_CODE AND O.RN = 1
         WHERE EXISTS (SELECT 1 FROM HR_EMP_OFFICE_DET C WHERE C.EMP_CODE = S.EMP_CODE AND {$scope})
-        ORDER BY S.STATUS DESC, S.ID DESC") ?: [];
+        ORDER BY S.ENTER_ON_EMP DESC NULLS LAST, S.ID DESC") ?: [];
 
     // Active employees in scope who can have a separation raised (legacy employee dropdown).
     $employees = multiRec("SELECT DISTINCT A.EMP_CODE,
@@ -76,6 +77,10 @@ try {
         INNER JOIN HR_EMP_OFFICE_DET C ON C.EMP_CODE = A.EMP_CODE
         WHERE A.STATUS = 'A' AND SYSDATE BETWEEN C.EFFEC_FROM AND NVL(C.EFFEC_TO, DATE '3000-03-01')
           AND " . exitScopeSql('C', 'A') . "
+          -- Hide employees who already have a separation that is not rejected
+          -- (N Not Sent for Auth, T In Progress, A Approved, C Closed).
+          AND NOT EXISTS (SELECT 1 FROM HR_EMP_SEPARATION X
+                          WHERE X.EMP_CODE = A.EMP_CODE AND X.STATUS <> 'R')
         ORDER BY 2") ?: [];
 
     apiResponse(true, 'Separation requests fetched successfully.', [
@@ -87,6 +92,8 @@ try {
             'dojIso' => $row['DOJ_ISO'],
             'resignationDateIso' => $row['RESIGN_RCP_ISO'],
             'expectedRelievingDateIso' => $row['EXP_RELIV_ISO'],
+            // Entry date-time (latest request first by default).
+            'enteredOnSort' => $row['ENTER_ON_SORT'] ?? '',
             'divisionDepartmentDesignation' => implode(' - ', array_filter([$row['DIVISION'], $row['DEPARTMENT'], $row['DESIGNATION']])),
             'resignationDate' => $row['RESIGN_RCP_DATE'],
             'expectedRelievingDate' => $row['EXP_RELIV_DATE'],

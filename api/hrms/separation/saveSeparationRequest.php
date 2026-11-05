@@ -78,7 +78,7 @@ exitRunAction(function () use ($input, $empCode) {
         }
     }
     $open = singRec("SELECT COUNT(*) AS CNT FROM HR_EMP_SEPARATION
-        WHERE EMP_CODE = :emp_code AND STATUS NOT IN ('C', 'R') AND ID <> :id",
+        WHERE EMP_CODE = :emp_code AND STATUS <> 'R' AND ID <> :id",
         [':emp_code' => $employeeCode, ':id' => (string)$id]);
     if ((int)($open['CNT'] ?? 0) > 0) {
         throw new ExitRequestException('A separation request has already been raised for this employee.', 409);

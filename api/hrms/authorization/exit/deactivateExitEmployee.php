@@ -19,7 +19,7 @@ exitRunAction(function () use ($input, $empCode) {
     $employeeCode = $separation['EMP_CODE'];
     $relievingDate = $separation['RELEIVING_DATE_ISO'];
     if (!$relievingDate) {
-        throw new ExitRequestException('The separation has no actual relieve date.', 422);
+        throw new ExitRequestException('The separation has no approved relieve date.', 422);
     }
     $dateSql = "TO_DATE(:relieving_date, 'YYYY-MM-DD')";
     $base = [':relieving_date' => $relievingDate, ':emp_code' => $employeeCode, ':chg_by' => $empCode];
@@ -76,6 +76,10 @@ exitRunAction(function () use ($input, $empCode) {
         WHERE EMP_CODE = :emp_code", $base, 'Could not deactivate the EPP user.');
     exitExecute("UPDATE HR_BCS_EMPLOYEE SET RELIEVE_DATE = {$dateSql}, STATUS = 'R', CHG_BY = :chg_by, CHG_ON = SYSDATE
         WHERE EMP_CODE = :emp_code", $base, 'Could not update the EPP employee record.');
+
+    // Central login (SDLUSERS schema, same database, so it commits or rolls back with the rest).
+    exitExecute("UPDATE SDLUSERS.SDL_USERS SET STATUS = 'R', VALID_UPTO = {$dateSql}, CHG_BY = :chg_by, CHG_ON = SYSDATE
+        WHERE EMP_CODE = :emp_code", $base, 'Could not deactivate the SDL login.');
 
     // SFM territory, divisions and employee master.
     $sfmEmployee = "SELECT ID FROM HR_SFM_EMPLOYEE_INFO WHERE EMP_CODE = :emp_code";
