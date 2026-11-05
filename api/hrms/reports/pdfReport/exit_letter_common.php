@@ -4,7 +4,7 @@
  * experience_letter.php). GET ?REF_ID=<HR_EMP_SEPARATION.ID>.
  */
 ob_start();
-require_once __DIR__ . '/../../exit/exitCommon.php';
+require_once __DIR__ . '/../../authorization/exit/exitCommon.php';
 require_once __DIR__ . '/../../../../vendor/autoload.php';
 
 class ExitLetterPdf extends TCPDF
