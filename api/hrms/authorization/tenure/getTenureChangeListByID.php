@@ -10,17 +10,16 @@
 
 ob_start();
 define('CURRENT_PORTAL', 'hrms');
-require_once __DIR__ . "/../../config/session.php";
-require_once __DIR__ . "/../../cors.php";
-require_once __DIR__ . "/../../config/db.php";
+require_once __DIR__ . "/../../../config/session.php";
+require_once __DIR__ . "/../../../cors.php";
+require_once __DIR__ . "/../../../config/db.php";
 
 $sql___func___con = db_hrms();
 
-require_once __DIR__ . "/../../config/functions.php";
-require_once __DIR__ . "/../../config/utils.php";
-require_once __DIR__ . "/../../config/env.php";
-require_once __DIR__ . "/../../config/hr_func.php";
-require_once __DIR__ . "/../../config/hrmsAccess.php";
+require_once __DIR__ . "/../../../config/functions.php";
+require_once __DIR__ . "/../../../config/utils.php";
+require_once __DIR__ . "/../../../config/env.php";
+require_once __DIR__ . "/../../../config/emp_func.php";
 
 header("Content-Type: application/json; charset=UTF-8");
 
@@ -45,8 +44,6 @@ try {
     /* ==========================================================
        COMPANY ACCESS / IDS FILTER
     ========================================================== */
-
-    loadHrmsAccess($_SESSION["emp_code"]);
 
     // HRMS stores compId as an array; legacy sessions may contain a comma-separated string.
     $rawCompanyIds = $_SESSION["compId"] ?? [];
@@ -83,8 +80,8 @@ try {
        UPCOMING TENURE WINDOW
     ========================================================== */
 
-    // $emp_days = 200;
-    $emp_days = 15;
+    $emp_days = 200;
+    // $emp_days = 15;
 
     /* ==========================================================
        FETCH UPCOMING TENURE EMPLOYEES
@@ -95,7 +92,7 @@ try {
             A.EMP_CODE, 
             GET_EMP_NAME(A.EMP_CODE) AS ENAME,
             A.ETYPE_ID, 
-            TO_CHAR(A.EFF_TO, 'DD-Mon-YYYY') AS EFF_TO, 
+            TO_CHAR(A.EFF_TO, 'DD-MON-YYYY') AS EFF_TO, 
             C.EMP_TYPE
         FROM (
             SELECT EMP_CODE, ETYPE_ID, MAX(EFF_TO) AS EFF_TO 
@@ -118,8 +115,6 @@ try {
           AND A.EMP_CODE IN (SELECT EMP_CODE FROM HR_EMP_TENURE WHERE ETYPE_ID IN (2, 5, 6))
           AND TRUNC(A.EFF_TO) >= TRUNC(SYSDATE)
           AND TRUNC(A.EFF_TO) <= TRUNC(SYSDATE + {$emp_days})
-          OR (TRUNC(A.EFF_TO) < TRUNC(SYSDATE)
-          AND TRUNC(A.EFF_TO) >= TRUNC(SYSDATE - 365))
         ORDER BY A.EFF_TO ASC
     ");
 
@@ -142,11 +137,8 @@ try {
 
             // 2. Job Description Assessment check
             $jd_id = singRec("SELECT JD_ID FROM HR_ORGANOGRAM WHERE ID = '" . ($offDet['ORG_ID'] ?? '') . "'");
-
-            $empDetailsDN = singRec("SELECT COMPANY, DEPT_ID, DESI_ID, DIVSN_ID FROM HR_ORGANOGRAM WHERE ID = '" . ($offDet['ORG_ID'] ?? '') . "'");
-
+            
             $jd = null;
-            $hasTenureQuestions = false;
             if (!empty($jd_id['JD_ID'])) {
                 $jd = singRec("
                     SELECT 
@@ -160,16 +152,6 @@ try {
                     GROUP BY A.SH_DESC, A.ID 
                     ORDER BY A.ID
                 ");
-
-                $tenureQuestions = singRec("
-                    SELECT COUNT(*) AS CNT
-                    FROM HR_JD_QUESTIONS A
-                    INNER JOIN HR_QUESTION_MASTER B ON A.QUESTION_ID = B.ID
-                    WHERE A.JD_ID = '{$jd_id['JD_ID']}'
-                      AND A.QGRP_TYPE = 'T'
-                ");
-                $hasTenureQuestions = isset($tenureQuestions['CNT'])
-                    && (int)$tenureQuestions['CNT'] > 0;
             }
 
             // 3. Company code / short desc
@@ -248,50 +230,6 @@ try {
                 }
             }
 
-            $appraserName = '';
-            $appraisalManager = '';
-            if($empDetailsDN && isset($empDetailsDN['COMPANY']) && isset($empDetailsDN['DEPT_ID']) && isset($empDetailsDN['DESI_ID']) && isset($empDetailsDN['DIVSN_ID'])) {
-                $getDocType = singRec("
-                    SELECT DISTINCT DOCTYP_ID, DOCTYP_DESC, ORG_LOC_ID
-                    FROM HR_DIVSN_DOC HJD
-                    RIGHT JOIN HR_DOC_TYPES HDT ON HJD.DOC_ID = HDT.DOCTYP_ID
-                    WHERE 
-                        HDT.DOC_TYPE ='D' 
-                        AND HJD.COMP_ID='".$empDetailsDN['COMPANY']."' 
-                        AND HJD.DIVSN_ID='".$empDetailsDN['DIVSN_ID']."' 
-                        AND HJD.DEPT_ID='".$empDetailsDN['DEPT_ID']."' 
-                        AND HJD.DESI_ID in ('".$empDetailsDN['DESI_ID']."')
-                        AND HDT.DOCTYP_ID = '14' 
-                        ORDER BY 1"
-                );
-
-                if($getDocType && isset($getDocType['ORG_LOC_ID'])){
-                    $getAppraser = singRec("SELECT
-                        HL.ID,
-                        get_org_loc_emp_code(HL.ID, SYSDATE) AS MGRCODE,
-                        GET_EMP_NAME(get_org_loc_emp_code(HL.ID, SYSDATE)) AS MGRNAME
-                    FROM HR_ORGANOGRAM HO
-                    INNER JOIN HR_ORGANOGRAM_LOC HL ON HL.ORG_ID = HO.ID
-                    WHERE HL.ID = '". $getDocType['ORG_LOC_ID'] ."'
-                    ORDER BY HL.ID ASC");
-                    
-                    if($getAppraser && isset($getAppraser['ID'])){
-                        $managerName = trim((string)($getAppraser['MGRNAME'] ?? ''));
-                        $managerEmpCode = trim((string)($getAppraser['MGRCODE'] ?? ''));
-                        $appraisalManager = $managerName;
-                        if ($managerName !== '') {
-                            $appraserName = $managerEmpCode !== ''
-                                ? $managerName . ' (' . $managerEmpCode . ')'
-                                : $managerName;
-                        } elseif ($managerEmpCode !== '') {
-                            $appraserName = '-Not Set (' . $managerEmpCode . ')';
-                        } else {
-                            $appraserName = '-';
-                        }
-                    }
-                }
-            }
-
             // Determine action mode
             $hasJdQuestions = isset($jd['CNT']) && (int)$jd['CNT'] > 0;
 
@@ -305,16 +243,11 @@ try {
                 'doj'           => $offDet['EFFEC_FROM'] ?? '',
                 'tenureDue'     => $tenure['EFF_TO'] ?? '',
                 'orgId'         => $currentOrgId,
-                'approvalLevels'=> [],
-                'approvalText'  => $appraserName,
-                'appraisalManager' => $appraisalManager,
-                'questions_set' => $hasTenureQuestions ? 1 : 0,
-                //'approvalLevels'=> $approvalLevelsList,
-                //'approvalText'  => !empty($approvalLevelsList) ? implode("\n", array_column($approvalLevelsList, 'display')) : 'Not Set',
+                'approvalLevels'=> $approvalLevelsList,
+                'approvalText'  => !empty($approvalLevelsList) ? implode("\n", array_column($approvalLevelsList, 'display')) : 'Not Set',
                 'manager'       => [
                     'empCode' => $firstMgrEmpCode,
-                    'empName' => $firstMgrName,
-                    'manager_code' => $getAppraser['MGRCODE'] ?? '-',
+                    'empName' => $firstMgrName
                 ],
                 'actionType'    => $hasJdQuestions ? 'ADD_JD' : 'SEND_REQUEST',
                 'jd'            => [
@@ -322,9 +255,6 @@ try {
                     'title' => $jd['SH_DESC'] ?? ''
                 ]
             ];
-
-            $appraserName = '';
-            $getAppraser = [];
         }
     }
 

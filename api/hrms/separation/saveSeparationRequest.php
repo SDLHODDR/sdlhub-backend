@@ -5,7 +5,7 @@
  * Separation Request page. Legacy separation_sv.php?saveresign / submitResignation:
  * save keeps the request as 'N'; submit sets 'T' and creates the Separation Request task (18).
  */
-require_once __DIR__ . '/exitCommon.php';
+require_once __DIR__ . '/../authorization/exit/exitCommon.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     apiResponse(false, 'Invalid request method.', null, 405);

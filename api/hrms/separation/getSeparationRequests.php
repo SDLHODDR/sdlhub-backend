@@ -5,7 +5,7 @@
  * Legacy separation_edit.php (no task): separations of employees within the
  * user's company / division / department scope.
  */
-require_once __DIR__ . '/exitCommon.php';
+require_once __DIR__ . '/../authorization/exit/exitCommon.php';
 
 try {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
