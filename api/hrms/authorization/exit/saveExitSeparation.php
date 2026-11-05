@@ -49,7 +49,7 @@ exitRunAction(function () use ($input, $empCode) {
     }
     $date = DateTimeImmutable::createFromFormat('!Y-m-d', $relievingDate);
     if (!$date || $date->format('Y-m-d') !== $relievingDate) {
-        throw new ExitRequestException('A valid actual relieve date is required.', 422);
+        throw new ExitRequestException('A valid approved relieve date is required.', 422);
     }
     $handover = singRec("SELECT EMP_CODE FROM HR_EMPLOYEE_INFO WHERE EMP_CODE = :code AND STATUS = 'A'", [':code' => $handoverTo]);
     if (empty($handover['EMP_CODE'])) {
