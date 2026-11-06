@@ -59,10 +59,10 @@ $OFFER_INFO = singRec("SELECT a.*, get_emp_nm(a.id) emp_nm FROM hr_employee_info
 $dept = singRec("SELECT SHORT_CODE FROM HR_DEPARTMENT WHERE DEPT_CODE='" . $OFFER_INFO['DEPT_CODE'] . "' ");
 $session_empCode = singRec("SELECT work_site, dept_code FROM epplive.bcs_employee WHERE emp_code='" . $_SESSION['EmpCode'] . "'");
 
-// Fetch tenure record (fallback to 'A' if 'T' not found)
-$tenure = singRec("SELECT * FROM hr_emp_tenure_change WHERE emp_code = '" . $empCode . "' AND status = 'T'");
+// Fetch the latest tenure record. Older records can still be status T, so status cannot pick it.
+$tenure = singRec("SELECT * FROM (SELECT * FROM hr_emp_tenure_change WHERE emp_code = '" . $empCode . "' AND status IN ('T','A','C') ORDER BY id DESC) WHERE ROWNUM = 1");
 if (empty($tenure['ID'])) {
-    $tenure = singRec("SELECT * FROM hr_emp_tenure_change WHERE emp_code = '" . $empCode . "' AND status = 'A' ORDER BY id DESC");
+    $tenure = [];
 }
 
 $ctcEffFrom = !empty($tenure['CTC_EFF_FROM']) ? $tenure['CTC_EFF_FROM'] : date('d-M-Y');

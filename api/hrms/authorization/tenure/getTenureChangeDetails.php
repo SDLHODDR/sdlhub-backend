@@ -3,16 +3,16 @@ ini_set('display_errors', 1);
 error_reporting(E_ALL);
 ob_start();
 define('CURRENT_PORTAL', 'hrms');
-require_once __DIR__ . "/../../config/session.php";
-require_once __DIR__ . "/../../cors.php";
-require_once __DIR__ . "/../../config/db.php";
+require_once __DIR__ . "/../../../config/session.php";
+require_once __DIR__ . "/../../../cors.php";
+require_once __DIR__ . "/../../../config/db.php";
 
 $sql___func___con = db_hrms();
 
-require_once __DIR__ . "/../../config/functions.php";
-require_once __DIR__ . "/../../config/utils.php";
-require_once __DIR__ . "/../../config/env.php";
-require_once __DIR__ . "/../../config/hr_func.php";
+require_once __DIR__ . "/../../../config/functions.php";
+require_once __DIR__ . "/../../../config/utils.php";
+require_once __DIR__ . "/../../../config/env.php";
+require_once __DIR__ . "/../../../config/hr_func.php";
 
 header("Content-Type: application/json; charset=UTF-8");
 
@@ -99,6 +99,7 @@ try {
         FROM HR_EMP_TENURE_CHANGE 
         WHERE EMP_CODE = :emp_code 
           AND STATUS IN ('N', 'T')
+        ORDER BY ID DESC
     ";
     $tenure_chg = singRec($tenureChgSql, [':emp_code' => $empCode]);
 
@@ -267,7 +268,9 @@ try {
         $allAreFilled = !empty($tenure_chg['ETYPE_ID']);
     }
 
-    $canSubmit = ($allAreFilled && !empty($tenureChgId));
+    // Submit needs a completed Save: Save sets STATUS = 'T', and closeConfirmation.php only accepts 'T'.
+    $isSaved = trim((string)($tenure_chg['STATUS'] ?? '')) === 'T';
+    $canSubmit = ($allAreFilled && !empty($tenureChgId) && $isSaved);
 
     /* ===========================================
        CONSTRUCT RESPONSE PAYLOAD

@@ -1,12 +1,13 @@
 <?php
-require_once __DIR__ . '/../../config/session.php';
-require_once __DIR__ . '/../../cors.php';
-require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../../../config/session.php';
+require_once __DIR__ . '/../../../cors.php';
+require_once __DIR__ . '/../../../config/db.php';
 
 $sql___func___con = db_hrms();
 
-require_once __DIR__ . '/../../config/functions.php';
-require_once __DIR__ . '/../../config/utils.php';
+require_once __DIR__ . '/../../../config/functions.php';
+require_once __DIR__ . '/../../../config/utils.php';
+require_once __DIR__ . '/../../../config/hrmsAccess.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -47,6 +48,7 @@ try {
     if (strtoupper((string)$task['STATUS']) !== 'O') {
         apiResponse(false, 'This authorization task has already been processed.', null, 400);
     }
+    loadHrmsAccess($authEmpCode);
     $userCompIds = array_map('strval', $_SESSION['compId'] ?? []);
     $userDivisionIds = array_map('strval', $_SESSION['divId'] ?? []);
     $userDepartmentIds = array_map('strval', $_SESSION['deptId'] ?? []);

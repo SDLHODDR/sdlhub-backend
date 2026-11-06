@@ -1,13 +1,14 @@
 <?php
 
-require_once __DIR__ . '/../../config/session.php';
-require_once __DIR__ . '/../../cors.php';
-require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../../../config/session.php';
+require_once __DIR__ . '/../../../cors.php';
+require_once __DIR__ . '/../../../config/db.php';
 
 $sql___func___con = db_hrms();
 
-require_once __DIR__ . '/../../config/functions.php';
-require_once __DIR__ . '/../../config/utils.php';
+require_once __DIR__ . '/../../../config/functions.php';
+require_once __DIR__ . '/../../../config/utils.php';
+require_once __DIR__ . '/../../../config/hrmsAccess.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -65,7 +66,7 @@ try {
             "SELECT ID FROM (
                 SELECT ID FROM HR_EMP_TENURE_CHANGE 
                 WHERE EMP_CODE = :emp_code 
-                ORDER BY CASE WHEN STATUS = 'A' THEN 1 ELSE 2 END, ID DESC
+                ORDER BY ID DESC
              ) WHERE ROWNUM = 1"
         );
         oci_bind_by_name($tenureStmt, ':emp_code', $empCode);
@@ -76,15 +77,24 @@ try {
         oci_free_statement($tenureStmt);
     }
 
-    // Target task row in HR_USER_TASKS:
-    // In legacy code: $task_id in taskUpdate() represents HR_USER_TASKS.ID (or TASK_ID)
-    $targetUserTaskId = $authId ?: $taskId;
+    // Target task row in HR_USER_TASKS is AUTH_ID (the row ID); TASK_ID is the workflow ID (32)
+    // and must never be used as a row ID.
+    $targetUserTaskId = $authId;
 
-    if (!$tenureChangeId && !$targetUserTaskId) {
+    if (!$targetUserTaskId || $empCode === '') {
         closeTaskResponse(400, [
             'status'  => false,
             'success' => false,
-            'message' => 'Tenure Change ID or Task ID is required to close the task.'
+            'message' => 'Employee code and task (AUTH_ID) are required to close the task.'
+        ]);
+    }
+
+    loadHrmsAccess($loggedInEmp);
+    if (!hrmsFindActionableTask(32, $empCode, $loggedInEmp, $targetUserTaskId)) {
+        closeTaskResponse(403, [
+            'status'  => false,
+            'success' => false,
+            'message' => 'You are not authorized to close this print task, or it is no longer open.'
         ]);
     }
 
@@ -117,53 +127,40 @@ try {
     /*
      * 5. Update HR_USER_TASKS -> STATUS = 'C' (taskUpdate legacy logic)
      */
-    if ($targetUserTaskId) {
-        // First attempt updating by HR_USER_TASKS.ID
-        $updateTaskSql = "UPDATE HR_USER_TASKS 
-                          SET STATUS   = 'C',
-                              AUTH_BY  = :auth_by,
-                              AUTH_ON  = SYSDATE,
-                              REMARKS  = :remarks,
-                              IP_ADDR  = :ip_addr
-                          WHERE ID = :user_task_id";
+    $updateTaskSql = "UPDATE HR_USER_TASKS
+                      SET STATUS   = 'C',
+                          AUTH_BY  = :auth_by,
+                          AUTH_ON  = SYSDATE,
+                          REMARKS  = :remarks,
+                          IP_ADDR  = :ip_addr
+                      WHERE ID = :user_task_id
+                        AND TASK_ID = 32
+                        AND TRAN_CODE = :emp_code
+                        AND STATUS = 'O'";
 
-        $stmtTask = oci_parse($sql___func___con, $updateTaskSql);
-        oci_bind_by_name($stmtTask, ':auth_by', $upperLoggedIn);
-        oci_bind_by_name($stmtTask, ':remarks', $remarks);
-        oci_bind_by_name($stmtTask, ':ip_addr', $ipAddress);
-        oci_bind_by_name($stmtTask, ':user_task_id', $targetUserTaskId);
+    $stmtTask = oci_parse($sql___func___con, $updateTaskSql);
+    oci_bind_by_name($stmtTask, ':auth_by', $upperLoggedIn);
+    oci_bind_by_name($stmtTask, ':remarks', $remarks);
+    oci_bind_by_name($stmtTask, ':ip_addr', $ipAddress);
+    oci_bind_by_name($stmtTask, ':user_task_id', $targetUserTaskId);
+    oci_bind_by_name($stmtTask, ':emp_code', $empCode);
 
-        if (!oci_execute($stmtTask, OCI_NO_AUTO_COMMIT)) {
-            $err = oci_error($stmtTask);
-            oci_free_statement($stmtTask);
-            throw new RuntimeException($err['message'] ?? 'Failed to update HR_USER_TASKS.');
-        }
-
-        $rowsAffected = oci_num_rows($stmtTask);
+    if (!oci_execute($stmtTask, OCI_NO_AUTO_COMMIT)) {
+        $err = oci_error($stmtTask);
         oci_free_statement($stmtTask);
+        throw new RuntimeException($err['message'] ?? 'Failed to update HR_USER_TASKS.');
+    }
 
-        // If no row was updated by ID, check if targetUserTaskId was TASK_ID and update by TRAN_CODE/TASK_ID
-        if ($rowsAffected === 0 && $empCode !== '') {
-            $updateAltTaskSql = "UPDATE HR_USER_TASKS 
-                                 SET STATUS   = 'C',
-                                     AUTH_BY  = :auth_by,
-                                     AUTH_ON  = SYSDATE,
-                                     REMARKS  = :remarks,
-                                     IP_ADDR  = :ip_addr
-                                 WHERE (TRAN_CODE = :emp_code OR EMP_CODE_FOR = :emp_code)
-                                   AND (TASK_ID = :task_id OR ID = :task_id)
-                                   AND STATUS = 'O'";
+    $rowsAffected = oci_num_rows($stmtTask);
+    oci_free_statement($stmtTask);
 
-            $stmtAltTask = oci_parse($sql___func___con, $updateAltTaskSql);
-            oci_bind_by_name($stmtAltTask, ':auth_by', $upperLoggedIn);
-            oci_bind_by_name($stmtAltTask, ':remarks', $remarks);
-            oci_bind_by_name($stmtAltTask, ':ip_addr', $ipAddress);
-            oci_bind_by_name($stmtAltTask, ':emp_code', $empCode);
-            oci_bind_by_name($stmtAltTask, ':task_id', $taskId);
-
-            oci_execute($stmtAltTask, OCI_NO_AUTO_COMMIT);
-            oci_free_statement($stmtAltTask);
-        }
+    if ($rowsAffected !== 1) {
+        oci_rollback($sql___func___con);
+        closeTaskResponse(409, [
+            'status'  => false,
+            'success' => false,
+            'message' => 'This print task is not open or does not belong to this employee.'
+        ]);
     }
 
     // 6. Commit transaction

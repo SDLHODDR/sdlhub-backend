@@ -1,13 +1,14 @@
 <?php
 
-require_once __DIR__ . '/../../config/session.php';
-require_once __DIR__ . '/../../cors.php';
-require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../../../config/session.php';
+require_once __DIR__ . '/../../../cors.php';
+require_once __DIR__ . '/../../../config/db.php';
 
 $sql___func___con = db_hrms();
 
-require_once __DIR__ . '/../../config/functions.php';
-require_once __DIR__ . '/../../config/utils.php';
+require_once __DIR__ . '/../../../config/functions.php';
+require_once __DIR__ . '/../../../config/utils.php';
+require_once __DIR__ . '/../../../config/hrmsAccess.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -90,6 +91,17 @@ try {
         ]);
     }
 
+    // Only a user with an open Print Tenure Change Letter task (32) for this employee may generate.
+    $authId = filter_var($input['AUTH_ID'] ?? '', FILTER_VALIDATE_INT);
+    loadHrmsAccess($loggedInEmp);
+    if (!hrmsFindActionableTask(32, $empCode, $loggedInEmp, $authId ?: null)) {
+        referenceResponse(403, [
+            'status' => false,
+            'success' => false,
+            'message' => 'You are not authorized to generate this reference, or the print task is no longer open.'
+        ]);
+    }
+
     /*
      * 1. Retrieve the latest Tenure record if ID is not passed, or lock the specific record
      */
@@ -107,7 +119,7 @@ try {
             SELECT ID, EMP_CODE, ETYPE_ID, STATUS
             FROM HR_EMP_TENURE_CHANGE
             WHERE EMP_CODE = :emp_code
-            ORDER BY CASE WHEN STATUS = 'A' THEN 1 ELSE 2 END, ID DESC
+            ORDER BY ID DESC
         ", [
             ':emp_code' => $empCode
         ]);
@@ -135,7 +147,8 @@ try {
     $isConfirmation = ($documentId === '14');
 
     /*
-     * 2. Check if a Reference Code already exists to prevent duplicate generation
+     * 2. Check if this print task already has a Reference Code, to prevent duplicate
+     * generation. Letters from an earlier tenure change were issued before this task.
      */
     $existingRows = referenceQuery("
         SELECT DOC_REF
@@ -145,6 +158,10 @@ try {
             WHERE EMP_CODE = :emp_code
               AND DOC_ID = :doc_id
               AND DOC_REF IS NOT NULL
+              AND CHG_ON >= NVL((
+                  SELECT MAX(CREATED_ON) FROM HR_USER_TASKS
+                  WHERE TASK_ID = 32 AND TRAN_CODE = :emp_code
+              ), DATE '1900-01-01')
             ORDER BY ID DESC
         )
         WHERE ROWNUM = 1

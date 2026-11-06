@@ -18,9 +18,9 @@ function db_epplive(){
 function db_teamsdl(){
     return @oci_connect("teamsdl","google10","192.168.20.150:1521/ora19csdl");
 }
-function db_eppprod(){
+/*function db_eppprod(){
     return @oci_pconnect('epplive', 'DXt2XqxcNB', '192.168.10.111:1521/orcl');
-}
+}*/
 
 function getDBConnection($dbName) {
     $dbConfig = [
