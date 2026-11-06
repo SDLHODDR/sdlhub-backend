@@ -99,6 +99,7 @@ try {
         FROM HR_EMP_TENURE_CHANGE 
         WHERE EMP_CODE = :emp_code 
           AND STATUS IN ('N', 'T')
+        ORDER BY ID DESC
     ";
     $tenure_chg = singRec($tenureChgSql, [':emp_code' => $empCode]);
 
@@ -267,7 +268,9 @@ try {
         $allAreFilled = !empty($tenure_chg['ETYPE_ID']);
     }
 
-    $canSubmit = ($allAreFilled && !empty($tenureChgId));
+    // Submit needs a completed Save: Save sets STATUS = 'T', and closeConfirmation.php only accepts 'T'.
+    $isSaved = trim((string)($tenure_chg['STATUS'] ?? '')) === 'T';
+    $canSubmit = ($allAreFilled && !empty($tenureChgId) && $isSaved);
 
     /* ===========================================
        CONSTRUCT RESPONSE PAYLOAD

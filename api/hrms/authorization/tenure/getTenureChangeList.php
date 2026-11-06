@@ -48,6 +48,10 @@ try {
 
     loadHrmsAccess($_SESSION["emp_code"]);
 
+    // Nothing below writes to the session. Release its lock so this list does not hold up
+    // the user's other requests.
+    session_write_close();
+
     // HRMS stores compId as an array; legacy sessions may contain a comma-separated string.
     $rawCompanyIds = $_SESSION["compId"] ?? [];
     if (is_array($rawCompanyIds)) {
@@ -90,242 +94,127 @@ try {
        FETCH UPCOMING TENURE EMPLOYEES
     ========================================================== */
 
-    $sqljoin = multiRec("
-        SELECT 
-            A.EMP_CODE, 
-            GET_EMP_NAME(A.EMP_CODE) AS ENAME,
-            A.ETYPE_ID, 
-            TO_CHAR(A.EFF_TO, 'DD-Mon-YYYY') AS EFF_TO, 
-            C.EMP_TYPE
+    // One query for the whole list: the database is several hundred milliseconds away from
+    // some machines, so a query per employee takes many minutes.
+    //
+    // Uses each employee's latest tenure period. The period must end within the next
+    // $emp_days days or have ended within the last 365.
+    // Employees are hidden while a tenure task is open. HR_EMP_TENURE_CHANGE.STATUS cannot
+    // show this: legacy records stay A or N after all their tasks are closed.
+    // They are also hidden when a tenure change is later than the current period, because
+    // it was never written to HR_EMP_TENURE. A change that was applied starts on the
+    // current period's EFF_FROM, so the employee comes back when that period is due.
+    //
+    // The appraisal manager comes from Division Document Mapping: the position mapped to
+    // the Confirmation Letter (document 14) for the employee's company, division,
+    // department and designation.
+    $rows = multiRec("
+        SELECT L.*,
+            CASE WHEN L.APPR_LOC_ID IS NOT NULL THEN get_org_loc_emp_code(L.APPR_LOC_ID, SYSDATE) END AS MGRCODE,
+            CASE WHEN L.APPR_LOC_ID IS NOT NULL THEN GET_EMP_NAME(get_org_loc_emp_code(L.APPR_LOC_ID, SYSDATE)) END AS MGRNAME
         FROM (
-            SELECT EMP_CODE, ETYPE_ID, MAX(EFF_TO) AS EFF_TO 
+            SELECT
+                A.EMP_CODE,
+                GET_EMP_NAME(A.EMP_CODE) AS ENAME,
+                A.EFF_TO AS EFF_TO_SORT,
+                TO_CHAR(A.EFF_TO, 'DD-Mon-YYYY') AS EFF_TO,
+                C.EMP_TYPE,
+                CO.SH_DESC AS COMPANY,
+                O.ORG_ID,
+                GET_ORG_LOC_NAME(O.ORG_LOC_ID) AS ORG_LOC_NAME,
+                GET_DESIGN_NAME(O.DESI_ID) AS DESI,
+                DDMONYYYY(NVL(EI.DOJ, O.EFFEC_FROM)) AS DOJ,
+                (
+                    SELECT COUNT(*)
+                    FROM HR_JD_QUESTIONS Q
+                    INNER JOIN HR_QUESTION_MASTER QM ON Q.QUESTION_ID = QM.ID
+                    WHERE Q.JD_ID = OG.JD_ID AND Q.QGRP_TYPE = 'T'
+                ) AS TENURE_QUESTIONS,
+                (
+                    SELECT MIN(HJD.ORG_LOC_ID)
+                    FROM HR_DIVSN_DOC HJD
+                    INNER JOIN HR_DOC_TYPES HDT ON HJD.DOC_ID = HDT.DOCTYP_ID
+                    WHERE HDT.DOC_TYPE = 'D'
+                      AND HDT.DOCTYP_ID = '14'
+                      AND TO_CHAR(HJD.COMP_ID) = TO_CHAR(OG.COMPANY)
+                      AND TO_CHAR(HJD.DIVSN_ID) = TO_CHAR(OG.DIVSN_ID)
+                      AND TO_CHAR(HJD.DEPT_ID) = TO_CHAR(OG.DEPT_ID)
+                      AND TO_CHAR(HJD.DESI_ID) = TO_CHAR(OG.DESI_ID)
+                ) AS APPR_LOC_ID
             FROM (
-                SELECT * FROM HR_EMP_TENURE ORDER BY EFF_TO DESC
-            ) 
-            GROUP BY EMP_CODE, ETYPE_ID
-        ) A
-        INNER JOIN HR_EMP_TYPE C ON C.ETYPE_ID = A.ETYPE_ID
-        INNER JOIN HR_EMPLOYEE_INFO EI ON A.EMP_CODE = EI.EMP_CODE
-        WHERE A.ETYPE_ID IN (2, 5, 6)
-          AND EI.STATUS = 'A'
-          {$compCondition}
-          AND A.EMP_CODE NOT IN (SELECT EMP_CODE FROM HR_EMP_TENURE_CHANGE)
-          AND A.EMP_CODE NOT IN (
-              SELECT EMP_CODE FROM HR_EMP_TENURE 
-              WHERE ETYPE_ID = '1' 
-                AND SYSDATE BETWEEN EFF_FROM AND NVL(EFF_TO, TO_DATE('01-MAR-3000', 'DD-MON-YYYY'))
-          )
-          AND A.EMP_CODE IN (SELECT EMP_CODE FROM HR_EMP_TENURE WHERE ETYPE_ID IN (2, 5, 6))
-          AND TRUNC(A.EFF_TO) >= TRUNC(SYSDATE)
-          AND TRUNC(A.EFF_TO) <= TRUNC(SYSDATE + {$emp_days})
-          OR (TRUNC(A.EFF_TO) < TRUNC(SYSDATE)
-          AND TRUNC(A.EFF_TO) >= TRUNC(SYSDATE - 365))
-        ORDER BY A.EFF_TO ASC
+                SELECT EMP_CODE, ETYPE_ID, EFF_FROM, EFF_TO,
+                    ROW_NUMBER() OVER (PARTITION BY EMP_CODE ORDER BY EFF_FROM DESC, ID DESC) AS RN
+                FROM HR_EMP_TENURE
+            ) A
+            INNER JOIN HR_EMP_TYPE C ON C.ETYPE_ID = A.ETYPE_ID
+            INNER JOIN HR_EMPLOYEE_INFO EI ON A.EMP_CODE = EI.EMP_CODE
+            LEFT JOIN HR_COMPANY CO ON CO.COMP_ID = EI.COMP_ID
+            LEFT JOIN (
+                SELECT EMP_CODE, ORG_ID, ORG_LOC_ID, DESI_ID, EFFEC_FROM,
+                    ROW_NUMBER() OVER (PARTITION BY EMP_CODE ORDER BY EFFEC_FROM DESC, ID DESC) AS RN
+                FROM HR_EMP_OFFICE_DET
+                WHERE SYSDATE BETWEEN EFFEC_FROM AND NVL(EFFEC_TO, TO_DATE('01-MAR-3000', 'DD-MON-YYYY'))
+            ) O ON O.EMP_CODE = A.EMP_CODE AND O.RN = 1
+            LEFT JOIN HR_ORGANOGRAM OG ON OG.ID = O.ORG_ID
+            WHERE A.RN = 1
+              AND A.ETYPE_ID IN (2, 5, 6)
+              AND EI.STATUS = 'A'
+              {$compCondition}
+              AND NOT EXISTS (
+                  SELECT 1 FROM HR_USER_TASKS UT
+                  WHERE UT.TRAN_CODE = A.EMP_CODE
+                    AND UT.TASK_ID IN (25, 26, 27, 32)
+                    AND UT.STATUS = 'O'
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM HR_EMP_TENURE_CHANGE TC
+                  WHERE TC.EMP_CODE = A.EMP_CODE
+                    AND NVL(TC.CTC_EFF_FROM, TC.EFF_FROM) > A.EFF_FROM
+              )
+              AND A.EMP_CODE NOT IN (
+                  SELECT EMP_CODE FROM HR_EMP_TENURE
+                  WHERE ETYPE_ID = '1'
+                    AND SYSDATE BETWEEN EFF_FROM AND NVL(EFF_TO, TO_DATE('01-MAR-3000', 'DD-MON-YYYY'))
+              )
+              AND TRUNC(A.EFF_TO) BETWEEN TRUNC(SYSDATE - 365) AND TRUNC(SYSDATE + {$emp_days})
+        ) L
+        ORDER BY L.EFF_TO_SORT ASC
     ");
 
     $list = [];
 
-    if (!empty($sqljoin) && is_array($sqljoin)) {
-        foreach ($sqljoin as $tenure) {
-            $empCode = $tenure['EMP_CODE'];
+    foreach (is_array($rows) ? $rows : [] as $row) {
+        $managerName = trim((string)($row['MGRNAME'] ?? ''));
+        $managerCode = trim((string)($row['MGRCODE'] ?? ''));
 
-            // 1. Office details (Designation, Location, DOJ)
-            $offDet = singRec("
-                SELECT 
-                    GET_ORG_LOC_NAME(ORG_LOC_ID) AS ORG_LOC_NAME,
-                    DDMONYYYY(EFFEC_FROM) AS EFFEC_FROM,
-                    GET_DESIGN_NAME(DESI_ID) AS DESI,
-                    ORG_ID 
-                FROM HR_EMP_OFFICE_DET 
-                WHERE EMP_CODE = '{$empCode}'
-            ");
-
-            // 2. Job Description Assessment check
-            $jd_id = singRec("SELECT JD_ID FROM HR_ORGANOGRAM WHERE ID = '" . ($offDet['ORG_ID'] ?? '') . "'");
-
-            $empDetailsDN = singRec("SELECT COMPANY, DEPT_ID, DESI_ID, DIVSN_ID FROM HR_ORGANOGRAM WHERE ID = '" . ($offDet['ORG_ID'] ?? '') . "'");
-
-            $jd = null;
-            $hasTenureQuestions = false;
-            if (!empty($jd_id['JD_ID'])) {
-                $jd = singRec("
-                    SELECT 
-                        A.SH_DESC, 
-                        COUNT(B.ID) AS CNT,
-                        A.ID
-                    FROM HR_JD A 
-                    INNER JOIN HR_JD_QUESTIONS B ON A.ID = B.JD_ID
-                    WHERE A.ID = '{$jd_id['JD_ID']}' 
-                      AND B.QGRP_TYPE = 'A'
-                    GROUP BY A.SH_DESC, A.ID 
-                    ORDER BY A.ID
-                ");
-
-                $tenureQuestions = singRec("
-                    SELECT COUNT(*) AS CNT
-                    FROM HR_JD_QUESTIONS A
-                    INNER JOIN HR_QUESTION_MASTER B ON A.QUESTION_ID = B.ID
-                    WHERE A.JD_ID = '{$jd_id['JD_ID']}'
-                      AND A.QGRP_TYPE = 'T'
-                ");
-                $hasTenureQuestions = isset($tenureQuestions['CNT'])
-                    && (int)$tenureQuestions['CNT'] > 0;
-            }
-
-            // 3. Company code / short desc
-            $empDet = singRec("SELECT COMP_ID FROM HR_EMPLOYEE_INFO WHERE EMP_CODE = '{$empCode}'");
-            $comp = singRec("SELECT SH_DESC FROM HR_COMPANY WHERE COMP_ID = '" . ($empDet['COMP_ID'] ?? '') . "'");
-
-            // 4. Approval hierarchy calculation
-            $org_id = function_exists('getEmpOffice') ? getEmpOffice($empCode) : ['ORG_ID' => ($offDet['ORG_ID'] ?? '')];
-            $orgDetRec = singRec("SELECT GET_EMP_PARENTAL('{$empCode}', SYSDATE) AS ORG FROM DUAL");
-            $orgDet = $orgDetRec['ORG'] ?? '';
-
-            $result = [];
-            if (!empty($orgDet)) {
-                $entries = explode('#', rtrim($orgDet, '#'));
-                foreach ($entries as $entry) {
-                    $parts = explode(',', $entry);
-                    if (count($parts) === 3) {
-                        $result[] = [
-                            'parent_orgid' => $parts[0],
-                            'org_loc_id'   => $parts[1],
-                            'emp_code'     => $parts[2]
-                        ];
-                    }
-                }
-            }
-
-            $currentOrgId = $org_id['ORG_ID'] ?? '';
-            $apprLvl = multiRec("
-                SELECT APPR_LEVEL, APPR_ORGID
-                FROM HR_ORG_APPR_LEVELS 
-                WHERE ORG_ID = '{$currentOrgId}'
-                  AND SYSDATE BETWEEN EFFEC_FROM AND NVL(EFFEC_TO, TO_DATE('01-MAR-3000', 'DD-MON-YYYY'))
-            ");
-
-            if (!empty($apprLvl) && count($apprLvl) > 1) {
-                $apprLvl = array_slice($apprLvl, 0, -1);
-            }
-
-            $apprOrgIds = array_column($apprLvl, 'APPR_ORGID');
-            $apprLevels = array_column($apprLvl, 'APPR_LEVEL');
-
-            $orgEmpMap = [];
-            if (!empty($result)) {
-                foreach ($result as $row) {
-                    $orgEmpMap[$row['parent_orgid']] = $row['emp_code'];
-                }
-            }
-
-            $approvalLevelsList = [];
-            $firstMgrEmpCode = 'Vacant';
-            $firstMgrName = '';
-            $counter = 1;
-
-            foreach ($apprLevels as $index => $levelNum) {
-                $parentOrgId = $apprOrgIds[$index] ?? null;
-
-                if ($parentOrgId && isset($orgEmpMap[$parentOrgId])) {
-                    $approverCode = $orgEmpMap[$parentOrgId];
-
-                    if (strtolower($approverCode) !== 'vacant') {
-                        $approverName = function_exists('getEmpInfoByCode') ? getEmpInfoByCode($approverCode) : $approverCode;
-                        $approvalLevelsList[] = [
-                            'level'    => $counter,
-                            'empCode'  => $approverCode,
-                            'empName'  => $approverName,
-                            'display'  => "{$counter}. {$approverName}"
-                        ];
-
-                        if ($firstMgrEmpCode === 'Vacant') {
-                            $firstMgrEmpCode = $approverCode;
-                            $firstMgrName = $approverName;
-                        }
-
-                        $counter++;
-                    }
-                }
-            }
-
-            $appraserName = '';
-            $appraisalManager = '';
-            if($empDetailsDN && isset($empDetailsDN['COMPANY']) && isset($empDetailsDN['DEPT_ID']) && isset($empDetailsDN['DESI_ID']) && isset($empDetailsDN['DIVSN_ID'])) {
-                $getDocType = singRec("
-                    SELECT DISTINCT DOCTYP_ID, DOCTYP_DESC, ORG_LOC_ID
-                    FROM HR_DIVSN_DOC HJD
-                    RIGHT JOIN HR_DOC_TYPES HDT ON HJD.DOC_ID = HDT.DOCTYP_ID
-                    WHERE 
-                        HDT.DOC_TYPE ='D' 
-                        AND HJD.COMP_ID='".$empDetailsDN['COMPANY']."' 
-                        AND HJD.DIVSN_ID='".$empDetailsDN['DIVSN_ID']."' 
-                        AND HJD.DEPT_ID='".$empDetailsDN['DEPT_ID']."' 
-                        AND HJD.DESI_ID in ('".$empDetailsDN['DESI_ID']."')
-                        AND HDT.DOCTYP_ID = '14' 
-                        ORDER BY 1"
-                );
-
-                if($getDocType && isset($getDocType['ORG_LOC_ID'])){
-                    $getAppraser = singRec("SELECT
-                        HL.ID,
-                        get_org_loc_emp_code(HL.ID, SYSDATE) AS MGRCODE,
-                        GET_EMP_NAME(get_org_loc_emp_code(HL.ID, SYSDATE)) AS MGRNAME
-                    FROM HR_ORGANOGRAM HO
-                    INNER JOIN HR_ORGANOGRAM_LOC HL ON HL.ORG_ID = HO.ID
-                    WHERE HL.ID = '". $getDocType['ORG_LOC_ID'] ."'
-                    ORDER BY HL.ID ASC");
-                    
-                    if($getAppraser && isset($getAppraser['ID'])){
-                        $managerName = trim((string)($getAppraser['MGRNAME'] ?? ''));
-                        $managerEmpCode = trim((string)($getAppraser['MGRCODE'] ?? ''));
-                        $appraisalManager = $managerName;
-                        if ($managerName !== '') {
-                            $appraserName = $managerEmpCode !== ''
-                                ? $managerName . ' (' . $managerEmpCode . ')'
-                                : $managerName;
-                        } elseif ($managerEmpCode !== '') {
-                            $appraserName = '-Not Set (' . $managerEmpCode . ')';
-                        } else {
-                            $appraserName = '-';
-                        }
-                    }
-                }
-            }
-
-            // Determine action mode
-            $hasJdQuestions = isset($jd['CNT']) && (int)$jd['CNT'] > 0;
-
-            $list[] = [
-                'empCode'       => $tenure['EMP_CODE'],
-                'empName'       => ucwords(strtolower($tenure['ENAME'] ?? '')),
-                'company'       => $comp['SH_DESC'] ?? '',
-                'designation'   => $offDet['DESI'] ?? '',
-                'location'      => $offDet['ORG_LOC_NAME'] ?? '',
-                'empType'       => ucwords(strtolower($tenure['EMP_TYPE'] ?? '')),
-                'doj'           => $offDet['EFFEC_FROM'] ?? '',
-                'tenureDue'     => $tenure['EFF_TO'] ?? '',
-                'orgId'         => $currentOrgId,
-                'approvalLevels'=> [],
-                'approvalText'  => $appraserName,
-                'appraisalManager' => $appraisalManager,
-                'questions_set' => $hasTenureQuestions ? 1 : 0,
-                //'approvalLevels'=> $approvalLevelsList,
-                //'approvalText'  => !empty($approvalLevelsList) ? implode("\n", array_column($approvalLevelsList, 'display')) : 'Not Set',
-                'manager'       => [
-                    'empCode' => $firstMgrEmpCode,
-                    'empName' => $firstMgrName,
-                    'manager_code' => $getAppraser['MGRCODE'] ?? '-',
-                ],
-                'actionType'    => $hasJdQuestions ? 'ADD_JD' : 'SEND_REQUEST',
-                'jd'            => [
-                    'id'    => $jd_id['JD_ID'] ?? null,
-                    'title' => $jd['SH_DESC'] ?? ''
-                ]
-            ];
-
-            $appraserName = '';
-            $getAppraser = [];
+        if ($managerName !== '') {
+            $approvalText = $managerCode !== '' ? "{$managerName} ({$managerCode})" : $managerName;
+        } elseif ($managerCode !== '') {
+            $approvalText = "-Not Set ({$managerCode})";
+        } else {
+            $approvalText = '';
         }
+
+        $list[] = [
+            'empCode'          => $row['EMP_CODE'],
+            'empName'          => ucwords(strtolower($row['ENAME'] ?? '')),
+            'company'          => $row['COMPANY'] ?? '',
+            'designation'      => $row['DESI'] ?? '',
+            'location'         => $row['ORG_LOC_NAME'] ?? '',
+            'empType'          => ucwords(strtolower($row['EMP_TYPE'] ?? '')),
+            'doj'              => $row['DOJ'] ?? '',
+            'tenureDue'        => $row['EFF_TO'] ?? '',
+            'orgId'            => $row['ORG_ID'] ?? '',
+            'approvalLevels'   => [],
+            'approvalText'     => $approvalText,
+            'appraisalManager' => $managerName,
+            'questions_set'    => (int)($row['TENURE_QUESTIONS'] ?? 0) > 0 ? 1 : 0,
+            'manager'          => [
+                'empCode'      => $managerCode !== '' ? $managerCode : 'Vacant',
+                'empName'      => $managerName,
+                'manager_code' => $managerCode !== '' ? $managerCode : '-',
+            ],
+        ];
     }
 
     if (isset($sql___func___con)) {

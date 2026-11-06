@@ -11,6 +11,7 @@ require_once __DIR__ . '/../../../config/functions.php';
 require_once __DIR__ . '/../../../config/utils.php';
 require_once __DIR__ . '/../../../config/emp_func.php';
 require_once __DIR__ . '/../../../config/hrmsAccess.php';
+require_once __DIR__ . '/tenureApply.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -479,6 +480,9 @@ try {
 
     $companyId = $task['COMP_ID'] ?: ($org['COMPANY'] ?? '');
     if ($isFinalCtcStep) {
+        tenureApplyChange($tenureId, $employeeCode, $empCode);
+        tenureCreateLeaveCreditTask($tenure['ETYPE_ID'] ?? '', $employeeCode, getEmpInfoByCodeHR($employeeCode), $empCode);
+
         $nextTaskId = generateTaskHR(
             'PRT_TNU_CHG_LTR', $employeeCode,
             'Print Tenure Change Letter for ' . getEmpInfoByCodeHR($employeeCode), '',

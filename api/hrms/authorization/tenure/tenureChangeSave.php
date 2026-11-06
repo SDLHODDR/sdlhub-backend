@@ -66,7 +66,7 @@ try {
             "SELECT ID FROM (
                 SELECT ID FROM HR_EMP_TENURE_CHANGE 
                 WHERE EMP_CODE = :emp_code 
-                ORDER BY CASE WHEN STATUS = 'A' THEN 1 ELSE 2 END, ID DESC
+                ORDER BY ID DESC
              ) WHERE ROWNUM = 1"
         );
         oci_bind_by_name($tenureStmt, ':emp_code', $empCode);

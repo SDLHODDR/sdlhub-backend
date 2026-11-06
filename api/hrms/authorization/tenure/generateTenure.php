@@ -34,7 +34,8 @@ try {
             throw new RuntimeException('Manager ' . $managerCode . ' was not found in HR employee records.');
         }
 
-        $checkTenure = singRec("SELECT ID, EMP_CODE, STATUS FROM HR_EMP_TENURE_CHANGE WHERE EMP_CODE = :employee_code AND STATUS = 'N'", [':employee_code' => $employeeCode]);
+        // In progress means an open tenure task; legacy records stay A or N after their tasks close.
+        $checkTenure = singRec("SELECT TRAN_CODE AS EMP_CODE FROM HR_USER_TASKS WHERE TRAN_CODE = :employee_code AND TASK_ID IN (25, 26, 27, 32) AND STATUS = 'O'", [':employee_code' => $employeeCode]);
 
         if ($checkTenure && (isset($checkTenure['EMP_CODE']) && $checkTenure['EMP_CODE'] === $data['EMP_CODE'])) {
             apiResponse(false, 'Teneure Change already exists. ', null, 200);

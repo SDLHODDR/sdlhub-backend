@@ -107,7 +107,7 @@ try {
     $defaultCtc = $ctcRow[0]['VAL'] ?? 0;
 
     /*
-     * 2. Try Fetching HR_EMP_TENURE_CHANGE (Approved 'A' or Any Status)
+     * 2. Fetch the latest HR_EMP_TENURE_CHANGE (earlier ones may also be status A)
      */
     $tenureSql = "
         SELECT
@@ -128,7 +128,7 @@ try {
         LEFT JOIN HR_EMP_TYPE B
             ON B.ETYPE_ID = A.ETYPE_ID
         WHERE A.EMP_CODE = :emp_code
-        ORDER BY CASE WHEN A.STATUS = 'A' THEN 1 ELSE 2 END, A.ID DESC
+        ORDER BY A.ID DESC
     ";
 
     $tenureRows = tenureQuery($tenureSql, [':emp_code' => $empCode]);
@@ -148,7 +148,8 @@ try {
     $remarks       = $tenure['REMARKS'] ?? '';
 
     /*
-     * 4. Check Document Reference (Confirmation 14 or Extension 16)
+     * 4. Check Document Reference (Confirmation 14 or Extension 16) of the latest print
+     * task. Letters from an earlier tenure change were issued before that task.
      */
     $docRows = tenureQuery("
         SELECT DOC_ID, DOC_REF
@@ -158,6 +159,10 @@ try {
             WHERE EMP_CODE = :emp_code
               AND DOC_ID IN ('14', '16')
               AND DOC_REF IS NOT NULL
+              AND CHG_ON >= NVL((
+                  SELECT MAX(CREATED_ON) FROM HR_USER_TASKS
+                  WHERE TASK_ID = 32 AND TRAN_CODE = :emp_code
+              ), DATE '1900-01-01')
             ORDER BY ID DESC
         )
         WHERE ROWNUM = 1
