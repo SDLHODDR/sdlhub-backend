@@ -110,6 +110,7 @@ try {
 
     $_SESSION['emp_code'] = $user['EMP_CODE'];
     $_SESSION['name'] = $user['NAME'];
+    $_SESSION['last_activity'] = time();
 
     /* ===========================================
        PROFILE IMAGE

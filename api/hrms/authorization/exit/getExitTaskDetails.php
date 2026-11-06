@@ -55,7 +55,16 @@ try {
             'department' => $row['DEPT'],
             'status' => $row['STATUS'] === 'O' ? 'Open' : 'Closed',
             'doneBy' => $row['AUTH_BY'] ? getEmpInfoByCodeHR($row['AUTH_BY']) : '',
-        ], multiRec("SELECT GET_DEPT_NAME(DEPT_ID) AS DEPT, STATUS, AUTH_BY
+            // Activities the department submitted as 'No'. Answers saved on a
+            // task that is still open are not final, so they are left out.
+            'noActivities' => $row['STATUS'] === 'O' ? [] : array_values(array_map(
+                static fn($activity) => $activity['activity'],
+                array_filter(
+                    exitDepartmentActivities($row['DEPT_ID'], $separation['ID']),
+                    static fn($activity) => $activity['status'] === 'N'
+                )
+            )),
+        ], multiRec("SELECT DEPT_ID, GET_DEPT_NAME(DEPT_ID) AS DEPT, STATUS, AUTH_BY
             FROM HR_USER_TASKS WHERE TRAN_CODE = :ref_id AND TASK_ID = :task_id ORDER BY ID", [
             ':ref_id' => (string)$separation['ID'],
             ':task_id' => (string)EXIT_TASK_ACTIVITY,

@@ -4,9 +4,7 @@ if(!isset($_SESSION['emp_code'])){
     header("Location: /"); exit;
 }*/
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/config/session.php';
 
 $allowed_origins = [
     "http://localhost:3000",

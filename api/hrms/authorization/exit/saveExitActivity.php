@@ -2,9 +2,9 @@
 /*
  * POST { user_task_id, action: 'save'|'submit', rows: [{ dept_act_id, status: 'Y'|'N'|'X', remarks }] }
  * Exit Activity (19), one task per department. Legacy exit_act.php / dept_access_req_sv.php:
- * save stores the HR_EMP_DEPT_ACTIVITY rows; submit (allowed only when no activity is
- * 'N') also closes the department's task - its Open/Closed status is the clearance
- * status shown on Deactivate Employee. No further task is created either way.
+ * save stores the HR_EMP_DEPT_ACTIVITY rows; submit, whatever the answers, also closes
+ * the department's task - its Open/Closed status is the clearance status shown on
+ * Deactivate Employee. No further task is created either way.
  */
 require_once __DIR__ . '/exitCommon.php';
 
@@ -42,9 +42,6 @@ exitRunAction(function () use ($input, $empCode) {
             throw new ExitRequestException("Status and remarks are required for: {$activity['activity']}", 422);
         }
         exitAssertLength($row['remarks'], 200, "Remarks for {$activity['activity']}");
-        if ($action === 'submit' && $row['status'] === 'N') {
-            throw new ExitRequestException('All activities must be Yes or Not Applicable before submitting.', 422);
-        }
 
         exitExecute("DELETE FROM HR_EMP_DEPT_ACTIVITY
             WHERE DEPT_ACT_ID = :act_id AND DEPT_ID = :dept_id AND REF_ID = :ref_id", [
