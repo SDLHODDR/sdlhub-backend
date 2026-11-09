@@ -144,10 +144,10 @@ try {
                 AND tasks.TASK_ID IN ({$joining_in})
             LEFT JOIN HR_RECRUITMENT REC
                 ON REC.ID = tasks.TRAN_CODE
-                AND tasks.TASK_ID IN (2,6)
+                AND tasks.TASK_ID IN (2,5,6)
             LEFT JOIN HR_ORGANOGRAM_LOC LOC
                 ON LOC.ID = REC.ORG_LOC_ID
-                AND tasks.TASK_ID IN (2,6)
+                AND tasks.TASK_ID IN (2,5,6)
             ORDER BY tasks.DISP_SEQ, tasks.CREATED_ON
         ");
 
