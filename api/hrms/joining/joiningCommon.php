@@ -247,6 +247,15 @@ function joiningSyncEppAndLogins($employeeCode, array $values, $status, $session
     }
 
     $name = trim(preg_replace('/\s+/', ' ', "{$values['fname']} {$values['mname']} {$values['lname']}"));
+    joiningEnsureLogins($employeeCode, $name, $values['cell'], $status, $sessionEmp);
+}
+
+/**
+ * Create the EPP login and central login when missing, with the legacy default
+ * password P<employee code>. An existing login and its password are left alone.
+ */
+function joiningEnsureLogins($employeeCode, $name, $mobile, $eppStatus, $sessionEmp)
+{
     $password = encode('P' . $employeeCode);
 
     $eppUser = singRec("SELECT CODE FROM HR_BCS_USERS WHERE EMP_CODE = :emp_code", [':emp_code' => $employeeCode]);
@@ -257,7 +266,7 @@ function joiningSyncEppAndLogins($employeeCode, array $values, $status, $session
             ':emp_code' => $employeeCode,
             ':name' => substr($name, 0, 40),
             ':pass_wd' => $password,
-            ':status' => $status,
+            ':status' => $eppStatus,
             ':chg_by' => $sessionEmp,
         ], 'Could not create the EPP login.');
     }
@@ -271,10 +280,78 @@ function joiningSyncEppAndLogins($employeeCode, array $values, $status, $session
             ':emp_code' => $employeeCode,
             ':name' => substr($name, 0, 100),
             ':pass_wd' => $password,
-            ':mobile' => substr((string)$values['cell'], 0, 13),
+            ':mobile' => substr((string)$mobile, 0, 13),
             ':chg_by' => $sessionEmp,
         ], 'Could not create the SDL login.');
     }
+}
+
+/**
+ * Validate the office fields posted by New Employee and Rehire: the organogram
+ * must match the employee's company and the location must be free. A relieved
+ * employee (status R) no longer holds a location, even if the end date is ahead.
+ */
+function joiningValidateOffice(array $input, $companyId, $employeeCode)
+{
+    $id = static fn($key) => (string)(int)($input[$key] ?? 0);
+    $office = [
+        'divsn_id' => $id('divsn_id'),
+        'dept_id' => $id('dept_id'),
+        'desi_id' => $id('desi_id'),
+        'org_id' => $id('org_id'),
+        'org_loc_id' => $id('org_loc_id'),
+    ];
+    foreach (['Division' => 'divsn_id', 'Department' => 'dept_id', 'Designation' => 'desi_id',
+              'Organogram' => 'org_id', 'Organogram location' => 'org_loc_id'] as $label => $key) {
+        if ($office[$key] === '0') {
+            throw new JoiningRequestException("{$label} is required.", 422);
+        }
+    }
+
+    $org = singRec("SELECT ID FROM HR_ORGANOGRAM
+        WHERE ID = :id AND COMPANY = :company AND DIVSN_ID = :division AND DEPT_ID = :department AND DESI_ID = :designation", [
+        ':id' => $office['org_id'],
+        ':company' => (string)$companyId,
+        ':division' => $office['divsn_id'],
+        ':department' => $office['dept_id'],
+        ':designation' => $office['desi_id'],
+    ]);
+    if (empty($org['ID'])) {
+        throw new JoiningRequestException('The organogram does not match the company, division, department and designation.', 422);
+    }
+    $location = singRec("SELECT ID FROM HR_ORGANOGRAM_LOC WHERE ID = :id AND ORG_ID = :org_id",
+        [':id' => $office['org_loc_id'], ':org_id' => $office['org_id']]);
+    if (empty($location['ID'])) {
+        throw new JoiningRequestException('The location does not belong to the selected organogram.', 422);
+    }
+    $taken = singRec("SELECT COUNT(*) AS CNT FROM HR_EMP_OFFICE_DET D
+        LEFT JOIN HR_EMPLOYEE_INFO E ON E.EMP_CODE = D.EMP_CODE
+        WHERE D.ORG_LOC_ID = :loc AND D.EMP_CODE <> :emp_code
+          AND NVL(E.STATUS, 'A') <> 'R'
+          AND SYSDATE BETWEEN D.EFFEC_FROM AND NVL(D.EFFEC_TO, DATE '3000-03-01')",
+        [':loc' => $office['org_loc_id'], ':emp_code' => (string)$employeeCode]);
+    if ((int)($taken['CNT'] ?? 0) > 0) {
+        throw new JoiningRequestException('This organogram location is already held by another employee.', 422);
+    }
+    return $office;
+}
+
+/** Copy the office fields to the EPP employee. */
+function joiningUpdateEppOffice($employeeCode, array $office, $sessionEmp)
+{
+    $deptCode = singRec("SELECT DEPT_CODE FROM HR_DEPARTMENT WHERE DEPT_ID = :id", [':id' => $office['dept_id']]);
+    joiningExecute("UPDATE HR_BCS_EMPLOYEE
+        SET DIVISION = :division, DEPT_ID = :dept_id, DEPT_CODE = :dept_code, DESIGNATION = :designation,
+            ORG_ID = :org_id, CHG_ON = SYSDATE, CHG_BY = :chg_by
+        WHERE EMP_CODE = :emp_code", [
+        ':division' => $office['divsn_id'],
+        ':dept_id' => $office['dept_id'],
+        ':dept_code' => $deptCode['DEPT_CODE'] ?? '',
+        ':designation' => $office['desi_id'],
+        ':org_id' => $office['org_id'],
+        ':chg_by' => $sessionEmp,
+        ':emp_code' => (string)$employeeCode,
+    ], 'Could not update the EPP employee record.');
 }
 
 /** Run $work in one transaction; respond with its result or the error. */

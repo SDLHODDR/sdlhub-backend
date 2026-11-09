@@ -77,10 +77,9 @@ try {
         INNER JOIN HR_EMP_OFFICE_DET C ON C.EMP_CODE = A.EMP_CODE
         WHERE A.STATUS = 'A' AND SYSDATE BETWEEN C.EFFEC_FROM AND NVL(C.EFFEC_TO, DATE '3000-03-01')
           AND " . exitScopeSql('C', 'A') . "
-          -- Hide employees who already have a separation that is not rejected
-          -- (N Not Sent for Auth, T In Progress, A Approved, C Closed).
+          -- Hide employees who already have a separation in progress.
           AND NOT EXISTS (SELECT 1 FROM HR_EMP_SEPARATION X
-                          WHERE X.EMP_CODE = A.EMP_CODE AND X.STATUS <> 'R')
+                          WHERE X.EMP_CODE = A.EMP_CODE AND " . exitBlockingSeparationSql('X') . ")
         ORDER BY 2") ?: [];
 
     apiResponse(true, 'Separation requests fetched successfully.', [

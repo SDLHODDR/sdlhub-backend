@@ -76,6 +76,19 @@ function exitAssertLength($value, $maxBytes, $label)
  * HR_EMPLOYEE_INFO ($employeeAlias), division / department on
  * HR_EMP_OFFICE_DET ($officeAlias). Call loadHrmsAccess() first.
  */
+/**
+ * Condition on HR_EMP_SEPARATION (alias $alias) for a separation that blocks a new
+ * one: not rejected, and not an exit completed before the employee's current office
+ * began, which means they have been rehired since.
+ */
+function exitBlockingSeparationSql($alias)
+{
+    return "{$alias}.STATUS <> 'R' AND NOT ({$alias}.STATUS = 'C' AND {$alias}.RETENTION_FLAG = 'N'
+        AND NVL({$alias}.RELEIVING_DATE, DATE '3000-03-01') < NVL((SELECT MAX(O.EFFEC_FROM) FROM HR_EMP_OFFICE_DET O
+            WHERE O.EMP_CODE = {$alias}.EMP_CODE
+              AND SYSDATE BETWEEN O.EFFEC_FROM AND NVL(O.EFFEC_TO, DATE '3000-03-01')), DATE '1900-01-01'))";
+}
+
 function exitScopeSql($officeAlias, $employeeAlias)
 {
     $in = static fn($values) => implode(',', array_map('intval', $values ?: [-1]));
