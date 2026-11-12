@@ -344,9 +344,11 @@ try {
           AND NVL(EFF_TO, DATE '3000-03-01') >= {$effectiveFromSql}");
     if ($closed === false) throw new RuntimeException('Could not close the earlier tenure CTC period.');
 
+    // Heads stay 'T' until the final CTC approval submits them; only that sets
+    // 'A' with the approver (legacy authTenureCTC). Earlier saves carry no approver.
     $saveCtcHead = static function ($code, $monthly, $salaryType, $calcType) use (
         $employeeCode, $tenureId, $proposedCtc, $effectiveFromSql,
-        $effectiveToSql, $empCode
+        $effectiveToSql, $empCode, $writeEppSalary
     ) {
         $annual = round((float)$monthly * 12, 2);
         $existing = singRec("SELECT ID FROM HR_EMP_CTC_HEADS
@@ -358,14 +360,14 @@ try {
             'AMOUNT_MNTH' => $monthly,
             'REF_ID' => (string)$tenureId,
             'SALARY_TYPE' => $salaryType,
-            'STATUS' => 'T',
+            'STATUS' => $writeEppSalary ? 'A' : 'T',
             'CALC_TYPE' => $calcType,
             'EFF_FROM' => $effectiveFromSql,
             'EFF_TO' => $effectiveToSql,
             'CHG_ON' => 'SYSDATE',
             'CHG_BY' => $empCode,
-            'AUTH_ON' => 'SYSDATE',
-            'AUTH_BY' => $empCode,
+            'AUTH_ON' => $writeEppSalary ? 'SYSDATE' : '',
+            'AUTH_BY' => $writeEppSalary ? $empCode : '',
         ];
         if ($code !== 'XPFBS') {
             $data['AMOUNT_YRLY'] = $annual;
@@ -457,17 +459,34 @@ try {
     if ($writeEppSalary) {
         $syncEppSalary();
     }
+    $proposalData = [
+        'PROP_CTC' => $proposedCtc,
+        'STATUS' => $writeEppSalary ? 'A' : 'T',
+        'CHG_ON' => 'SYSDATE',
+        'CHG_BY' => $empCode,
+    ];
+    if ($writeEppSalary) {
+        $proposalData['AUTH_ON'] = 'SYSDATE';
+        $proposalData['AUTH_BY'] = $empCode;
+    }
     $savedProposal = execQry([
         'type' => 'update', 'table' => 'HR_EMP_TENURE_CHANGE',
-        'data' => [
-            'PROP_CTC' => $proposedCtc,
-            'STATUS' => $isFinalCtcStep && $action === 'submit' ? 'A' : 'T',
-            'CHG_ON' => 'SYSDATE',
-            'CHG_BY' => $empCode,
-        ],
+        'data' => $proposalData,
         'where' => ['ID' => (string)$tenureId], 'print' => 0,
     ]);
     if ($savedProposal === false) throw new RuntimeException('Could not save the proposed CTC total.');
+
+    if ($writeEppSalary) {
+        // The approved structure replaces every earlier one (e.g. the joining 'J'
+        // structure): rows still running on the effective date end the day before.
+        $closedPrevious = executeQry("UPDATE HR_EMP_CTC_HEADS
+            SET EFF_TO = {$effectiveFromSql} - 1, CHG_ON = SYSDATE, CHG_BY = '{$empCode}'
+            WHERE EMP_CODE = '{$employeeCode}'
+              AND NVL(REF_ID, '-1') <> '{$tenureId}'
+              AND EFF_FROM < {$effectiveFromSql}
+              AND NVL(EFF_TO, DATE '3000-03-01') >= {$effectiveFromSql}");
+        if ($closedPrevious === false) throw new RuntimeException('Could not close the previous salary structure.');
+    }
 
     if ($action === 'save') {
         endQry();

@@ -103,6 +103,8 @@ try {
                     'TASK_ID'   => $tid,
                     'TASK_DESC' => htmlspecialchars($task_desc['TASK_DESC'] ?? ''),
                     'CNT'       => (int)$task_id['CNT'],
+                    // HR_TASK_MASTER.DISP_SEQ: the pending task list is shown in this order.
+                    'DISP_SEQ'  => ($task_id['DISP_SEQ'] ?? '') !== '' ? (int)$task_id['DISP_SEQ'] : null,
                 ];
             }
         }

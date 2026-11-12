@@ -14,7 +14,9 @@
 
 /**
  * Closes the current tenure period the day before the effective date, opens
- * the new period, and sets the EPP employee type and confirmation date.
+ * the new period, and sets the EPP employee type and confirmation date
+ * (and CONFIRMED = 'Y' for Permanent). Refuses when the employee is missing
+ * from the EPP employee master.
  */
 function tenureApplyChange($tenureChangeId, $employeeCode, $changedBy)
 {
@@ -33,6 +35,14 @@ function tenureApplyChange($tenureChangeId, $employeeCode, $changedBy)
     $effectiveDate = DateTimeImmutable::createFromFormat('!Y-m-d', (string)($change['EFF_FROM_ISO'] ?? ''));
     if ($newType === '' || !$effectiveDate) {
         throw new RuntimeException('The tenure change has no employee type or effective date.');
+    }
+
+    // The EPP employee master (HR_BCS_EMPLOYEE = EPPLIVE.BCS_EMPLOYEE) must hold the
+    // employee, otherwise its type / confirmation update would silently change nothing.
+    $eppEmployee = singRec("SELECT EMP_CODE FROM HR_BCS_EMPLOYEE WHERE EMP_CODE = :emp_code",
+        [':emp_code' => $employeeCode]);
+    if (empty($eppEmployee['EMP_CODE'])) {
+        throw new RuntimeException("Employee {$employeeCode} was not found in the EPP employee master, so the tenure change cannot be approved. Please contact IT.");
     }
 
     $current = singRec("SELECT * FROM (
@@ -60,14 +70,19 @@ function tenureApplyChange($tenureChangeId, $employeeCode, $changedBy)
         throw new RuntimeException('Could not close the employee\'s current tenure period.');
     }
 
+    $employeeData = [
+        'EMP_TYPE' => $newType,
+        'DATE_CONF' => $effectiveFrom,
+        'CHG_ON' => 'SYSDATE',
+        'CHG_BY' => $changedBy,
+    ];
+    // Moving to Permanent (1) confirms the employee; other types keep their flag.
+    if ($newType === '1') {
+        $employeeData['CONFIRMED'] = 'Y';
+    }
     $updatedEmployee = execQry([
         'type' => 'update', 'table' => 'HR_BCS_EMPLOYEE',
-        'data' => [
-            'EMP_TYPE' => $newType,
-            'DATE_CONF' => $effectiveFrom,
-            'CHG_ON' => 'SYSDATE',
-            'CHG_BY' => $changedBy,
-        ],
+        'data' => $employeeData,
         'where' => ['EMP_CODE' => $employeeCode],
         'print' => 0,
     ]);

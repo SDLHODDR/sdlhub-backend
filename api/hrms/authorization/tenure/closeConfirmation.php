@@ -34,6 +34,24 @@ try {
         if($tenure_chg['CURR_CTC'] == $tenure_chg['PROP_CTC']){
             tenureApplyChange($tenure_chg['ID'], $employeeCode, $empCode);
 
+            // No CTC change: approved here, as the final CTC approval does otherwise
+            // (the print-letter step closes only approved 'A' records).
+            $approved = execQry([
+                'type' => 'update', 'table' => 'HR_EMP_TENURE_CHANGE',
+                'data' => [
+                    'STATUS' => 'A',
+                    'AUTH_ON' => 'SYSDATE',
+                    'AUTH_BY' => $empCode,
+                    'CHG_ON' => 'SYSDATE',
+                    'CHG_BY' => $empCode,
+                ],
+                'where' => ['ID' => (string)$tenure_chg['ID']],
+                'print' => 0,
+            ]);
+            if ($approved === false) {
+                throw new RuntimeException('Could not approve the tenure change.');
+            }
+
             generateTaskHR(
                 'PRT_TNU_CHG_LTR',
                 $data['EMP_CODE'],

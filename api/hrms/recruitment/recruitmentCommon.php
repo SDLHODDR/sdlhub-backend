@@ -34,10 +34,11 @@ if ($empCode === '') {
     exit;
 }
 
-// HR_MENU_SUB.PROG_URL of each page ("recuritment" is how it is spelled in the table).
-const RECRUITMENT_PAGE_CANDIDATES = 'recruitment/candidate_info_list';
-const RECRUITMENT_PAGE_REQUEST = 'recruitment/recruitment_req';
-const RECRUITMENT_PAGE_PENDING = 'recruitment/pending_recuritment';
+// HR_MENU_SUB.PROG_URL of each page: the SDL Hub path ("recuritment" is how it was
+// spelled) and the old HRMS page name, since the menu table is shared with the old HRMS.
+const RECRUITMENT_PAGE_CANDIDATES = ['recruitment/candidate_info_list', 'candidate_info_list.php'];
+const RECRUITMENT_PAGE_REQUEST = ['recruitment/recruitment_req', 'recruitment_req.php'];
+const RECRUITMENT_PAGE_PENDING = ['recruitment/pending_recuritment', 'pending_recruitments.php'];
 const RECRUITMENT_ALL_PAGES = [RECRUITMENT_PAGE_CANDIDATES, RECRUITMENT_PAGE_REQUEST, RECRUITMENT_PAGE_PENDING];
 
 // Legacy blocks a candidate only after this many follow-ups.
@@ -59,7 +60,9 @@ function recruitmentRequirePage($empCode, array $pages)
 {
     $names = [];
     $binds = [':emp_code' => $empCode];
-    foreach (array_values($pages) as $index => $page) {
+    // Each page is a list of its menu names (see RECRUITMENT_PAGE_*).
+    $pages = array_values(array_unique(array_merge(...array_map(static fn($page) => (array)$page, $pages))));
+    foreach ($pages as $index => $page) {
         $names[] = ":page{$index}";
         $binds[":page{$index}"] = $page;
     }
