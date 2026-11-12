@@ -25,3 +25,23 @@ $_ENV["PROFILES_URL"] = $_ENV["PUBLIC_URL"] . "/profiles"; //"http://localhost/s
 */
 
 $_ENV["DOCUMENT_ROOT"] = "/mnt/documents";
+
+/*
+|--------------------------------------------------------------------------
+| Careers (candidate portal)
+|--------------------------------------------------------------------------
+| SMS gateway used for candidate OTPs (cell24x7, DLT templates). Messages
+| must match the registered templates word for word.
+*/
+
+$_ENV["SMS_GATEWAY_URL"] = "https://sms.cell24x7.com:1111/mspProducerM/sendSMS";
+$_ENV["SMS_USER"] = "usersdl1";
+$_ENV["SMS_PASSWORD"] = "usersdl1";
+$_ENV["SMS_SENDER"] = "AyHelp";
+
+// CVs and photos uploaded by candidates (outside the web root; www-data must be able to write).
+$_ENV["CAREERS_UPLOAD_ROOT"] = $_ENV["DOCUMENT_ROOT"] . "/careers";
+
+// Development only: true = OTPs are not sent by SMS / email but returned in the API response.
+$_ENV["CAREERS_OTP_DEBUG"] = true;
+
