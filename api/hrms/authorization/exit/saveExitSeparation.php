@@ -69,8 +69,10 @@ exitRunAction(function () use ($input, $empCode) {
 
     // Company / division from the employee's organogram on the expected relieving date (legacy).
     $office = exitEmployeeOffice($separation['EMP_CODE'], $separation['EXP_RELIV_DATE_ISO']);
-    exitGenerateTask('EXIT_INT', $separation,
-        'Exit Interview For ' . getEmpInfoByCodeHR($separation['EMP_CODE']) . ' - ' . $date->format('d-M-Y'),
+    // "Exit Interview For <name> - Approved release date - 17th Oct 2026"; without a date, no trailing " - ".
+    $description = 'Exit Interview For ' . getEmpInfoByCodeHR($separation['EMP_CODE'])
+        . ($date ? ' - Approved release date - ' . $date->format('jS M Y') : '');
+    exitGenerateTask('EXIT_INT', $separation, $description,
         $empCode, $office['COMPANY'] ?? '', $office['ORG_DIVSN_ID'] ?? '', EXIT_HR_DEPT_ID);
     exitCloseTask($task['ID'], $comments);
 
