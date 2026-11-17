@@ -14,12 +14,15 @@ try {
             B.NATIONALITY, B.CITIZEN_NO, B.M_STATUS, B.MOTHER_LANG, B.RELIGION, B.PF_NO, B.FPF_NO,
             B.PF_NOMINEE, B.UAN_NO, B.MEMBER_ID, B.RETIRE_AGE, TO_CHAR(B.DOA, 'YYYY-MM-DD') AS DOA
         FROM HR_EMP_BASIC_INFO B WHERE B.EMP_CODE = :emp_code AND ROWNUM = 1", $binds);
-    $profile = joiningRecord("SELECT TO_CHAR(ADD_MONTHS(DOJ, 60), 'DD-Mon-YYYY') AS GRATUITY_DATE, GENDER, COUNTRY
+    $profile = joiningRecord("SELECT TO_CHAR(ADD_MONTHS(DOJ, 60), 'DD-Mon-YYYY') AS GRATUITY_DATE, GENDER, COUNTRY,
+            TO_CHAR(DOJ, 'YYYY-MM-DD') AS DOJ_ISO
         FROM HR_EMPLOYEE_INFO WHERE EMP_CODE = :emp_code", $binds);
 
     $data = [
         'basic' => (object)$basic,
         'gratuityDate' => $profile['GRATUITY_DATE'] ?? '',
+        // Joining date: default Effective From for the Tenure and KRA tabs.
+        'doj' => $profile['DOJ_ISO'] ?? '',
         'gender' => $profile['GENDER'] ?? '',
         'ifscLength' => in_array(strtoupper($profile['COUNTRY'] ?? ''), ['NP', 'NEP'], true) ? 3 : 11,
         'tenure' => joiningRecords("SELECT T.ID, T.ETYPE_ID, M.EMP_TYPE AS ETYPE_NAME, T.ETYPE_PERIOD,
@@ -60,11 +63,20 @@ try {
                 WHERE A.EMP_CODE = :emp_code", $binds);
             $ctc = $offer['CTC'] ?? '';
         }
+        $ctc = joiningCtcToRupees($ctc);
         $data['ctc'] = [
             'heads' => $heads,
             'saved' => (object)$saved,
             'ctc' => $ctc,
             'hasSaved' => !empty($saved),
+        ];
+    }
+
+    if ($task['SECTION'] === 'documents') {
+        require_once __DIR__ . '/joiningDocuments.php';
+        $data['documents'] = [
+            'types' => joiningDocTypeOptions(),
+            'list' => joiningDocList($code),
         ];
     }
 

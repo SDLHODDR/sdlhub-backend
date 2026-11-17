@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../config/path.php';
 
 require_once __DIR__ . '/../../config/session.php';
 require_once __DIR__ . '/../../cors.php';
@@ -232,7 +233,7 @@ try {
             apiResponse(false, 'Uploaded document cannot exceed 2MB.', null, 400);
         }
 
-        $uploadDir = '/mnt/documents/uploads/member_document/';
+        $uploadDir = documentRootPath(MEMBER_DOCS_DIR) . '/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }

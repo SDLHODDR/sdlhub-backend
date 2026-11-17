@@ -15,6 +15,7 @@ $sql___func___con = db_hrms();
 require_once __DIR__ . "/../../../config/functions.php";
 require_once __DIR__ . "/../../../config/utils.php";
 require_once __DIR__ . "/../../../config/env.php";
+require_once __DIR__ . "/../../../config/path.php";
 require_once __DIR__ . "/../../../config/hr_func.php";
 require_once __DIR__ . '/../../../../vendor/autoload.php';
 
@@ -114,7 +115,7 @@ if (!empty($_REQUEST['generateRef']) && empty($DOC_INFO_EXTN['DOC_REF'])) {
 
         executeQry("INSERT INTO hr_emp_docs (id, emp_id, emp_code, doc_id, doc_path, doc_ref, cc_to, chg_on, chg_by) 
                     VALUES (NULL, '" . $OFFER_INFO['ID'] . "', '" . $empCode . "', 16,
-                    'input/emp_docs/Extension_Letter_" . $OFFER_INFO['ID'] . ".pdf',
+                    '" . EMP_DOCS_DIR . "/Extension_Letter_" . $OFFER_INFO['ID'] . ".pdf',
                     '" . $refNo . "', '', SYSDATE, '" . $_SESSION['EmpCode'] . "') returning id into :newId ", 'newId');
         endQry();
     }

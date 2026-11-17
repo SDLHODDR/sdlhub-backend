@@ -104,12 +104,39 @@ function joiningCtcHeads($employeeCode)
 }
 
 /**
- * Monthly amounts per head for a CTC in lakhs (legacy employee_edit2.php CTC tab).
+ * Annual CTC entered in rupees: whole rupees, at least 10,000 (so a value
+ * typed in lakhs such as 2.5 is caught), at most 9 digits.
+ */
+function joiningCtcRupees($value)
+{
+    $value = str_replace([',', ' '], '', trim((string)$value));
+    if (!preg_match('/^\d{1,9}$/', $value) || (int)$value < 10000) {
+        throw new JoiningRequestException('Please enter the annual CTC in rupees (whole rupees, at least 10,000).', 422);
+    }
+    return (string)(int)$value;
+}
+
+/**
+ * Older joining CTC rows and HR_OFFERS.CTC_OFFER hold lakhs (legacy screens);
+ * the CTC tab now works in rupees.
+ */
+function joiningCtcToRupees($value)
+{
+    if ($value === null || $value === '' || !is_numeric($value)) {
+        return '';
+    }
+    $number = (float)$value;
+    return (string)(int)round($number < 1000 ? $number * 100000 : $number);
+}
+
+/**
+ * Monthly amounts per head for an annual CTC in rupees (legacy employee_edit2.php
+ * CTC tab took lakhs).
  * $pfBasis is the XPFBS input: 1 = 12% of 15000, 0 = 12% of Basic.
  */
-function joiningCtcStructure(array $heads, $ctcLakhs, $pfBasis)
+function joiningCtcStructure(array $heads, $ctcRupees, $pfBasis)
 {
-    $monthlyCtc = ((float)$ctcLakhs * 100000) / 12;
+    $monthlyCtc = (float)$ctcRupees / 12;
     $basic = 0.0;
     $amounts = [];
     $hasSpecial = false;

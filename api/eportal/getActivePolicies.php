@@ -1,6 +1,7 @@
 
 
 <?php
+require_once __DIR__ . '/../config/path.php';
 
 require_once __DIR__ . "/../config/session.php";
 require_once __DIR__ . "/../cors.php";
@@ -90,7 +91,7 @@ try {
     foreach ($policyRows as $row) {
 
         $fileUrl = !empty($row["DOC_PATH"])
-            ? "https://hrms.sdlindia.com/hradmin/" . $row["DOC_PATH"]
+            ? HRMS_LEGACY_DOC_URL . $row["DOC_PATH"]
             : null;
 
         $policies[] = [

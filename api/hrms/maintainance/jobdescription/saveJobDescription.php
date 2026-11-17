@@ -64,104 +64,78 @@ if ($action === 'save_responsibility') {
         apiResponse(false, "Responsibility is required.", null, 400);
     }
 
-    startQry();
+    /*
+     * Like legacy jd_edit.php, the text is stored across DESCR..DESCR4
+     * (VARCHAR2(4000) each) and read back joined, so a responsibility can
+     * hold up to 5 x 4000 bytes. Values are bound: quotes in the text and
+     * literals over 4000 characters would otherwise break the SQL.
+     */
+    // The connection sets no client charset, so Oracle may expand each
+    // non-ASCII byte to up to 3 bytes. Size chunks for that worst case and
+    // cut on UTF-8 character boundaries.
+    $chunks = [];
+    $rest = $description;
+    while ($rest !== '' && count($chunks) < 5) {
+        $budget = 4000;
+        $take = 0;
+        $length = strlen($rest);
+        while ($take < $length) {
+            $cost = ord($rest[$take]) < 0x80 ? 1 : 3;
+            if ($budget < $cost) {
+                break;
+            }
+            $budget -= $cost;
+            $take++;
+        }
+        $chunk = mb_strcut($rest, 0, $take, 'UTF-8');
+        if ($chunk === '') {
+            break;
+        }
+        $chunks[] = $chunk;
+        $rest = (string)substr($rest, strlen($chunk));
+    }
+    if ($rest !== '') {
+        apiResponse(false, "Responsibility is too long. Please shorten it (maximum about 20,000 characters).", null, 422);
+    }
+    $chunks = array_pad($chunks, 5, null);
 
     $loginId = $_SESSION['loginId'] ?? $_SESSION['emp_code'] ?? 'SYSTEM';
-    $loginIdSql = sqlValue($loginId);
+    $isUpdate = $responsibilityId !== '';
 
-    if ($responsibilityId !== '') {
-
-        /*
-        EDIT EXISTING RESPONSIBILITY
-        */
-
-        $sql = "
-            UPDATE HR_JD_DESCRIPTION
-            SET
-                DESCR = " . sqlValue($description) . ",
-                CHG_ON = SYSDATE,
-                CHG_BY = " . sqlValue($loginId) . "
-            WHERE ID = '" . addslashes($responsibilityId) . "'
-              AND JD_ID = '" . addslashes($jdId) . "'
-        ";
-
-        $ok = executeQry($sql);
-
-        if (!$ok) {
-            endQry();
-
-            apiResponse(
-                false,
-                "Unable to update responsibility.",
-                null,
-                500
-            );
-        }
-
-        endQry();
-
-        apiResponse(
-            true,
-            "Responsibility updated successfully.",
-            [
-                'id' => $responsibilityId
-            ],
-            200
-        );
+    if ($isUpdate) {
+        $sql = "UPDATE HR_JD_DESCRIPTION
+                SET DESCR = :d0, DESCR1 = :d1, DESCR2 = :d2, DESCR3 = :d3, DESCR4 = :d4,
+                    CHG_ON = SYSDATE, CHG_BY = :chg_by
+                WHERE ID = :resp_id AND JD_ID = :jd_id";
+        $savedId = $responsibilityId;
+    } else {
+        $last = singRec("SELECT NVL(MAX(ID), 0) + 1 AS ID FROM HR_JD_DESCRIPTION");
+        $savedId = (string)$last['ID'];
+        $sql = "INSERT INTO HR_JD_DESCRIPTION
+                    (ID, JD_ID, DESCR, DESCR1, DESCR2, DESCR3, DESCR4, CHG_ON, CHG_BY)
+                VALUES (:resp_id, :jd_id, :d0, :d1, :d2, :d3, :d4, SYSDATE, :chg_by)";
     }
 
-    /*
-    ADD NEW RESPONSIBILITY
-    */
-
-    $last = singRec("
-        SELECT NVL(MAX(ID), 0) + 1 AS ID
-        FROM HR_JD_DESCRIPTION
-    ");
-
-    $newId = $last['ID'];
-
-    $sql = "
-        INSERT INTO HR_JD_DESCRIPTION
-        (
-            ID,
-            JD_ID,
-            DESCR,
-            CHG_ON,
-            CHG_BY
-        )
-        VALUES
-        (
-            '" . addslashes($newId) . "',
-            '" . addslashes($jdId) . "',
-            " . sqlValue($description) . ",
-            SYSDATE,
-            " . sqlValue($loginId) . "
-        )
-    ";
-
-    $ok = executeQry($sql);
-
-    if (!$ok) {
-        endQry();
-
-        apiResponse(
-            false,
-            "Unable to save responsibility.",
-            null,
-            500
-        );
+    $stmt = oci_parse($conn, $sql);
+    for ($i = 0; $i < 5; $i++) {
+        oci_bind_by_name($stmt, ':d' . $i, $chunks[$i]);
     }
+    oci_bind_by_name($stmt, ':chg_by', $loginId);
+    oci_bind_by_name($stmt, ':resp_id', $savedId);
+    oci_bind_by_name($stmt, ':jd_id', $jdId);
 
-    endQry();
+    if (!oci_execute($stmt, OCI_NO_AUTO_COMMIT) || ($isUpdate && oci_num_rows($stmt) !== 1)) {
+        oci_rollback($conn);
+        apiResponse(false, $isUpdate ? "Unable to update responsibility." : "Unable to save responsibility.", null, 500);
+    }
+    oci_free_statement($stmt);
+    oci_commit($conn);
 
     apiResponse(
         true,
-        "Responsibility saved successfully.",
-        [
-            'id' => $newId
-        ],
-        201
+        $isUpdate ? "Responsibility updated successfully." : "Responsibility saved successfully.",
+        ['id' => $savedId],
+        $isUpdate ? 200 : 201
     );
 }
 
@@ -592,6 +566,73 @@ if ($jobId !== '' && $tab !== '' && $tab !== 'basic') {
             $allowancesData = [];
         }
 
+        /*
+         * Dates are kept like legacy jd_sv.php saveAllow: every row needs a
+         * From Date. A new row for an allowance that already has an open row
+         * (no To Date) must start after that row, which is then closed the
+         * day before the new From Date.
+         */
+        $parseAllowDate = function ($value) {
+            $value = trim((string)$value);
+            if ($value === '') {
+                return '';
+            }
+            foreach (['Y-m-d', 'd-M-Y', 'd-M-y', 'd/m/Y', 'd-m-Y'] as $format) {
+                $date = DateTime::createFromFormat('!' . $format, $value);
+                if ($date && $date->format($format) === $value) {
+                    return $date->format('Y-m-d');
+                }
+                if ($date && strcasecmp($date->format($format), $value) === 0) {
+                    return $date->format('Y-m-d');
+                }
+            }
+            return null;
+        };
+
+        foreach ($allowancesData as $index => $row) {
+            if (!is_array($row)) {
+                unset($allowancesData[$index]);
+                continue;
+            }
+            $label = trim((string)($row['ALLOW_DESC'] ?? '')) ?: (string)($row['ALLOW_ID'] ?? $row['allow_id'] ?? $row['listing'] ?? '');
+            $from = $parseAllowDate($row['FROMDT'] ?? $row['fromDate'] ?? '');
+            $to = $parseAllowDate($row['TODT'] ?? $row['toDate'] ?? '');
+            if ($from === null || $to === null) {
+                apiResponse(false, "Invalid date for allowance {$label}.", null, 422);
+            }
+            if ($from === '') {
+                apiResponse(false, "From Date is required for allowance {$label}.", null, 422);
+            }
+            if ($to !== '' && $to < $from) {
+                apiResponse(false, "To Date cannot be before From Date for allowance {$label}.", null, 422);
+            }
+            $allowancesData[$index]['FROMDT'] = $from;
+            $allowancesData[$index]['TODT'] = $to;
+            $allowancesData[$index]['_LABEL'] = $label;
+        }
+
+        foreach ($allowancesData as $index => $row) {
+            if (!empty($row['ID'] ?? $row['id'] ?? '')) {
+                continue;
+            }
+            $allowKey = (string)($row['ALLOW_ID'] ?? $row['allow_id'] ?? $row['listing'] ?? '');
+            foreach ($allowancesData as $otherIndex => $other) {
+                $otherKey = (string)($other['ALLOW_ID'] ?? $other['allow_id'] ?? $other['listing'] ?? '');
+                if ($otherIndex === $index || $otherKey !== $allowKey || $other['TODT'] !== '') {
+                    continue;
+                }
+                if ($row['FROMDT'] <= $other['FROMDT']) {
+                    apiResponse(
+                        false,
+                        "Please select another From Date for allowance {$row['_LABEL']}. It must be after " . date('d-M-Y', strtotime($other['FROMDT'])) . ", the start of its current entry.",
+                        null,
+                        422
+                    );
+                }
+                $allowancesData[$otherIndex]['TODT'] = date('Y-m-d', strtotime($row['FROMDT'] . ' -1 day'));
+            }
+        }
+
         executeQry(
             "DELETE FROM HR_JD_ALLOWANCES
              WHERE JD_ID='" . addslashes($jobId) . "'"
@@ -646,6 +687,8 @@ if ($jobId !== '' && $tab !== '' && $tab !== 'basic') {
                     ALLOW_AMOUNT,
                     ADD_INFO,
                     EXP_TYPE,
+                    FROMDT,
+                    TODT,
                     CHG_ON,
                     CHG_BY
                 )
@@ -657,6 +700,8 @@ if ($jobId !== '' && $tab !== '' && $tab !== 'basic') {
                     " . sqlValue($amount) . ",
                     " . sqlValue($addInfo) . ",
                     " . sqlValue($expType) . ",
+                    TO_DATE('" . $row['FROMDT'] . "', 'YYYY-MM-DD'),
+                    " . ($row['TODT'] !== '' ? "TO_DATE('" . $row['TODT'] . "', 'YYYY-MM-DD')" : "NULL") . ",
                     SYSDATE,
                     " . sqlValue($loginId) . "
                 )
@@ -875,6 +920,36 @@ if ($jobId !== '' && $tab !== '' && $tab !== 'basic') {
 
         if (!is_array($deptReferencesData)) {
             $deptReferencesData = [];
+        }
+
+        /*
+         * Only departments with Joining/Exit activities can be referenced,
+         * since activity tasks are generated per referenced department.
+         */
+        $activityDepts = array_map(
+            'strval',
+            array_column(
+                multiRec("SELECT DISTINCT DEPT_ID FROM HR_DEPT_JOEX_ACTIVITY") ?: [],
+                'DEPT_ID'
+            )
+        );
+        $invalidDepts = [];
+        foreach ($deptReferencesData as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $refDeptId = (string)($row['DEPT_ID'] ?? $row['dept_id'] ?? $row['value'] ?? $row['deptId'] ?? '');
+            if ($refDeptId !== '' && !in_array($refDeptId, $activityDepts, true)) {
+                $invalidDepts[] = trim((string)($row['deptName'] ?? $row['label'] ?? '')) ?: $refDeptId;
+            }
+        }
+        if (!empty($invalidDepts)) {
+            apiResponse(
+                false,
+                'These departments have no Joining/Exit activities defined and cannot be referenced: ' . implode(', ', $invalidDepts) . '.',
+                ['invalid_departments' => $invalidDepts],
+                422
+            );
         }
 
         executeQry(

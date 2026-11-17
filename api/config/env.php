@@ -28,6 +28,22 @@ $_ENV["DOCUMENT_ROOT"] = "/mnt/documents";
 
 /*
 |--------------------------------------------------------------------------
+| HRMS Document Uploads
+|--------------------------------------------------------------------------
+| HRMS_DOC_ROOT: folder holding the legacy "input/..." upload folders
+| (input/emp_docs, input/jd_docs, input/policy_doc, input/gatepass). The DB
+| DOC_PATH columns store paths relative to it, e.g. "input/emp_docs/...".
+| HRMS_LEGACY_DOC_URL: old HRMS server serving the same relative paths for
+| documents uploaded before SDL Hub (also VITE_HRMS_DOC_BASE_URL in the frontend .env).
+| Folder names live in config/path.php.
+*/
+
+$_ENV["HRMS_DOC_ROOT"] = dirname(__DIR__, 2); // sdlhub-backend
+
+$_ENV["HRMS_LEGACY_DOC_URL"] = "https://hrms.sdlindia.com/hradmin/";
+
+/*
+|--------------------------------------------------------------------------
 | Careers (candidate portal)
 |--------------------------------------------------------------------------
 | SMS gateway used for candidate OTPs (cell24x7, DLT templates). Messages

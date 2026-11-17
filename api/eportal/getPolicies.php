@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../config/path.php';
 
 ob_start();
 
@@ -85,7 +86,7 @@ try {
             "startDate"   => $row["STARTDATE"],
             "endDate"     => $row["ENDDATE"],
             "previewUrl"  => !empty($row["DOC_PATH"])
-                ? "https://hrms.sdlindia.com/hradmin/" . $row["DOC_PATH"]
+                ? HRMS_LEGACY_DOC_URL . $row["DOC_PATH"]
                 : null,
         ];
     }

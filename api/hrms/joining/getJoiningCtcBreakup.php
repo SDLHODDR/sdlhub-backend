@@ -1,7 +1,7 @@
 <?php
 /*
- * GET ?user_task_id=&ctc=&pf_basis= -> monthly amounts per CTC head for a CTC in
- * lakhs ("Get Breakup"; legacy getBreakup and getCtcStruct). Saves nothing.
+ * GET ?user_task_id=&ctc=&pf_basis= -> monthly amounts per CTC head for an annual
+ * CTC in rupees ("Get Breakup"; legacy getBreakup and getCtcStruct). Saves nothing.
  */
 require_once __DIR__ . '/joiningDetailCommon.php';
 
@@ -10,10 +10,7 @@ try {
     if ($task['SECTION'] !== 'ctc') {
         throw new JoiningRequestException('This is not a CTC task.', 422);
     }
-    $ctc = trim((string)($_GET['ctc'] ?? ''));
-    if (!is_numeric($ctc) || (float)$ctc <= 0) {
-        throw new JoiningRequestException('Please enter a valid CTC.', 422);
-    }
+    $ctc = joiningCtcRupees($_GET['ctc'] ?? '');
     $heads = joiningCtcHeads($task['TRAN_CODE']);
     if (!$heads) {
         throw new JoiningRequestException('No CTC structure is set up for this employee\'s job description.', 422);

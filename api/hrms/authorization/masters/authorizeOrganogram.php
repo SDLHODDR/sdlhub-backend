@@ -56,6 +56,16 @@ try {
             apiResponse(false, 'ORganogram request has already been processed.', null, 400);
         }
         
+        // Only an organogram linked to an authorized JD can be accepted.
+        if ($decision === 'A') {
+            $jdChk = singRec("SELECT J.ID, J.STATUS FROM HR_ORGANOGRAM O
+                LEFT JOIN HR_JD J ON J.ID = O.JD_ID
+                WHERE O.ID = '" . (int)$chk['ID'] . "'");
+            if (empty($jdChk['ID']) || strtoupper((string)($jdChk['STATUS'] ?? '')) !== 'A') {
+                apiResponse(false, 'This organogram cannot be accepted because its Job Description is not authorized.', null, 200);
+            }
+        }
+
         /* ------------------------------------------------------
             STEP A: IF ACCEPTED, UPDATE ORGANOGRAM (HR_ORGANOGRAM)
             ------------------------------------------------------ */

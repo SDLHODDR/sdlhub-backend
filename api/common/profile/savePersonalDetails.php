@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../config/path.php';
 
 require_once __DIR__ . '/../../config/session.php';
 require_once __DIR__ . '/../../cors.php';
@@ -564,7 +565,7 @@ if ($action === 'send_otp') {
         apiResponse(false, 'Invalid address proof file content.', null, 400);
     }
 
-    $uploadDir = '/mnt/documents/uploads/address_proof/';
+    $uploadDir = documentRootPath(ADDRESS_PROOF_DIR) . '/';
 
     if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true)) {
         apiResponse(false, 'Unable to create document directory.', null, 500);
@@ -577,7 +578,7 @@ if ($action === 'send_otp') {
         apiResponse(false, 'Unable to save address proof.', null, 500);
     }
 
-    $documentPath = 'uploads/address_proof/' . $safeFileName;
+    $documentPath = ADDRESS_PROOF_DIR . '/' . $safeFileName;
 
     /* ======================================================
        FETCH ALL REQUIRED READ DATA BEFORE STARTING TRANSACTIONS

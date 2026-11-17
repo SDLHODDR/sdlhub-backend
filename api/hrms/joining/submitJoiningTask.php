@@ -20,6 +20,8 @@ joiningRunAction(function () use ($input, $empCode) {
         'basic' => ["SELECT ID FROM HR_EMP_BASIC_INFO WHERE EMP_CODE = :emp_code AND ADHAR_NO IS NOT NULL AND ROWNUM = 1", 'Please save the basic details first.'],
         'tenure' => ["SELECT ID FROM HR_EMP_TENURE WHERE EMP_CODE = :emp_code AND ROWNUM = 1", 'Please save the tenure details first.'],
         'bank' => ["SELECT ID FROM HR_EMP_BANK_DET WHERE EMP_CODE = :emp_code AND ROWNUM = 1", 'Please save the bank details first.'],
+        // Legacy emp_doc_upload.php showed Submit only once a document was uploaded.
+        'documents' => ["SELECT ID FROM HR_EMP_DOCS WHERE EMP_CODE = :emp_code AND ROWNUM = 1", 'Please upload at least one document first.'],
     ];
     if (isset($required[$task['SECTION']])) {
         [$sql, $message] = $required[$task['SECTION']];

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../config/path.php';
 
 require_once __DIR__ . '/../../config/session.php';
 require_once __DIR__ . '/../../cors.php';
@@ -206,7 +207,7 @@ try {
             apiResponse(false, 'Invalid file type detected.', null, 400);
         }
 
-        $uploadDir = '/mnt/documents/uploads/bank_document/';
+        $uploadDir = documentRootPath(BANK_DOCS_DIR) . '/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }

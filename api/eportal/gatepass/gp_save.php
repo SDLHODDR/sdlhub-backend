@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../config/path.php';
 //  ini_set('display_errors', 1);
 //  error_reporting(E_ALL);
 
@@ -234,7 +235,7 @@ else if($isEdit)
                 $safeExt = preg_replace('/[^a-z0-9]/', '', $ext);
                 $generatedName = 'gatepass_' . bin2hex(random_bytes(8)) . ($safeExt ? '.' . $safeExt : '');
                 
-                $uploadDir = __DIR__ . '/../../../input/gatepass/';
+                $uploadDir = hrmsDocPath(GATEPASS_DOCS_DIR) . '/';
                 if (!is_dir($uploadDir)) {
                     mkdir($uploadDir, 0755, true);
                 }
@@ -245,7 +246,7 @@ else if($isEdit)
                 }
 
                 // Web-relative path saved to DB / returned to frontend
-                $docPath = 'input/gatepass/' . $generatedName;
+                $docPath = GATEPASS_DOCS_DIR . '/' . $generatedName;
             }
 
             $updateFields .= ",

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../../config/path.php';
 // CORS Headers for React Frontend
 header("Access-Control-Allow-Origin: http://localhost:5173");
 header("Access-Control-Allow-Credentials: true");
@@ -105,7 +106,7 @@ $finData = singRec("SELECT to_char(fr_date,'dd-Mon-rrrr') frdt,
                     WHERE code = (SELECT acct_prd FROM epplive.bcs_period WHERE SYSDATE BETWEEN fr_date AND to_date)");
 
 $refNo = $DOC_INFO_EXTN['DOC_REF'] ?? '';
-$file_path = '../../input/emp_docs/Extension_Letter_' . ($OFFER_INFO['ID'] ?? 0) . '.pdf';
+$file_path = hrmsDocPath(EMP_DOCS_DIR . '/Extension_Letter_' . ($OFFER_INFO['ID'] ?? 0) . '.pdf');
 
 // 2. Reference Code Generation
 if (!empty($_REQUEST['generateRef']) && empty($DOC_INFO_EXTN['DOC_REF'])) {
@@ -123,7 +124,7 @@ if (!empty($_REQUEST['generateRef']) && empty($DOC_INFO_EXTN['DOC_REF'])) {
 
         executeQry("INSERT INTO hr_emp_docs (id, emp_id, emp_code, doc_id, doc_path, doc_ref, cc_to, chg_on, chg_by) 
                     VALUES (NULL, '" . $OFFER_INFO['ID'] . "', '" . $empCode . "', 16,
-                    'input/emp_docs/Extension_Letter_" . $OFFER_INFO['ID'] . ".pdf',
+                    '" . EMP_DOCS_DIR . "/Extension_Letter_" . $OFFER_INFO['ID'] . ".pdf',
                     '" . $refNo . "', '', SYSDATE, '" . $_SESSION['EmpCode'] . "') returning id into :newId ", 'newId');
         endQry();
     }
@@ -208,7 +209,7 @@ $pdf->writeHTML($signHtml, true, 0, true, true);
 
 // Save to disk only if reference code was generated
 if (!empty($_REQUEST['generateRef']) && !empty($file_path)) {
-    $pdf->Output(__DIR__ . '/' . $file_path, 'F');
+    $pdf->Output($file_path, 'F');
 }
 
 // 6. Clean and Output directly to browser/iframe

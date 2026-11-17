@@ -14,6 +14,7 @@ $sql___func___con = $conn;
 
 require_once __DIR__ . "/../../../config/functions.php";
 require_once __DIR__ . "/../../../config/utils.php";
+require_once __DIR__ . "/jdCompleteness.php";
 
 header("Content-Type: application/json");
 
@@ -187,8 +188,8 @@ $allowanceSql = "
         al.ALLOW_DESC,
         a.ALLOW_AMOUNT,
         a.ADD_INFO,
-        a.FROMDT,
-        a.TODT,
+        TO_CHAR(a.FROMDT, 'DD-Mon-YYYY') AS FROMDT,
+        TO_CHAR(a.TODT, 'DD-Mon-YYYY') AS TODT,
         a.EXP_TYPE
     FROM HR_JD_ALLOWANCES a
     LEFT JOIN HR_ALLOWANCES al
@@ -355,6 +356,10 @@ $responsibilitySql = "
         ID,
         JD_ID,
         DESCR,
+        DESCR1,
+        DESCR2,
+        DESCR3,
+        DESCR4,
         CHG_ON,
         CHG_BY
     FROM HR_JD_DESCRIPTION
@@ -362,7 +367,17 @@ $responsibilitySql = "
     ORDER BY ID
 ";
 
-$item['RESPONSIBILITIES_LIST'] = multiRec($responsibilitySql);
+// DESCR1..DESCR4 continue DESCR (legacy stored long text across them).
+$item['RESPONSIBILITIES_LIST'] = array_map(function ($row) {
+    $row['DESCR'] = implode('', array_map(
+        fn($key) => (string)($row[$key] ?? ''),
+        ['DESCR', 'DESCR1', 'DESCR2', 'DESCR3', 'DESCR4']
+    ));
+    unset($row['DESCR1'], $row['DESCR2'], $row['DESCR3'], $row['DESCR4']);
+    return $row;
+}, multiRec($responsibilitySql) ?: []);
+
+$item['MISSING_TABS'] = jdMissingTabs($conn, $item['ID']);
 
 /*
 =========================================================

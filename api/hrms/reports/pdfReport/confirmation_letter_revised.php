@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../../config/path.php';
 // Prevent PHP warnings/notices from corrupting the PDF binary stream
 ob_start();
 error_reporting(1);
@@ -118,7 +119,7 @@ if (!empty($_REQUEST['generateRef']) && empty($DOC_INFO_CONF['DOC_REF'])) {
                     SYSDATE, '" . trim(strtoupper($_SESSION['EmpCode'])) . "', '" . trim(strtoupper($session_empCode['WORK_SITE'])) . "') returning id into :newId", 'newId');
 
         executeQry("INSERT INTO hr_emp_docs (id, emp_id, emp_code, doc_id, doc_path, doc_ref, cc_to, chg_on, chg_by) 
-                    VALUES (NULL, '" . $OFFER_INFO['ID'] . "', '" . $empCode . "', 14, 'input/emp_docs/Confirmation_Letter_" . $OFFER_INFO['ID'] . ".pdf',
+                    VALUES (NULL, '" . $OFFER_INFO['ID'] . "', '" . $empCode . "', 14, '" . EMP_DOCS_DIR . "/Confirmation_Letter_" . $OFFER_INFO['ID'] . ".pdf',
                     '" . $refNo . "', '', SYSDATE, '" . $_SESSION['EmpCode'] . "') returning id into :newId", 'newId');
         endQry();
     }

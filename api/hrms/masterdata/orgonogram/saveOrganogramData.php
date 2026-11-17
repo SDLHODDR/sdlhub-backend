@@ -329,6 +329,41 @@ try {
         $canSendForAuth = false;
         $taskCheckMessage = '';
 
+        /*
+         * Only authorized (STATUS = 'A') JDs can be linked to an organogram.
+         * An organogram may keep the JD it already has while it is edited,
+         * but it can be sent for authorization only with an authorized JD.
+         */
+        $jdLabelId = trim((string)($data['JD_LABEL_ID'] ?? ''));
+        if ($jdLabelId !== '') {
+            $jdStmt = oci_parse($sql___func___con, "SELECT J.STATUS, J.LVL_ID,
+                    (SELECT O.JD_ID FROM HR_ORGANOGRAM O WHERE O.ID = :org_id) AS CURRENT_JD_ID
+                FROM HR_JD J WHERE J.ID = :jd_id");
+            $orgIdValue = (($data['mode'] ?? '') === 'edit') ? trim((string)($data['ID'] ?? '')) : '';
+            oci_bind_by_name($jdStmt, ':org_id', $orgIdValue);
+            oci_bind_by_name($jdStmt, ':jd_id', $jdLabelId);
+            oci_execute($jdStmt, OCI_NO_AUTO_COMMIT);
+            $jdRow = oci_fetch_assoc($jdStmt) ?: [];
+            oci_free_statement($jdStmt);
+
+            $isAuthorizedJd = strtoupper((string)($jdRow['STATUS'] ?? '')) === 'A';
+            $isCurrentJd = (string)($jdRow['CURRENT_JD_ID'] ?? '') === $jdLabelId;
+            if (empty($jdRow)) {
+                apiResponse(false, "Selected JD Label was not found.", null, 200);
+            }
+            if (!$isAuthorizedJd && (!empty($data['sendForAuth']) || !$isCurrentJd)) {
+                apiResponse(false, "The selected JD Label is not authorized. Get the Job Description authorized before using it in an organogram.", null, 200);
+            }
+
+            // Org Level must match the JD's Band/Level (legacy org_sv.php getOLVL).
+            $jdLevel = (string)($jdRow['LVL_ID'] ?? '');
+            $orgLevel = trim((string)($data['ORG_LEVEL_ID'] ?? ''));
+            if ($jdLevel !== '' && $orgLevel !== $jdLevel) {
+                $levelRow = singRec("SELECT OLVL_DESC FROM HR_ORG_LEVEL WHERE OLVL_ID = '" . (int)$jdLevel . "'");
+                apiResponse(false, "Org Level must be " . ($levelRow['OLVL_DESC'] ?? $jdLevel) . ", the level of the selected JD.", null, 200);
+            }
+        }
+
         if(isset($data['mode']) || !empty($data['mode'])) {
             if($data['mode'] == "edit") {
                 if(!empty($data["sendForAuth"])) {

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../config/path.php';
 /*
  * Candidate CV / photo storage, shared by the careers portal and HR's recruitment
  * pages. No session or output side effects.
@@ -9,7 +10,7 @@
  */
 
 const CAREERS_FILE_PREFIX = 'sdlhub/';
-const CAREERS_LEGACY_FILES_URL = 'https://hrms.sdlindia.com/hradmin/careers/';
+const CAREERS_LEGACY_FILES_URL = CAREERS_LEGACY_DOCS_URL;
 const CAREERS_FILE_TYPES = [
     'cv' => [
         'column' => 'DOC_PATH', 'folder' => 'cv', 'maxBytes' => 5 * 1024 * 1024,

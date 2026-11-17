@@ -392,10 +392,8 @@ function joiningSyncSfmEmployee($code, $sessionEmp)
 function joiningSaveCtc(array $employee, array $values, $id, $sessionEmp)
 {
     $code = $employee['EMP_CODE'];
-    $ctc = trim((string)($values['ctc'] ?? ''));
-    if (!is_numeric($ctc) || (float)$ctc <= 0) {
-        throw new JoiningRequestException('Please enter a valid CTC.', 422);
-    }
+    // Stored in rupees (older joining rows hold lakhs; see joiningCtcToRupees).
+    $ctc = joiningCtcRupees($values['ctc'] ?? '');
     $heads = joiningCtcHeads($code);
     if (!$heads) {
         throw new JoiningRequestException('No CTC structure is set up for this employee\'s job description.', 422);

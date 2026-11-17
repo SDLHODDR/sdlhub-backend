@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../../config/path.php';
 /*
  * Shared data + rendering for the exit letters (relieving_letter.php,
  * experience_letter.php). GET ?REF_ID=<HR_EMP_SEPARATION.ID>.
@@ -124,8 +125,8 @@ function exitLetterOutput(array $data, $html, $downloadName, $topMargin = 25)
     $content = $pdf->Output($downloadName, 'S');
 
     $docPath = (string)($data['doc']['DOC_PATH'] ?? '');
-    if ($docPath !== '' && preg_match('#^input/emp_docs/[A-Za-z0-9_]+\.pdf$#', $docPath)) {
-        @file_put_contents(__DIR__ . '/../../../../' . $docPath, $content);
+    if ($docPath !== '' && preg_match('#^' . preg_quote(EMP_DOCS_DIR, '#') . '/[A-Za-z0-9_]+\.pdf$#', $docPath)) {
+        @file_put_contents(hrmsDocPath($docPath), $content);
     }
 
     ob_end_clean();

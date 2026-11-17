@@ -1,6 +1,7 @@
 <?php
+require_once __DIR__ . '/../config/path.php';
 // Base folder on your Linux server/mount
-$storageBase = '/mnt/documents/';
+$storageBase = DOCUMENT_ROOT . '/';
 
 // Get the relative path from query parameter (e.g. ?file=uploads/member_document/00575_...jpeg)
 $relativePath = isset($_GET['file']) ? $_GET['file'] : '';

@@ -37,8 +37,9 @@ if ($empCode === '') {
 
 const JOINING_TASK_EMP_AUTH = 45;
 // Joining tasks completed on the Employee Information page: task ID -> tab.
-// Document Upload (13) and Appointment Letter (44) have their own screens.
+// Appointment Letter (44) has its own screen.
 const JOINING_DETAIL_SECTIONS = [
+    '13' => 'documents',
     '34' => 'tenure',
     '35' => 'basic',
     '36' => 'bank',

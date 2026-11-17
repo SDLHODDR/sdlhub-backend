@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../config/path.php';
 /*
 |--------------------------------------------------------------------------
 | CAREERS (candidate portal) - COMMON
@@ -27,7 +28,7 @@ const CAREERS_LOGIN_MAX_FAILURES = 10;      // per session, then a 15 minute pau
 const CAREERS_LOGIN_LOCK_SECONDS = 900;
 const CAREERS_APPLY_MIN_SCORE = 100;        // legacy inc/cand.php: profile must reach 100
 const CAREERS_OPEN_JOB_STATUSES = "'N','I'";
-const CAREERS_LEGACY_URL = 'https://hrms.sdlindia.com/hradmin/careers/';
+const CAREERS_LEGACY_URL = CAREERS_LEGACY_DOCS_URL;
 // DLT templates of the SMS gateway: message texts must stay exactly as registered.
 const CAREERS_SMS_TEMPLATE_REGISTER = '1007765778977790587';
 const CAREERS_SMS_TEMPLATE_PASSWORD = '1077404250000927844';

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../../config/path.php';
 
 require_once __DIR__ . '/../../../config/session.php';
 require_once __DIR__ . '/../../../cors.php';
@@ -282,8 +283,8 @@ try {
         : 'EXTENSION LETTER - ' . strtoupper($empFullName);
 
     $docPath = $isConfirmation
-        ? 'input/emp_docs/Confirmation_Letter_' . $empId . '.pdf'
-        : 'input/emp_docs/Extension_Letter_' . $empId . '.pdf';
+        ? EMP_DOCS_DIR . '/Confirmation_Letter_' . $empId . '.pdf'
+        : EMP_DOCS_DIR . '/Extension_Letter_' . $empId . '.pdf';
 
     /*
      * 8. Insert into BCS_OUTWARD_REF (Outward Dispatch Register)

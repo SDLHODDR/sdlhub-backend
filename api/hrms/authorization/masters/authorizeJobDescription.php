@@ -8,6 +8,7 @@ $sql___func___con = db_hrms();
 require_once __DIR__ . '/../../../config/functions.php';
 require_once __DIR__ . '/../../../config/utils.php';
 require_once __DIR__ . '/../../../config/hrmsAccess.php';
+require_once __DIR__ . '/../../maintainance/jobdescription/jdCompleteness.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -61,8 +62,17 @@ try {
         apiResponse(false, 'You are not authorized to process this task.', null, 403);
     }
 
+    if ($decision === 'A') {
+        $missingTabs = jdMissingTabs($sql___func___con, $jobId);
+        if (!empty($missingTabs)) {
+            apiResponse(false, jdMissingTabsMessage($missingTabs, 'This Job Description cannot be accepted. These tabs have no data:'), ['missing_tabs' => $missingTabs], 422);
+        }
+    }
+
     $taskStatus = $decision === 'A' ? 'C' : 'X';
-    $jobStatus = $decision === 'A' ? 'A' : 'R';
+    // Like legacy jd_sv.php auth: a rejected JD goes back to 'N' (editable,
+    // can be sent again); the reason stays in the task REMARKS.
+    $jobStatus = $decision === 'A' ? 'A' : 'N';
 
     $taskSql = "UPDATE HR_USER_TASKS
                 SET STATUS = :task_status,

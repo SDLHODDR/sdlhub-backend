@@ -11,6 +11,7 @@ $sql___func___con = $conn;
 
 require_once __DIR__ . "/../../../config/functions.php";
 require_once __DIR__ . "/../../../config/utils.php";
+require_once __DIR__ . "/jdCompleteness.php";
 
 header("Content-Type: application/json");
 
@@ -130,6 +131,20 @@ try {
             "Job description authorization task is not configured.",
             null,
             400
+        );
+        exit;
+    }
+
+    /*
+     * Every JD tab must be filled before the JD goes for authorization.
+     */
+    $missingTabs = jdMissingTabs($conn, $job['ID']);
+    if (!empty($missingTabs)) {
+        apiResponse(
+            false,
+            jdMissingTabsMessage($missingTabs, 'Please fill these tabs before sending for authorization:'),
+            ['missing_tabs' => $missingTabs],
+            422
         );
         exit;
     }

@@ -36,7 +36,29 @@ try {
         exit;
     }
 
-    $organogramJDLbl = multiRec("select ID,ID || ' - ' || SH_DESC as LABEL from HR_JD where dept_id = '" . $deptId . "' and DESIG_ID = '" . $desigId . "' order by SH_DESC");
+    // Only authorized JDs can be linked; an organogram's current JD stays
+    // listed so an existing record still shows its value.
+    $organogramId = trim((string)($data['ORGANOGRAM_ID'] ?? ''));
+    $jdStmt = oci_parse($sql___func___con, "SELECT ID, ID || ' - ' || SH_DESC AS LABEL,
+            NVL(STATUS, 'N') AS STATUS, LVL_ID
+        FROM HR_JD
+        WHERE DEPT_ID = :dept_id AND DESIG_ID = :desig_id
+          AND (STATUS = 'A' OR ID = (SELECT O.JD_ID FROM HR_ORGANOGRAM O WHERE O.ID = :org_id))
+        ORDER BY SH_DESC");
+    $deptIdValue = (string)$deptId;
+    $desigIdValue = (string)$desigId;
+    oci_bind_by_name($jdStmt, ':dept_id', $deptIdValue);
+    oci_bind_by_name($jdStmt, ':desig_id', $desigIdValue);
+    oci_bind_by_name($jdStmt, ':org_id', $organogramId);
+    oci_execute($jdStmt, OCI_NO_AUTO_COMMIT);
+    $organogramJDLbl = [];
+    while ($jdRow = oci_fetch_assoc($jdStmt)) {
+        if ($jdRow['STATUS'] !== 'A') {
+            $jdRow['LABEL'] .= ' (Not Authorized)';
+        }
+        $organogramJDLbl[] = $jdRow;
+    }
+    oci_free_statement($jdStmt);
     
     if ( empty($organogramJDLbl) ) {
         apiResponse( false, "No Data found", null, 200 );
@@ -47,7 +69,9 @@ try {
     foreach ($organogramJDLbl as $org) {
         $results[] = [
             "ID" => (int)$org['ID'],
-            "LABEL" => $org['LABEL']
+            "LABEL" => $org['LABEL'],
+            // Org Level follows the JD's Band/Level (legacy org_sv.php getOLVL).
+            "LVL_ID" => $org['LVL_ID'] ?? null
         ];
     }
     

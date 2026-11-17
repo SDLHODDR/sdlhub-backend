@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../../config/path.php';
 /*
  * POST { user_task_id }
  * Relieving & Experience Letter (24): issues the outward reference for each
@@ -46,7 +47,7 @@ exitRunAction(function () use ($input, $empCode) {
             ':emp_id' => $employee['ID'] ?? '',
             ':emp_code' => $employeeCode,
             ':doc_id' => (string)$docId,
-            ':doc_path' => 'input/emp_docs/' . $letter['file'] . '_' . ($employee['ID'] ?? '') . '.pdf',
+            ':doc_path' => EMP_DOCS_DIR . '/' . $letter['file'] . '_' . ($employee['ID'] ?? '') . '.pdf',
             ':doc_ref' => $next['ref'],
             ':chg_by' => $empCode,
         ], "Could not save the {$letter['name']} reference.");
