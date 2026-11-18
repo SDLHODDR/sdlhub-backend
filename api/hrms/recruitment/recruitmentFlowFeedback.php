@@ -5,6 +5,8 @@
  */
 
 const RECRUITMENT_RESULT_LABELS = ['P' => 'Pass', 'F' => 'Fail', 'H' => 'On Hold'];
+// HR_EMP_TYPE.ETYPE_ID of Permanent: no period (months) is asked for it.
+const RECRUITMENT_PERMANENT_ETYPE = '1';
 
 /** The user's HR_INTRV_EMPLOYEE row on this interview as interviewer ('I') or recommender ('R'). */
 function recruitmentFlowPanelMember($interviewId, $empCode, $type)
@@ -120,6 +122,9 @@ function recruitmentFlowPanelResults($interviewId, $jdId)
             'expected' => $row['EXPECTED'] ?? '',
         ], $capabilities),
         'expectedScore' => (int)($expected['SCORE'] ?? 0),
+        // Points per capability level, to explain the scores.
+        'levelScores' => array_map(static fn($row) => ['label' => $row['CAPALVL_DESC'], 'score' => (int)$row['SCORE']],
+            multiRec("SELECT CAPALVL_DESC, SCORE FROM HR_CAPA_LEVEL ORDER BY SCORE, CAPALVL_ID") ?: []),
     ];
 }
 
@@ -162,9 +167,11 @@ function recruitmentFlowLoadFeedbackTask(array $task, array $context, $empCode)
         'results' => array_map(static fn($code) => ['value' => $code, 'label' => RECRUITMENT_RESULT_LABELS[$code]], $allowed),
         'employeeTypes' => array_map(static fn($row) => ['value' => $row['ETYPE_ID'], 'label' => ucwords(strtolower($row['EMP_TYPE']))],
             multiRec("SELECT ETYPE_ID, EMP_TYPE FROM HR_EMP_TYPE ORDER BY ETYPE_ID") ?: []),
+        'permanentType' => RECRUITMENT_PERMANENT_ETYPE,
         'saved' => [
             'result' => $member['PASS_FAIL'] ?? '',
-            'ctcOffer' => $interview['CTC_OFFER'] ?? '',
+            // Stored in lakhs (offer letter, CTC breakup and legacy read it so); the form works in rupees.
+            'ctcOffer' => (string)($interview['CTC_OFFER'] ?? '') === '' ? '' : (string)round((float)$interview['CTC_OFFER'] * 100000),
             'employeeType' => $interview['ETYPE_ID'] ?? '',
             'joiningDate' => $interview['TNT_JOIN_DAY'] ?? '',
             'period' => $interview['ETYPE_PERIOD'] ?? '',
@@ -207,11 +214,12 @@ function recruitmentFlowSaveInterviewerFeedback(array $context, array $member, a
         $remark = trim((string)($answerRemarks[$questionId] ?? ''));
         recruitmentAssertLength($text, RECRUITMENT_ANSWER_MAX, 'An answer');
         recruitmentAssertLength($remark, RECRUITMENT_ANSWER_MAX, 'A remark');
-        if ($text === '') {
+        // Answer and remark are both required to submit (not to save).
+        if ($text === '' || $remark === '') {
             $complete = false;
-            if ($remark === '') {
-                continue;
-            }
+        }
+        if ($text === '' && $remark === '') {
+            continue;
         }
         recruitmentFlowInsert('HR_INTRV_ANSWERS', [
             'INTRV_ID' => $interview['ID'],
@@ -282,7 +290,7 @@ function recruitmentFlowFeedbackAction(array $task, array $context, $action, arr
             return ['Interview feedback saved.', null];
         }
         if (!$complete) {
-            throw new RecruitmentRequestException('Please answer every question, rate every capability and select the result before submitting.', 422);
+            throw new RecruitmentRequestException('Please answer every question with remarks, rate every capability and select the result before submitting.', 422);
         }
         recruitmentCloseTask($userTaskId, $empCode);
         return ['Interview feedback submitted.', null];
@@ -302,7 +310,15 @@ function recruitmentFlowFeedbackAction(array $task, array $context, $action, arr
 
     $ctc = $type = $joiningDate = $period = '';
     if ($result === 'P') {
-        $ctc = recruitmentFlowAssertNumber($input['ctc_offer'] ?? '', 'CTC offer (lakhs per annum)');
+        // Annual CTC is entered in rupees and stored in lakhs (2 decimals), so whole thousands only.
+        $ctcRupees = trim((string)($input['ctc_offer'] ?? ''));
+        if (!preg_match('/^\d{5,9}$/', $ctcRupees) || (int)$ctcRupees < 10000) {
+            throw new RecruitmentRequestException('Please enter the annual CTC offer in rupees (at least 10,000).', 422);
+        }
+        if ((int)$ctcRupees % 1000 !== 0) {
+            throw new RecruitmentRequestException('Please enter the annual CTC offer in multiples of 1,000 rupees.', 422);
+        }
+        $ctc = rtrim(rtrim(number_format((int)$ctcRupees / 100000, 2, '.', ''), '0'), '.');
         $type = trim((string)($input['employee_type'] ?? ''));
         $types = array_column(multiRec("SELECT ETYPE_ID FROM HR_EMP_TYPE") ?: [], 'ETYPE_ID');
         if (!in_array($type, $types, true)) {
@@ -310,7 +326,10 @@ function recruitmentFlowFeedbackAction(array $task, array $context, $action, arr
         }
         $joiningDate = trim((string)($input['joining_date'] ?? ''));
         recruitmentAssertDate($joiningDate, 'Tentative joining date');
-        $period = recruitmentFlowAssertNumber($input['period'] ?? '', 'period (months)', 0, true);
+        // No period for a permanent employee.
+        $period = $type === RECRUITMENT_PERMANENT_ETYPE
+            ? ''
+            : recruitmentFlowAssertNumber($input['period'] ?? '', 'period (months)', 0, true);
     } elseif ($result === 'H') {
         // Legacy keeps the offer details on hold; clears them only on Fail.
         $ctc = (string)($interview['CTC_OFFER'] ?? '');

@@ -55,9 +55,10 @@ const RECRUITMENT_INTERVIEW_STATUSES = [
 ];
 // Legacy recruitment_sv.php CloseGOTask: the annexure is always approved by this employee.
 const RECRUITMENT_ANNEXURE_APPROVER = '02218';
-// Legacy recruitment_sv.php sendCTCMail recipients.
-const RECRUITMENT_CTC_MAIL_TO = ['nehamishra@teamsdl.in'];
-const RECRUITMENT_CTC_MAIL_CC = ['nikita.sawant@teamsdl.in'];
+// CTC Breakup mail recipients (legacy recruitment_sv.php sendCTCMail sent to nehamishra@teamsdl.in).
+// TESTING addresses: replace before going live.
+const RECRUITMENT_CTC_MAIL_TO = ['harshapatilsdl@gmail.com'];
+const RECRUITMENT_CTC_MAIL_CC = ['jagtapsavita1214@gmail.com']; // legacy: nikita.sawant@teamsdl.in
 const RECRUITMENT_FEEDBACK_REMARK_MAX = 200;
 const RECRUITMENT_ANSWER_MAX = 1000;
 
