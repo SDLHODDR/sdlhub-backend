@@ -4,7 +4,7 @@
  * GET ?emp_code=X[&user_task_id=Y] -> one employee (personal + office), allowed actions
  *                                     and the open joining task being worked on
  */
-require_once __DIR__ . '/joiningCommon.php';
+require_once __DIR__ . '/joiningCandidate.php';
 
 try {
     loadHrmsAccess($empCode);
@@ -21,6 +21,8 @@ try {
             FROM HR_EMPLOYEE_INFO E
             LEFT JOIN HR_COMPANY C ON C.COMP_ID = E.COMP_ID
             WHERE E.STATUS = 'N' AND E.COMP_ID IN ({$companyList})
+              -- Recruited candidates are activated from their Employee Code Generation task.
+              AND NOT EXISTS (SELECT 1 FROM HR_CAN_APPLICATION_DETAILS A WHERE A.EMP_CODE = E.EMP_CODE AND A.STATUS = 'T')
             ORDER BY E.CHG_ON DESC NULLS LAST");
         apiResponse(true, 'New employees fetched successfully.', [
             'drafts' => array_map(static fn($row) => [
@@ -51,8 +53,23 @@ try {
     // detail tasks open their own tab with Save and Submit.
     $authorizeTask = null;
     $detailTask = null;
+    $activateTask = null;
     $userTaskId = (int)($_GET['user_task_id'] ?? 0);
+    // Employee Code Generation (3) of a recruited candidate: TRAN_CODE is the application.
     if ($userTaskId > 0) {
+        $codeTask = singRec("SELECT T.ID, T.TASK_ID, T.TRAN_CODE, T.STATUS, T.EMP_CODE_FOR, T.COMP_ID, T.DIVSN_ID, T.DEPT_ID
+            FROM HR_USER_TASKS T
+            INNER JOIN HR_CAN_APPLICATION_DETAILS A ON TO_CHAR(A.ID) = T.TRAN_CODE AND A.EMP_CODE = :emp_code AND A.STATUS = 'T'
+            WHERE T.ID = :id AND T.TASK_ID = :task_id AND T.STATUS = 'O'", [
+            ':id' => (string)$userTaskId,
+            ':emp_code' => $employeeCode,
+            ':task_id' => (string)JOINING_TASK_CODE_GENERATION,
+        ]);
+        if (!empty($codeTask['ID']) && hrmsCanActOnTask($codeTask, $empCode)) {
+            $activateTask = ['id' => (string)$codeTask['ID'], 'missing' => joiningActivationMissing($employeeCode)];
+        }
+    }
+    if ($userTaskId > 0 && !$activateTask) {
         $task = singRec("SELECT ID, TASK_ID, TRAN_CODE, STATUS, EMP_CODE_FOR, COMP_ID, DIVSN_ID, DEPT_ID
             FROM HR_USER_TASKS
             WHERE ID = :id AND TRAN_CODE = :emp_code AND STATUS = 'O'", [
@@ -74,18 +91,23 @@ try {
     }
 
     $inScope = in_array((string)$employee['COMP_ID'], $companies, true);
-    if (!$inScope && !$authorizeTask && !$detailTask) {
+    if (!$inScope && !$authorizeTask && !$detailTask && !$activateTask) {
         throw new JoiningRequestException('You are not authorized to view this employee.', 403);
     }
 
     $office = joiningEmployeeOffice($employeeCode);
     $status = (string)$employee['STATUS'];
+    $fromCandidate = !empty(joiningCandidateEmployeeApplication($employeeCode)['ID']);
+    $canEdit = $status === 'N' && ($inScope || $activateTask);
 
     apiResponse(true, 'Employee fetched successfully.', [
         'employee' => $employee,
         'office' => !empty($office['ID']) ? $office : null,
-        'canEdit' => $status === 'N' && $inScope,
-        'canSendForAuth' => $status === 'N' && $inScope && !empty($office['ID']),
+        'canEdit' => $canEdit,
+        // A recruited candidate is activated from task 3, not sent for authorization.
+        'fromCandidate' => $fromCandidate,
+        'canSendForAuth' => $status === 'N' && $inScope && !$fromCandidate && !empty($office['ID']),
+        'activateTask' => $status === 'N' ? $activateTask : null,
         'authorizeTaskId' => $status === 'T' ? $authorizeTask : null,
         'detailTask' => $detailTask,
     ], 200);

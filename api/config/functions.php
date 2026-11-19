@@ -170,6 +170,10 @@ function multiRec($sqlVal, $binds = [], $options = [])
         return [];
     }
 
+    // The database is remote (~0.1 s per round trip) and the driver fetches 100 rows
+    // per trip by default: a 7,800-row list took ~78 trips. Fetch in larger batches.
+    oci_set_prefetch($stmt, 1000);
+
     /* ===========================================
        BIND PARAMETERS
     =========================================== */

@@ -38,7 +38,7 @@ $_ENV["DOCUMENT_ROOT"] = "/mnt/documents";
 | Folder names live in config/path.php.
 */
 
-$_ENV["HRMS_DOC_ROOT"] = dirname(__DIR__, 2); // sdlhub-backend
+$_ENV["HRMS_DOC_ROOT"] = $_ENV["DOCUMENT_ROOT"]; // /mnt/documents (was the sdlhub-backend folder)
 
 $_ENV["HRMS_LEGACY_DOC_URL"] = "https://hrms.sdlindia.com/hradmin/";
 

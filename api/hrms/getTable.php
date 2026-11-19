@@ -138,9 +138,15 @@ try {
                 ON OFF_EXIT.EMP_CODE = SEP.EMP_CODE
                 AND SEP.RELEIVING_DATE BETWEEN OFF_EXIT.EFFEC_FROM AND NVL(OFF_EXIT.EFFEC_TO, DATE '3000-03-01')
                 AND tasks.TASK_ID IN ({$exit_in})
+            -- Current office row; a new joiner whose office starts on a future joining
+            -- date has none yet, so fall back to the latest row.
             LEFT JOIN HR_EMP_OFFICE_DET OFF_JOIN
-                ON OFF_JOIN.EMP_CODE = tasks.TRAN_CODE
-                AND SYSDATE BETWEEN OFF_JOIN.EFFEC_FROM AND NVL(OFF_JOIN.EFFEC_TO, DATE '3000-03-01')
+                ON OFF_JOIN.ID = (
+                    SELECT MAX(O.ID) KEEP (DENSE_RANK FIRST ORDER BY
+                            CASE WHEN SYSDATE BETWEEN O.EFFEC_FROM AND NVL(O.EFFEC_TO, DATE '3000-03-01') THEN 0 ELSE 1 END,
+                            O.EFFEC_FROM DESC)
+                    FROM HR_EMP_OFFICE_DET O
+                    WHERE O.EMP_CODE = tasks.TRAN_CODE)
                 AND tasks.TASK_ID IN ({$joining_in})
             LEFT JOIN HR_RECRUITMENT REC
                 ON REC.ID = tasks.TRAN_CODE

@@ -267,8 +267,9 @@ function recruitmentRequestCandidates($requestFilter, $binds, $onlyWithStatus)
 /**
  * Locations of an organogram that can still be requested: not held by a current
  * employee and not in another open request, plus this request's own location.
- * Legacy recruitment_sv.php?populate_org_loc. A request in C, R or I frees its
- * location as in legacy; X (cancelled) is added so cancelling frees it too.
+ * Legacy recruitment_sv.php?populate_org_loc freed a location in C, R or I; only one
+ * request per location is allowed, so I (in progress, recruiter assigned) now keeps
+ * it blocked. Closed (C), rejected (R) and cancelled (X) requests free it.
  */
 function recruitmentOpenLocations($orgId, $requestId)
 {
@@ -281,7 +282,7 @@ function recruitmentOpenLocations($orgId, $requestId)
                   AND SYSDATE BETWEEN D.EFFEC_FROM AND NVL(D.EFFEC_TO, DATE '3000-03-01'))
           AND NOT EXISTS (SELECT 1 FROM HR_RECRUITMENT R
                 WHERE R.ORG_LOC_ID = HOL.ID AND R.ORG_ID = :org_id AND R.ID <> :rec_id
-                  AND R.STATUS NOT IN ('C', 'R', 'I', 'X'))
+                  AND R.STATUS NOT IN ('C', 'R', 'X'))
         UNION
         SELECT HOL.ID, HOL.ID || ' - ' || HOL.GEO_DESC AS LABEL
         FROM HR_ORGANOGRAM_LOC HOL

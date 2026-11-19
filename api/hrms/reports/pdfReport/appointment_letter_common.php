@@ -63,6 +63,13 @@ if (!hrmsFindActionableTask(44, $empCode, $sessionEmp, $userTaskId ?: null)) {
     appointmentLetterFail(403, 'You are not authorized to open this letter, or the print task is no longer open.');
 }
 
+// Salary, office and tenure of a new joiner start on the joining date, which is
+// usually after the letter is printed: read them as on the later of today and the DOJ.
+$asOnRow = singRec("SELECT TO_CHAR(GREATEST(TRUNC(SYSDATE), NVL(TRUNC(DOJ), TRUNC(SYSDATE))), 'YYYY-MM-DD') AS AS_ON
+    FROM HR_EMPLOYEE_INFO WHERE EMP_CODE = :emp_code", [':emp_code' => $empCode]);
+$asOnDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($asOnRow['AS_ON'] ?? '')) ? $asOnRow['AS_ON'] : date('Y-m-d');
+$asOnSql = "TO_DATE('{$asOnDate}', 'YYYY-MM-DD')";
+
 if (!function_exists('arr')) {
     // Legacy debug helper.
     function arr($value = null) {}

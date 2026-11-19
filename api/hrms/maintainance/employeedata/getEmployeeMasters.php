@@ -142,13 +142,8 @@ ORDER BY DESCR
     /*
      * Levels
      */
-    $levels = multiRec("
-        SELECT
-            LEVL AS VALUE,
-            LEVL_DESC AS LABEL
-        FROM HR_EMP_LEVELS
-        ORDER BY LEVL
-    ");
+    // HR_EMP_LEVELS does not exist in this database and no page uses the list.
+    $levels = [];
 
 
     /*
@@ -178,13 +173,8 @@ ORDER BY DESCR
     /*
      * Assets
      */
-    $assets = multiRec("
-        SELECT
-            ASSET_ID AS VALUE,
-            ASSET_CODE || ' - ' || ASSET_DESC AS LABEL
-        FROM HR_ASSET_MST
-        ORDER BY LABEL
-    ");
+    // HR_ASSET_MST does not exist in this database and no page uses the list.
+    $assets = [];
 
 
     /*

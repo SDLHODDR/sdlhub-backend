@@ -43,7 +43,14 @@ joiningRunAction(function () use ($input, $empCode) {
     if (!preg_match('/^[A-Za-z0-9_]+$/', $workSite) || !preg_match('/^[A-Za-z0-9_]+$/', $prefix)) {
         throw new RuntimeException('Invalid reference sequence parameter.');
     }
-    $sequence = singRec("SELECT EPPLIVE.TRAN_OR_{$workSite}_{$prefix}_SEQ.NEXTVAL AS SEQNO FROM DUAL");
+    // EPP keeps one outward reference sequence per work site and accounting period.
+    $sequenceName = "TRAN_OR_{$workSite}_{$prefix}_SEQ";
+    $exists = joiningRecord("SELECT COUNT(*) AS N FROM ALL_SEQUENCES WHERE SEQUENCE_OWNER = 'EPPLIVE' AND SEQUENCE_NAME = :name",
+        [':name' => strtoupper($sequenceName)]);
+    if ((int)($exists['N'] ?? 0) === 0) {
+        throw new JoiningRequestException("Outward reference numbering is not set up in EPP for your work site {$workSite} in the current period ({$prefix}). Please ask the EPP team to create sequence EPPLIVE.{$sequenceName}.", 422);
+    }
+    $sequence = singRec("SELECT EPPLIVE.{$sequenceName}.NEXTVAL AS SEQNO FROM DUAL");
     if (empty($sequence['SEQNO'])) {
         throw new RuntimeException('Could not read the outward reference sequence.');
     }

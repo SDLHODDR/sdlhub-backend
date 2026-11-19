@@ -83,7 +83,8 @@ appraisalRunRead(static function () {
                 INNER JOIN HR_QUESTION_SGROUP B ON B.QSGRP_ID = A.QGRP_ID WHERE A.STATUS = 'A' ORDER BY B.QSGRP_DESC") ?: []);
         // Organograms of the appraisal's company in the user's division / department scope (legacy).
         $data['organogramOptions'] = array_map(static fn($row) => ['value' => $row['ID'], 'label' => $row['L']],
-            multiRec("SELECT O.ID, GET_SHCOMP_NAME(O.COMPANY) || ' - ' || GET_DIVISION_NAME(O.DIVSN_ID) || ' - '
+            // Label starts with the organogram ID, e.g. "190 SDL - SDLHO - Medical Services - Research Trainee".
+            multiRec("SELECT O.ID, O.ID || ' ' || GET_SHCOMP_NAME(O.COMPANY) || ' - ' || GET_DIVISION_NAME(O.DIVSN_ID) || ' - '
                     || GET_DEPT_NAME(O.DEPT_ID) || ' - ' || GET_DESIGN_NAME(O.DESI_ID) AS L
                 FROM HR_ORGANOGRAM O WHERE O.COMPANY = :comp_id AND " . appraisalOrgScopeSql('O') . " ORDER BY O.ID DESC",
                 [':comp_id' => (string)$appraisal['COMP_ID']]) ?: []);

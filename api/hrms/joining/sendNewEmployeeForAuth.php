@@ -19,6 +19,12 @@ joiningRunAction(function () use ($input, $empCode) {
     if ($employee['STATUS'] !== 'N') {
         throw new JoiningRequestException('This employee has already been sent for authorization.', 409);
     }
+    // A recruited candidate is activated from Employee Code Generation (task 3) instead.
+    $application = singRec("SELECT ID FROM HR_CAN_APPLICATION_DETAILS WHERE EMP_CODE = :emp_code AND STATUS = 'T'",
+        [':emp_code' => $employee['EMP_CODE']]);
+    if (!empty($application['ID'])) {
+        throw new JoiningRequestException('This employee joins through recruitment. Activate it from the Employee Code Generation task.', 409);
+    }
     $office = joiningEmployeeOffice($employee['EMP_CODE']);
     if (empty($office['ID'])) {
         throw new JoiningRequestException('Please save the office details before sending for authorization.', 422);

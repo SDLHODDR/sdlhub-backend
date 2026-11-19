@@ -292,8 +292,7 @@ $references = multiRec("
         TO_CHAR(f.DOB, 'YYYY-MM-DD') AS DOB,
         f.AADHAAR,
         TO_CHAR(f.CHG_ON, 'YYYY-MM-DD') AS CHG_ON,
-        f.CHG_BY,
-        f.STATUS
+        f.CHG_BY
     FROM HRMSLIVE.HR_EMP_FAMILY_INFO f
     WHERE f.EMP_ID = '" . addslashes($employeeId) . "'
     ORDER BY f.ID
@@ -317,7 +316,7 @@ $references = multiRec("
             REMARKS,
             RESP_PERSON,
             STATUS
-        FROM HR_EMP_ASSET_ALLOCATION
+        FROM EPPLIVE.BCS_EMP_ASSET_ALLOCATION
         WHERE EMP_ID = '" . addslashes($employeeId) . "'
         ORDER BY FROM_DATE DESC
     ");
@@ -386,17 +385,19 @@ $tenure = multiRec("
         WHERE STATUS = 'A'
           AND (
                 DIVISION_ID = (
-                    SELECT DIVISION
-                    FROM HR_EMPLOYEE_INFO
+                    SELECT MAX(DIVSN_ID) KEEP (DENSE_RANK LAST ORDER BY EFFEC_FROM)
+                    FROM HR_EMP_OFFICE_DET
                     WHERE EMP_CODE = '" . addslashes($employee['EMP_CODE']) . "'
+                      AND EFFEC_FROM <= SYSDATE
                 )
                 OR DIVISION_ID IS NULL
               )
           AND (
                 DEPT_ID = (
-                    SELECT DIVISION
-                    FROM HR_EMPLOYEE_INFO
+                    SELECT MAX(DEPT_ID) KEEP (DENSE_RANK LAST ORDER BY EFFEC_FROM)
+                    FROM HR_EMP_OFFICE_DET
                     WHERE EMP_CODE = '" . addslashes($employee['EMP_CODE']) . "'
+                      AND EFFEC_FROM <= SYSDATE
                 )
                 OR DEPT_ID IS NULL
               )

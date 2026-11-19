@@ -14,7 +14,7 @@ $OFFER_INFO = singRec("select a.* , get_comp_name(a.COMP_ID)CMPNM , b.retire_age
 
 $EMP_PERIOD = singRec("select * from hr_emp_tenure where emp_code ='" . $OFFER_INFO['EMP_CODE'] . "'");
 
-$JOINING_INFO = singRec("select * from hr_emp_tenure a where a.emp_code='" . $OFFER_INFO['EMP_CODE'] . "' AND SYSDATE BETWEEN EFF_FROM AND nvl(EFF_TO,'31-Mar-3000')");
+$JOINING_INFO = singRec("select * from hr_emp_tenure a where a.emp_code='" . $OFFER_INFO['EMP_CODE'] . "' AND {$asOnSql} BETWEEN EFF_FROM AND nvl(EFF_TO,'31-Mar-3000')");
 
 $DOC_INFO = singRec("select * from (select * from hr_emp_docs where emp_code ='" . $OFFER_INFO['EMP_CODE'] . "' and doc_id = '2' order by id desc) where rownum=1");
 $docExt = singRec("select * from (select * from hr_emp_docs where emp_code ='" . $OFFER_INFO['EMP_CODE'] . "' and doc_id = '2' order by id desc) where rownum=1");
@@ -23,7 +23,7 @@ $STATE = singRec("select GSTAT_DESC from epplive.bcs_gst_states a where a.gstat_
 
 $COMPANY = singRec("select * from hr_company where comp_id ='" . $OFFER_INFO['COMP_ID'] . "'"); //arr($COMPANY);exit;
 
-$empres = singRec("select desi_id, get_design_name(desi_id)ds  , dept_id , divsn_id, GET_DIVISION_NAME(divsn_id)DVSN , org_id from hr_emp_office_det where emp_code='".$OFFER_INFO['EMP_CODE']."' and sysdate between effec_from and nvl(effec_to , '03-Mar-3000')");
+$empres = singRec("select desi_id, get_design_name(desi_id)ds  , dept_id , divsn_id, GET_DIVISION_NAME(divsn_id)DVSN , org_id from hr_emp_office_det where emp_code='".$OFFER_INFO['EMP_CODE']."' and {$asOnSql} between effec_from and nvl(effec_to , '03-Mar-3000')");
 
 $empoff = appointmentEmpOffice($OFFER_INFO['EMP_CODE']) ;
 $bossoff = appointmentEmpOffice(findParentOrgEmp($OFFER_INFO['EMP_CODE']));
@@ -50,7 +50,7 @@ inner join hr_allowances ha on hol.allow_id = ha.allow_id
 inner join hr_organogram org on org.id = hol.org_id 
 inner join hr_jd_allowances hjd on org.jd_id = hjd.jd_id and hjd.allow_id = hol.allow_id
 where hol.org_loc_id='".$empoff['ORG_LOC_ID']."'
-and sysdate BETWEEN hol.effec_from and nvl(hol.effec_to , '01-Mar-3000')
+and {$asOnSql} BETWEEN hol.effec_from and nvl(hol.effec_to , '01-Mar-3000')
 and hjd.exp_type='A' order by 1
 ");
 
@@ -60,7 +60,7 @@ inner join hr_allowances ha on hol.allow_id = ha.allow_id
 inner join hr_organogram org on org.id = hol.org_id 
 inner join hr_jd_allowances hjd on org.jd_id = hjd.jd_id and hjd.allow_id = hol.allow_id
 where hol.org_loc_id='".$empoff['ORG_LOC_ID']."'
-and sysdate BETWEEN hol.effec_from and nvl(hol.effec_to , '01-Mar-3000')
+and {$asOnSql} BETWEEN hol.effec_from and nvl(hol.effec_to , '01-Mar-3000')
 and hjd.exp_type='R' order by 1
 ");
 
@@ -103,25 +103,25 @@ $CTC_table = multiRec("select a.emp_code, a.ad_code, b.seq_no, b.sh_descr, a.typ
 	from  epplive.bcs_employee_ad a , epplive.bcs_allw_dedn b 
 	where a.emp_code = '" . $OFFER_INFO['EMP_CODE'] . "' and b.cost_company = 'Y'
 	and a.ad_code = b.ad_code
-	and sysdate between a.eff_date and a.exp_date 
+	and {$asOnSql} between a.eff_date and a.exp_date 
 	order by b.seq_no"); //CTC 
 //arr($CTC_table);exit;
 $file_path = hrmsDocPath(EMP_DOCS_DIR . '/Appointment_Letter_' . $OFFER_INFO['ID'] . '.pdf');
 // Reference: created by joining/generateAppointmentLetterReference.php.
 $refNo = '';
-	$mbas = singRec("select ID, AMOUNT, TYPE from epplive.BCS_EMPLOYEE_AD where trunc(sysdate) between EFF_DATE and EXP_DATE
+	$mbas = singRec("select ID, AMOUNT, TYPE from epplive.BCS_EMPLOYEE_AD where {$asOnSql} between EFF_DATE and EXP_DATE
 		and emp_code='" . $OFFER_INFO['EMP_CODE'] . "' and CONFIRMED='Y' and AD_CODE='MBAS' ");
-	$mctc = singRec("select ID, AMOUNT, TYPE from epplive.BCS_EMPLOYEE_AD where trunc(sysdate) between EFF_DATE and EXP_DATE
+	$mctc = singRec("select ID, AMOUNT, TYPE from epplive.BCS_EMPLOYEE_AD where {$asOnSql} between EFF_DATE and EXP_DATE
 		and emp_code='" . $OFFER_INFO['EMP_CODE'] . "' and CONFIRMED='Y' and AD_CODE='MCTC' ");
 	$SAL_TOTAL = singRec("select sum(a.amount) amt from  epplive.bcs_employee_ad a , epplive.bcs_allw_dedn b 
 					where a.emp_code = '" . $OFFER_INFO['EMP_CODE'] . "' and b.cost_company = 'Y'
-					and a.ad_code = b.ad_code and sysdate between a.eff_date and a.exp_date");
+					and a.ad_code = b.ad_code and {$asOnSql} between a.eff_date and a.exp_date");
 	// arr ($SAL_TOTAL); echo '<br>';
-	$pfbas = singRec("select amount from epplive.bcs_employee_ad where emp_code = '" . $OFFER_INFO['EMP_CODE'] . "' and sysdate between eff_date and exp_date and ad_code = 'XPFBS' ");
-	$cpf = singRec("select id, type, amount from epplive.bcs_employee_ad where emp_code = '" . $OFFER_INFO['EMP_CODE'] . "' and sysdate between eff_date and exp_date and ad_code = 'CPF' ");
-	$cbon = singRec("select id, type, amount from epplive.bcs_employee_ad where emp_code = '" . $OFFER_INFO['EMP_CODE'] . "' and sysdate between eff_date and exp_date and ad_code = 'CBON' ");
-	$cgra = singRec("select id, type, amount from epplive.bcs_employee_ad where emp_code = '" . $OFFER_INFO['EMP_CODE'] . "' and sysdate between eff_date and exp_date and ad_code = 'CGRA' ");
-	$cesi = singRec("select id, type, amount from epplive.bcs_employee_ad where emp_code = '" . $OFFER_INFO['EMP_CODE'] . "' and sysdate between eff_date and exp_date and ad_code = 'CESI' ");
+	$pfbas = singRec("select amount from epplive.bcs_employee_ad where emp_code = '" . $OFFER_INFO['EMP_CODE'] . "' and {$asOnSql} between eff_date and exp_date and ad_code = 'XPFBS' ");
+	$cpf = singRec("select id, type, amount from epplive.bcs_employee_ad where emp_code = '" . $OFFER_INFO['EMP_CODE'] . "' and {$asOnSql} between eff_date and exp_date and ad_code = 'CPF' ");
+	$cbon = singRec("select id, type, amount from epplive.bcs_employee_ad where emp_code = '" . $OFFER_INFO['EMP_CODE'] . "' and {$asOnSql} between eff_date and exp_date and ad_code = 'CBON' ");
+	$cgra = singRec("select id, type, amount from epplive.bcs_employee_ad where emp_code = '" . $OFFER_INFO['EMP_CODE'] . "' and {$asOnSql} between eff_date and exp_date and ad_code = 'CGRA' ");
+	$cesi = singRec("select id, type, amount from epplive.bcs_employee_ad where emp_code = '" . $OFFER_INFO['EMP_CODE'] . "' and {$asOnSql} between eff_date and exp_date and ad_code = 'CESI' ");
 
 // PHP 8: empty lookups (no payroll rows yet) must be numbers for the sums below.
 foreach (['mbas', 'mctc', 'SAL_TOTAL', 'pfbas', 'cpf', 'cbon', 'cgra', 'cesi'] as $salaryVar) {
