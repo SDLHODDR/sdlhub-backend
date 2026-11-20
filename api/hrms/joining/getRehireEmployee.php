@@ -34,6 +34,16 @@ try {
             FROM HR_EMP_OFFICE_DET WHERE EMP_CODE = :emp_code
             ORDER BY EFFEC_FROM DESC, ID DESC)
         WHERE ROWNUM = 1", [':emp_code' => $employee['EMP_CODE']]);
+    if (!$office) {
+        // HRMS office history only goes back to 2024; older leavers keep their last
+        // department, designation and work site in the EPP employee master.
+        $office = joiningRecord("SELECT D.DESCR AS DEPT, G.DESI_DESC AS DESIG, S.DESCR AS LOC
+            FROM HR_BCS_EMPLOYEE B
+            LEFT JOIN EPPLIVE.BCS_DEPARTMENT D ON D.DEPT_CODE = B.DEPT_CODE
+            LEFT JOIN EPPLIVE.BCS_DESIGNATION G ON G.DESI_ID = B.DESIGNATION
+            LEFT JOIN EPPLIVE.BCS_SITE S ON S.SITE_CODE = B.WORK_SITE
+            WHERE B.EMP_CODE = :emp_code", [':emp_code' => $employee['EMP_CODE']]);
+    }
 
     apiResponse(true, 'Employee fetched successfully.', [
         'empCode' => $employee['EMP_CODE'],
