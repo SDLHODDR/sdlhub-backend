@@ -14,7 +14,9 @@ employeeAppraisalRunRead(function () use ($empCode) {
     $pfBasis = isset($_GET['pf_basis']) ? ((string)$_GET['pf_basis'] === '1' ? '1' : '0')
         : (isset($saved['XPFBS']) ? (string)(int)$saved['XPFBS']['AMOUNT_MNTH'] : '0');
     $proposed = appraisalCtcStructure($heads, (float)$appr['NEW_CTC'], $pfBasis);
-    $current = appraisalCtcStructure(appraisalCtcHeads($appr['ORG_ID']), (float)$appr['CURR_CTC'], $pfBasis);
+    // No current salary (e.g. a new joiner not yet in payroll): nothing to break up.
+    $current = (float)$appr['CURR_CTC'] > 0
+        ? appraisalCtcStructure(appraisalCtcHeads($appr['ORG_ID']), (float)$appr['CURR_CTC'], $pfBasis) : [];
     $isPromotion = ($task['MANAGER']['RECO_PROMO'] ?? '') === 'Y';
     $newOrg = $isPromotion && $appr['NEW_ORG_ID'] ? appraisalRow("SELECT GET_ORG_NAME(:id) AS NM FROM DUAL", [':id' => $appr['NEW_ORG_ID']]) : [];
 
