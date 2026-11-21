@@ -330,6 +330,15 @@ function joiningSaveAccess(array $employee, array $values, $id, $sessionEmp)
             [':emp_code' => $code, ':app_id' => $app], 'Could not update the application access.');
     }
 
+    // The common login database (SDLUSERS) keeps its own copy, which drives the
+    // app launcher; its app IDs match EPPLIVE.BCS_APP. Its trigger fills ID.
+    joiningExecute("DELETE FROM SDLUSERS.SDL_APP_ACCESS WHERE EMP_CODE = :emp_code", [':emp_code' => $code],
+        'Could not update the application access in the common login database.');
+    foreach ($apps as $app) {
+        joiningExecute("INSERT INTO SDLUSERS.SDL_APP_ACCESS (APP_ID, EMP_CODE) VALUES (:app_id, :emp_code)",
+            [':emp_code' => $code, ':app_id' => $app], 'Could not update the application access in the common login database.');
+    }
+
     if (in_array('2', $apps, true)) {
         joiningSyncSfmEmployee($code, $sessionEmp);
     }
