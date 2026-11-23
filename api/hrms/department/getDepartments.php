@@ -290,10 +290,12 @@ try {
             ?? $input['CCTR']
             ?? '';
 
-        $descr_db = htmlspecialchars(
-            trim((string)$descr),
-            ENT_QUOTES
-        );
+        // Stored as typed (not HTML-encoded, so "&" stays "&"). Letters, numbers,
+        // spaces, "&" and "/" only - the same rule as the Department page.
+        $descr_db = trim((string)$descr);
+        if ($action !== 'delete' && !preg_match('#^[A-Za-z0-9\s&/]+$#', $descr_db)) {
+            apiResponse(false, 'Department Name can only contain letters, numbers, spaces, & and /', null, 422);
+        }
 
         $loginId = $_SESSION['loginId']
             ?? $_SESSION['emp_code']

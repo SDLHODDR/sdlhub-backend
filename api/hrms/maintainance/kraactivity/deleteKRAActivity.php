@@ -39,24 +39,22 @@ if (empty($empCode)) {
 $data = json_decode(file_get_contents("php://input"), true);
 
 try {
+    // The id goes into the UPDATE below, so only a numeric activity ID is accepted.
+    $kIDD = trim((string)($data['ACT_ID'] ?? $data['ID'] ?? ''));
+    if ($kIDD === '' || !ctype_digit($kIDD)) {
+        apiResponse(false, "Invalid KRA Activity.", null, 422);
+    }
+
     startQry();
-	if (!empty($data['ACT_ID'] || $data['ID'])) {
-        $kIDD = ($data['ACT_ID']) ? $data['ACT_ID'] : $data['ID'];
-        $kraR = executeQry("update HR_KRA_ACTIVITY set
-                            STATUS='D'
-                           WHERE ID='" . $kIDD . "'");
-        endQry();
-        if($kraR){
-            apiResponse(
-                true,
-                "KRA Activity deleted successfully",
-                [],
-            );
-        } else
-        {
-            apiResponse(false, "Error occured", null, 200);
-        }
-	} 
+    $kraR = executeQry("update HR_KRA_ACTIVITY set
+                        STATUS='D'
+                       WHERE ID='" . $kIDD . "'");
+    endQry();
+    if ($kraR) {
+        apiResponse(true, "KRA Activity deleted successfully", []);
+    } else {
+        apiResponse(false, "Error occured", null, 200);
+    }
 } catch (Throwable $e) {
 
     logOracleError(

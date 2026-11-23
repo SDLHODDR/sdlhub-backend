@@ -48,7 +48,9 @@ try {
         ON a.qgrp_id = b.qsgrp_id
         INNER JOIN hr_question_ssgroup c
         ON a.qsgrp_id = c.qssgrp_id 
-        WHERE a.status!='D' ORDER BY qgrp_id"
+        WHERE a.status!='D'
+        -- Newest first: CHG_ON is stamped on every insert and update.
+        ORDER BY a.CHG_ON DESC NULLS LAST, a.ID DESC"
     );
 
     $cnt = 1;

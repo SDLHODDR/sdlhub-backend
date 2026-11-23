@@ -32,7 +32,11 @@ if (empty($data)) {
 // Collect + validate input (server-side; client validation
 // in usePolicyHandler.validateForm() can be bypassed)
 // ---------------------------------------------------------
-$policyId   = trim($data['ID'] ?? '');
+$policyId   = trim((string)($data['ID'] ?? ''));
+// The id goes into the UPDATE below, so only a numeric POLI_ID is accepted.
+if ($policyId !== '' && !ctype_digit($policyId)) {
+    apiResponse(false, "Invalid policy.", null, 422);
+}
 
 // ---------------------------------------------------------
 // Save (transaction: HR_POLICY + HR_POLICY_DEPT + HR_POLICY_DIVSN)
