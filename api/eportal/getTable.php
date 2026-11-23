@@ -110,11 +110,19 @@ foreach($myTasksData as $res)
         else if ($taskId == 357) {
         
             //echo "\n" . $taskId . " - " . $res['TRAN_CODE'];
+            // Booker name and division name come from their master tables
+            // (the booking row only stores BOOK_BY_EMP and DIVSN_ID).
             $details = singRec( 
-                "select * from 
-                    ept_conf_room_tran 
-                    where status in ('T') 
-                    and id = '" . $res['TRAN_CODE'] . "'
+                "select C.*,
+                        INITCAP(E.FNAME || ' ' || E.LNAME) AS BOOK_BY_NAME,
+                        D.DIVSN_DESC,
+                        TO_CHAR(C.START_TIME, 'HH24:MI') AS STARTTIME,
+                        TO_CHAR(C.END_TIME, 'HH24:MI') AS ENDTIME
+                    from ept_conf_room_tran C
+                    left join EPT_HR_EMPLOYEE_INFO E on E.EMP_CODE = C.BOOK_BY_EMP
+                    left join EPT_HR_DIVISIONS D on D.DIVSN_ID = C.DIVSN_ID
+                    where C.status in ('T') 
+                    and C.id = '" . $res['TRAN_CODE'] . "'
             ");
             
         }

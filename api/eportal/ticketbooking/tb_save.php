@@ -225,8 +225,9 @@ if($data['saveTbrData']==true)
     }
     
      if($tickdets['EMP_CODE'] != "" || !empty($tickdets['EMP_CODE'])) {
-        $name = singRec("SELECT EPT_hr_get_emp_mgr('".$data['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
-        $name1 = findParentOrgEmp($data['EMP_CODE']);        
+        // Manager of the employee on the ticket (the request only sends ID).
+        $name = singRec("SELECT EPT_hr_get_emp_mgr('".$tickdets['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
+        $name1 = findParentOrgEmp($tickdets['EMP_CODE']);        
         $Manager = $name['EMP_CODE'] ? $name['EMP_CODE'] : $name1;
 
         $empemail = singRec("select EMAIL_ID_OFF as empemail from EPT_bcs_employee WHERE emp_code = '".$tickdets['EMP_CODE']."'");
