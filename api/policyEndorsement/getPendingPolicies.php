@@ -88,6 +88,9 @@ try {
 
         WHERE P.IS_MANDAT = 'Y'
 
+          -- Only published policies (HRMS Policy List shows STATUS 'A' as Published).
+          AND P.STATUS = 'A'
+
           AND TRUNC(SYSDATE)
               BETWEEN TRUNC(P.START_DATE)
                   AND TRUNC(P.END_DATE)

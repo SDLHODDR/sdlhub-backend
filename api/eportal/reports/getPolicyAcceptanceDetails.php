@@ -35,7 +35,7 @@ try {
         $_POST = $input;
     }
 
-    $policyId = 49; //trim($_POST["policy_id"] ?? '');
+    $policyId = trim((string)($_POST["policy_id"] ?? ""));
 
     if (empty($policyId)) {
 		apiResponse(false, "Policy ID is required.", null, 400);
