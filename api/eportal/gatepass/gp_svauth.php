@@ -123,10 +123,10 @@ if($data['authForm']==true)
     startQry();
     $chk = singRec("select * from EPT_USER_TASKS where id='" . $data['TASK_ID'] . "'");
     if($chk && !empty($chk)){
+        // Reviewing the post remarks only closes the review task (21).
+        // The outdoor duty stays Approved (A), as in the old ePortal, where an
+        // approved request was never changed to Cancelled after the fact.
         taskUpdate('C', "OUtDuty Progress and POST Remarks reviewed", $data['TASK_ID']);
-        if($data["TRAN_CODE"]) {
-            executeQry("update ept_employee_gpass set status='X' where ID='".$data['TRAN_CODE']."' ") ;
-	    }
     }
     endQry('Task Clossed');
     apiResponse(true,"Record Clossed successfully");

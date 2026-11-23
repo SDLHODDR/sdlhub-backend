@@ -95,7 +95,7 @@ try {
         to_char (IN_TIME, 'HH24:MI:SS') IN_TIM,
         to_char (OUT_TIME, 'HH24:MI:SS') OUT_TIM,WORK_HOUR,OT_HOUR 
         FROM EPT_BCS_ATTD_REG
-        WHERE emp_code='" . $data['emp_code'] . "' AND attd_date = '04-Aug-22' ");
+        WHERE emp_code='" . $data['emp_code'] . "' AND attd_date = TO_DATE('" . $data['gpass_date'] . "','DD-MON-RR') ");
 
         $returnArr = [];
         if($punchLogTbl || !empty($punchLogTbl))
@@ -125,29 +125,15 @@ try {
                     SELECT to_char(to_date(sum(time_diff_sec),'sssss'),'hh24:mi') tm 
                     FROM EPT_bcs_attd_daily 
                     WHERE machine_no in (4,7,8,12)  
-                    AND ason_date = TO_DATE('".$data['gpass_date']."','DD-MON-YYYY')
+                    AND ason_date = TO_DATE('".$data['gpass_date']."','DD-MON-RR')
                     AND emp_code='".$data['emp_code']."'");
 
                 $terrace = singRec("
                     SELECT to_char(to_date(sum(time_diff_sec),'sssss'),'hh24:mi') tm 
                     FROM EPT_bcs_attd_daily 
                     WHERE machine_no in (13) 
-                    AND ason_date = TO_DATE('".$data['gpass_date']."','DD-MON-YYYY')
+                    AND ason_date = TO_DATE('".$data['gpass_date']."','DD-MON-RR')
                     AND emp_code='".$data['emp_code']."'");
-
-                $offDesk = singRec("
-                    SELECT to_char(to_date(sum(time_diff_sec),'sssss'),'hh24:mi') tm 
-                    FROM EPT_bcs_attd_daily 
-                    WHERE machine_no in (4,7,8,12)  
-                    AND ason_date = ADD_MONTHS(TO_DATE('".$data['gpass_date']."', 'DD-MON-YY'), -12)
-                    AND emp_code='00575'"); //Remove this query in Production
-
-                $terrace = singRec("
-                    SELECT to_char(to_date(sum(time_diff_sec),'sssss'),'hh24:mi') tm 
-                    FROM EPT_bcs_attd_daily 
-                    WHERE machine_no in (13) 
-                    AND ason_date = ADD_MONTHS(TO_DATE('".$data['gpass_date']."','DD-MON-YY'), -12)
-                    AND emp_code='00575'"); //Remove this query in Production
                                                                 
                 $tmOffDesk = sum_the_time($offDesk['TM'].':00',$terrace['TM'].':00');
 
@@ -155,14 +141,16 @@ try {
                 $returnArr['valRt'] = $tmOffDesk . " Hrs";
             }
 
-            if($returnArr || !empty($returnArr)){
-                apiResponse(
-                    true,
-                    "Attance fetched successfully.",
-                    $returnArr
-                );
-            }
         }
+
+        // Always answer: OD/FW/TO types and days with no punch record simply
+        // have nothing to show. Without this the response was empty and the
+        // authorization modal showed "Unable to fetch Emp Attendance."
+        apiResponse(
+            true,
+            $returnArr ? "Attendance fetched successfully." : "No attendance details for this outdoor duty.",
+            $returnArr
+        );
 
     }
     exit;

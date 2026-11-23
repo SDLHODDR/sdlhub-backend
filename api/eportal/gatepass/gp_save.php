@@ -30,7 +30,10 @@ if($isSave)
             from EPT_EMPLOYEE_GPASS 
             where EMP_CODE = '".$data['EMP_CODE']."' 
             and GPASS_DATE = '".$data['GPASS_DATE']."'
+            and NVL(STATUS, 'N') <> 'X'
         ");
+        // Cancelled (X) requests no longer block the date. Rejected ones still
+        // count, because the employee can resend them for authorization.
 
         $existingTypes = array_column($gpass, 'OUT_TYPE');
         
@@ -347,7 +350,10 @@ else if($data['deleteOD']==true)
     startQry();
     if($data["ID"]) {
         executeQry("update ept_employee_gpass set status='X' where ID='".$data['ID']."' ") ;
-	    executeQry("update EPT_USER_TASKS set status='C', Remarks='Auto Closed due to Cancellation' where task_id='349' and tran_code='".$data['ID']."'");
+	    // Close every task still open for this request: the authorization
+	    // task (349) and, if it was already approved, the review task (21).
+	    // Only open tasks, so the manager's auth remarks on a closed task stay.
+	    executeQry("update EPT_USER_TASKS set status='C', Remarks='Auto Closed due to Cancellation' where task_id in ('349','21') and tran_code='".$data['ID']."' and status='O'");
 	}
    
      endQry();
