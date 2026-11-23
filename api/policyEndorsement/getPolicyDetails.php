@@ -31,6 +31,7 @@ try {
             PUBLISH
         FROM EPT_HR_POLICY
         WHERE POLI_ID = :policy_id
+          AND STATUS = 'A'
     ";
 
     $stmt = oci_parse($con, $sql);
