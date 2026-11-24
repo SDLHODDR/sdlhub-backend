@@ -31,7 +31,7 @@ if (empty($data)) {
     $data = $_POST;
 }
 
-function createTaskChecks(array $dataP, string &$failureMessage = '', $empCode): bool
+function createTaskChecks(array $dataP, string &$failureMessage = '', $empCode = ''): bool
 {
     $orgId = trim((string)($dataP['ID'] ?? ''));
     $positionOccupied = (int)($dataP['POSITION_OCCUPIED'] ?? 0);
@@ -110,7 +110,7 @@ function createTaskChecks(array $dataP, string &$failureMessage = '', $empCode):
     return true;
 }
 
-function generateTaskOrg($dataP = "", $orgId = 0, $empCode) {
+function generateTaskOrg($dataP = "", $orgId = 0, $empCode = '') {
     /* ==========================================================
        GET TASK MASTER
 
@@ -322,6 +322,37 @@ function generateTaskOrg($dataP = "", $orgId = 0, $empCode) {
     return $resProc;
 }
 
+/**
+ * Commits a saved organogram and, when its checks passed, its Authorise Organogram task, in one
+ * transaction (nothing is kept when the task cannot be created). Always ends the request.
+ */
+function finishOrganogramSave(array $dataP, string $orgId, bool $wantsAuth, bool $canSendForAuth, string $checkMessage, string $empCode, string $verb)
+{
+    $taskId = null;
+    if ($canSendForAuth) {
+        $openTask = singRec("SELECT ID FROM HR_USER_TASKS WHERE TASK_ID = 56 AND TRAN_CODE = '" . $orgId . "' AND STATUS = 'O'");
+        $taskId = !empty($openTask['ID']) ? $openTask['ID'] : generateTaskOrg($dataP, $orgId, $empCode);
+        if (empty($taskId)) {
+            forceRollback();
+            endQry();
+            apiResponse(false, "Unable to create the authorization task. The organogram was not saved.", null, 200);
+        }
+    }
+    endQry();
+
+    $result = [
+        "OrgId" => $orgId,
+        "ID" => $orgId,
+        "canSendForAuth" => $canSendForAuth,
+        "status" => $canSendForAuth ? "T" : "N",
+        "task_id" => $taskId
+    ];
+    if ($wantsAuth && !$canSendForAuth) {
+        apiResponse(false, "Organogram {$verb}, but it was not sent for authorization. " . $checkMessage, $result, 200);
+    }
+    apiResponse(true, $canSendForAuth ? "Organogram {$verb} and sent for authorization." : "Organogram {$verb} successfully.", $result);
+}
+
 try {
     startQry();
     if(!empty($data)) {
@@ -364,128 +395,92 @@ try {
             }
         }
 
-        if(isset($data['mode']) || !empty($data['mode'])) {
-            if($data['mode'] == "edit") {
-                if(!empty($data["sendForAuth"])) {
-                    $canSendForAuth = createTaskChecks($data, $taskCheckMessage, $empCode);
-                    ($canSendForAuth) ? $hrOrgStatus = "T" : $hrOrgStatus = "N";
-                }
+        $mode = (string)($data['mode'] ?? '');
+        $wantsAuth = !empty($data['sendForAuth']);
 
-                // echo " canSendForAuth check : " . $canSendForAuth;
-                // echo "<br/> hrOrgStatus : " . $hrOrgStatus;
-                // exit;
-                // if($canSendForAuth){
-                    
-                // }
-                 
-                $OrgId = executeQry("UPDATE HR_ORGANOGRAM SET 
-                    FINENT= '" . trim($data['FIN_ENTITY_ID']) . "',
-                    COMPANY= '" . trim($data['COMPANY_ID']) . "',
-                    DEPT_ID= '" . trim($data['DEPARTMENT_ID']) . "',
-                    DESI_ID= '" . trim($data['DESIGNATION_ID']) . "',
-                    DIVSN_ID= '" . trim($data['DIVISION_ID']) . "',
-                    OLVL_ID= '" . trim($data['ORG_LEVEL_ID']) . "',
-                    POSI_COUNT= '" . trim($data['POSITION_COUNT']) . "',
-                    FILL_COUNT= '" . trim($data['POSITION_OCCUPIED']) . "',
-                    EMP_LEVEL = '" . trim($data['EMP_LEVEL_ID']) . "',
-                    CHG_BY= '" . $empCode . "',
-                    STATUS= '" . $hrOrgStatus . "',
-                    CHG_ON= sysdate,
-                    JD_ID=  '" . trim($data['JD_LABEL_ID']) . "'                  
-                    WHERE ID='" . $data['ID'] . "'");
+        if ($mode === 'edit') {
+            $orgId = trim((string)($data['ID'] ?? ''));
+            if ($orgId === '' || !ctype_digit($orgId)) {
+                apiResponse(false, "Invalid organogram.", null, 422);
+            }
 
-                endQry('Updated Successfully!');
+            if ($wantsAuth) {
+                $canSendForAuth = createTaskChecks($data, $taskCheckMessage, $empCode);
+                $hrOrgStatus = $canSendForAuth ? "T" : "N";
+            }
 
-                if($OrgId){
-                    if($canSendForAuth){
-                        //Function to generate Task
-                        $taskRes = generateTaskOrg($data, $OrgId, $empCode);
-                        // echo '<pre/>';
-                        // print_r($taskRes);
-                        // exit;
-                        if(isset($taskRes) || !empty($taskRes)) {
-                            /* ==========================================================
-                                COMMIT
+            $saved = executeQry("UPDATE HR_ORGANOGRAM SET 
+                FINENT= '" . trim($data['FIN_ENTITY_ID']) . "',
+                COMPANY= '" . trim($data['COMPANY_ID']) . "',
+                DEPT_ID= '" . trim($data['DEPARTMENT_ID']) . "',
+                DESI_ID= '" . trim($data['DESIGNATION_ID']) . "',
+                DIVSN_ID= '" . trim($data['DIVISION_ID']) . "',
+                OLVL_ID= '" . trim($data['ORG_LEVEL_ID']) . "',
+                POSI_COUNT= '" . trim($data['POSITION_COUNT']) . "',
+                FILL_COUNT= '" . trim($data['POSITION_OCCUPIED']) . "',
+                EMP_LEVEL = '" . trim($data['EMP_LEVEL_ID']) . "',
+                CHG_BY= '" . $empCode . "',
+                STATUS= '" . $hrOrgStatus . "',
+                CHG_ON= sysdate,
+                JD_ID=  '" . trim($data['JD_LABEL_ID']) . "'                  
+                WHERE ID='" . $orgId . "'");
 
-                                COMMIT ONLY AFTER:
-                                1. Organogram inserted/updated successfully
-                                2. Task master found successfully
-                                3. User task inserted successfully
-                                ========================================================== */
+            if (!$saved) {
+                forceRollback();
+                endQry();
+                apiResponse(false, "Unable to update the organogram.", null, 200);
+            }
 
-                            endQry();
-                            //apiResponse(true, $canSendForAuth ? "Organogram updated successfully and is ready for task generation." : "Organogram updated successfully. " . ($taskCheckMessage ?: "Task generation was not requested."), [
-                            apiResponse(true, "Organogram updated successfully. ", [
-                                "OrgId" => $data['ID'],
-                                "canSendForAuth" => $canSendForAuth,
-                                "status" => $hrOrgStatus,
-                                "task_id" => $taskRes
-                            ]);
-                        } else {
-                            $OrgId = executeQry("UPDATE HR_ORGANOGRAM SET 
-                                STATUS= 'N',
-                                CHG_BY= '" . $empCode . "',
-                                CHG_ON= sysdate,
-                                WHERE ID='" . $data['ID'] . "'");
-                                
-                            endQry();
-                            apiResponse(false, "Organogram Upated but Error occured while generating Task", null, 200);
-                        }
-                    }    
+            finishOrganogramSave($data, $orgId, $wantsAuth, $canSendForAuth, $taskCheckMessage, $empCode, 'updated');
+        } elseif ($mode === 'add') {
+            $chk = singRec("SELECT
+            ID FROM HR_ORGANOGRAM 
+            WHERE 
+                COMPANY = '" . trim($data['COMPANY_ID']) . "'  
+                AND DEPT_ID= '" . trim($data['DEPARTMENT_ID']) . "'
+                AND DESI_ID = '" . trim($data['DESIGNATION_ID']) . "'
+                AND DIVSN_ID= '" . trim($data['DIVISION_ID']) . "' 
+                AND JD_ID=	'" . trim($data['JD_LABEL_ID']) . "' ");
 
-                    
-                } else {
-                    apiResponse(false, "Error occured", null, 200);
-                }
-            } else {
-                $chk = singRec("SELECT
-                ID FROM HR_ORGANOGRAM 
-                WHERE 
-                    COMPANY = '" . trim($data['COMPANY_ID']) . "'  
-                    AND DEPT_ID= '" . trim($data['DEPARTMENT_ID']) . "'
-                    AND DESI_ID = '" . trim($data['DESIGNATION_ID']) . "'
-                    AND DIVSN_ID= '" . trim($data['DIVISION_ID']) . "' 
-                    AND JD_ID=	'" . trim($data['JD_LABEL_ID']) . "' ");
-                
-                if($chk['ID'] == ""){
-                    if(!empty($data["sendForAuth"])) {
-                        $canSendForAuth = createTaskChecks($data, $taskCheckMessage);
-                        ($canSendForAuth) ? $hrOrgStatus = "T" : $hrOrgStatus = "N";
-                    }
+            if (!empty($chk['ID'])) {
+                apiResponse(false, "Organogram already exists.", null, 200);
+            }
 
-                    $OrgId = executeQry("INSERT INTO HR_ORGANOGRAM (FINENT,COMPANY,DEPT_ID,DESI_ID,DIVSN_ID,OLVL_ID,POSI_COUNT,FILL_COUNT,EMP_LEVEL,CHG_BY,STATUS,CHG_ON, JD_ID)
-                        VALUES ('" . trim($data['FIN_ENTITY_ID']) . "',
-                            '" . trim($data['COMPANY_ID']) . "',
-                            '" . trim($data['DEPARTMENT_ID']) . "',
-                            '" . trim($data['DESIGNATION_ID']) . "',
-                            '" . trim($data['DIVISION_ID']) . "',
-                            '" . trim($data['ORG_LEVEL_ID']) . "',
-                            '" . trim($data['POSITION_COUNT']) . "',
-                            '" . trim($data['POSITION_OCCUPIED']) . "',
-                            '" . trim($data['EMP_LEVEL_ID']) . "',
-                            '" . $empCode . "',
-                            '" . $hrOrgStatus . "',
-                            sysdate,
-                            '" . trim($data['JD_LABEL_ID']) . "'
-                        ) returning  ID into :orgId ", 'OrgId');
+            $orgId = executeQry("INSERT INTO HR_ORGANOGRAM (FINENT,COMPANY,DEPT_ID,DESI_ID,DIVSN_ID,OLVL_ID,POSI_COUNT,FILL_COUNT,EMP_LEVEL,CHG_BY,STATUS,CHG_ON, JD_ID)
+                VALUES ('" . trim($data['FIN_ENTITY_ID']) . "',
+                    '" . trim($data['COMPANY_ID']) . "',
+                    '" . trim($data['DEPARTMENT_ID']) . "',
+                    '" . trim($data['DESIGNATION_ID']) . "',
+                    '" . trim($data['DIVISION_ID']) . "',
+                    '" . trim($data['ORG_LEVEL_ID']) . "',
+                    '" . trim($data['POSITION_COUNT']) . "',
+                    '" . trim($data['POSITION_OCCUPIED']) . "',
+                    '" . trim($data['EMP_LEVEL_ID']) . "',
+                    '" . $empCode . "',
+                    'N',
+                    sysdate,
+                    '" . trim($data['JD_LABEL_ID']) . "'
+                ) returning  ID into :orgId ", 'orgId');
 
-                    endQry('Saved Successfully!');
-                    if($OrgId){
-                        apiResponse(true, $canSendForAuth ? "Organogram added successfully and is ready for task generation." : "Organogram added successfully. " . ($taskCheckMessage ?: "Task generation was not requested."),
-                                [
-                                    "OrgId" => $OrgId,
-                                    "canSendForAuth" => $canSendForAuth,
-                                    "status" => $hrOrgStatus,
-                                    ]
-                        );
-                    } else {
-                        apiResponse(false, "Error occured", null, 200);
-                    }
-                } else {
-                    apiResponse(false, "Organogram already exists.", null, 200);
-                    endQry('Organogram already Exists');
+            if (!$orgId) {
+                forceRollback();
+                endQry();
+                apiResponse(false, "Unable to add the organogram.", null, 200);
+            }
+            $orgId = (string)$orgId;
+            $data['ID'] = $orgId;
+
+            // The checks read the organogram's locations and appraisal levels, so they run once it exists.
+            if ($wantsAuth) {
+                $canSendForAuth = createTaskChecks($data, $taskCheckMessage, $empCode);
+                if ($canSendForAuth && !executeQry("UPDATE HR_ORGANOGRAM SET STATUS='T' WHERE ID='" . $orgId . "'")) {
+                    forceRollback();
+                    endQry();
+                    apiResponse(false, "Unable to add the organogram.", null, 200);
                 }
             }
+
+            finishOrganogramSave($data, $orgId, $wantsAuth, $canSendForAuth, $taskCheckMessage, $empCode, 'added');
         } else {
             apiResponse(false, "Mode is empty. Cannot add/update data", null, 200);
         }
@@ -502,7 +497,7 @@ try {
         "saveOrganogramData.php"
     );
 
-    apiResponse(false, "Unable to load organogram.", null, 500);
+    apiResponse(false, "Unable to save organogram.", null, 500);
 } finally {
     if (!empty($sql___func___con)) {
         oci_close($sql___func___con);

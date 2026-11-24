@@ -33,7 +33,9 @@ if (empty($data)) {
 
 try {
     startQry();
-     foreach($data['ALLOW_ID'] as $al){ 
+    // Each allowance once, even if the request repeats an id.
+    $allowIds = array_values(array_unique(array_map(fn($id) => trim((string)$id), (array)($data['ALLOW_ID'] ?? []))));
+     foreach($allowIds as $al){ 
         executeQry("INSERT INTO HR_ORG_LOC_ALLOWANCES(ID, ORG_ID, ORG_LOC_ID, ALLOW_ID, EFFEC_FROM, STATUS)
         values(
             NULL,

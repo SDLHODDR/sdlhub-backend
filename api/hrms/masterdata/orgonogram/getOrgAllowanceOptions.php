@@ -32,10 +32,10 @@ if (empty($data)) {
 }
 
 try {
-    $locId = $data['LOC_ID'] ?? null;
-    $locId = 853;
+    // The id goes into the query, so only a numeric location id is accepted.
+    $locId = trim((string)($data['LOC_ID'] ?? ''));
 
-    if (!$locId ) {
+    if ($locId === '' || !ctype_digit($locId)) {
         apiResponse(false, "Locaiton Id is required", null, 500);
         exit;
     }
@@ -51,7 +51,10 @@ try {
                 SELECT org_id FROM hr_organogram_loc WHERE id='" . $locId . "')
                 AND ha.allow_id  NOT IN (
                     SELECT allow_id FROM hr_org_loc_allowances WHERE
-                    org_loc_id='".$locId."' AND sysdate BETWEEN effec_from AND NVL(effec_to ,'01-Mar-3000')))");
+                    org_loc_id='".$locId."' AND sysdate BETWEEN effec_from AND NVL(effec_to ,'01-Mar-3000')))
+        -- A JD keeps its expired rates too; offer only the one in effect today.
+        AND TRUNC(SYSDATE) BETWEEN NVL(hjd.fromdt, DATE '1900-01-01') AND NVL(hjd.todt, DATE '3000-03-01')
+    ORDER BY ha.allow_desc, hjd.fromdt DESC NULLS LAST");
 
     
     
@@ -62,12 +65,16 @@ try {
     
     $results = [];
     foreach ($getAWLOptData as $awlDt) {
-        $results[] = [
+        // One option per allowance (the latest rate) even if two rates overlap.
+        if (isset($results[(int)$awlDt['ALLOW_ID']])) {
+            continue;
+        }
+        $results[(int)$awlDt['ALLOW_ID']] = [
             "ALLOW_ID" => (int)$awlDt['ALLOW_ID'],
             "ALLOW_DESC" => $awlDt['DESCR']
         ];
     }
-    apiResponse(true, "Organogram Appraisal data fetched successfully.", $results);
+    apiResponse(true, "Organogram Appraisal data fetched successfully.", array_values($results));
 } catch (Throwable $e) {
     logOracleError(
         [
