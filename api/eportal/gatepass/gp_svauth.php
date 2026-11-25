@@ -30,7 +30,7 @@ if($data['authForm']==true)
         
         executeQry("update ept_employee_gpass set STATUS='R', auth_by='".$empCode."', auth_on=sysdate where ID='".$data['ID']."' ");	
 
-        if($empmail['EMAIL_ID_OFF']!='rap@sdlindia.com')
+        if(!isMailSkipped($empmail['EMAIL_ID_OFF']))
         {
             $mailBody='Hi
 						<br><br> The Following Outdoor Duty Request has been REJECTED

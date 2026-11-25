@@ -176,7 +176,7 @@ if($isSave)
                     <b>  Status :</b> <b>Pending Approval</b> <br><br>
                     <br><br> Regards<br> Admin';
 
-                    if($manageremail['COM_EMAIL']!='rap@sdlindia.com') {
+                    if(!isMailSkipped($manageremail['COM_EMAIL'])) {
                         $maild = executeQry("INSERT INTO EPT_BCS_MAILBOX_EPP(ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS, CHG_ON,CHG_BY,MAIL_DESCR) values(null,'  Outdoor Duty Request Of ".getEmpInfoByCode($gpass['EMP_CODE'])." dated ".$gpass['GPASS_DATE']."', '".trim($mailBody)."',null,'N',SYSDATE,
                         '".$empCode."','Outdoor Duty')  returning ID into :mid",'mid');
 
@@ -313,9 +313,9 @@ else if($isEdit)
                     <b>  Out Type :</b> '.$decodeOT[$gpass['OUT_TYPE']].' <br><br>
                     <b>  Remarks :</b> '.$gpass['REMARKS'].' <br><br>
                     <b>  Post OD Remarks :</b> '.$data['POST_REMARKS'].' <br>
-                    <b>  Post OD Document :</b> <a href="https://eportal.sdlindia.com/'.$uploadedFile.'">Click Here</a> <br>
+                    <b>  Post OD Document :</b> <a href="'.EPORTAL_LEGACY_URL.$uploadedFile.'">Click Here</a> <br>
                     <br><br> Regards<br> Admin';
-                  if($manageremail['COM_EMAIL']!='rap@sdlindia.com') {
+                  if(!isMailSkipped($manageremail['COM_EMAIL'])) {
                     $maild = executeQry("INSERT INTO EPT_BCS_MAILBOX_EPP(ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS, CHG_ON,CHG_BY,MAIL_DESCR) values(null,'  Outdoor Duty Request Of ".getEmpInfoByCode($gpass['EMP_CODE'])." dated ".$gpass['GPASS_DATE']."', '".trim($mailBody)."',null,'N',SYSDATE,
                         '".$empCode."','Outdoor Duty')  returning ID into :mid",'mid');
 

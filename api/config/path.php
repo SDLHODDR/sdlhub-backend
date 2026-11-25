@@ -64,6 +64,8 @@ define("HRMS_DOC_ROOT", rtrim($_ENV["HRMS_DOC_ROOT"], "/"));
 
 define("HRMS_LEGACY_DOC_URL", rtrim($_ENV["HRMS_LEGACY_DOC_URL"], "/") . "/");
 
+define("EPORTAL_LEGACY_URL", rtrim($_ENV["EPORTAL_LEGACY_URL"], "/") . "/");
+
 define("EMP_DOCS_DIR", "input/emp_docs");
 
 define("JD_DOCS_DIR", "input/jd_docs");

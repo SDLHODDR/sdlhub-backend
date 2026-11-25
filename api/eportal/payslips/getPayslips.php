@@ -96,7 +96,7 @@ try {
         =============================================== */
 
         $remoteUrl =
-            "https://epp.sdlindia.com/reports/pdfReport/payslip.php?"
+            rtrim($_ENV["EPP_PAYSLIP_URL"], "?") . "?"
             . "SITE_CODE=" . urlencode($employee["PAY_SITE"])
             . "&PRD_CODE=" . urlencode($prdCode)
             . "&PROC_GRP_FROM=" . urlencode($employee["PROC_GROUP"])

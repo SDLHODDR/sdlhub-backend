@@ -11,7 +11,6 @@ if($data['getLrdata']==true)
         {
         $data['start_date'] = date('Y-m-01');
         }
-        $data['start_date'] = '2025-05-01'; 
 
         $pl_count = singRec("select EPT_get_leave_apply_cnt('".$empCode."', 'PL') CNT from dual");
         //printDetails($pl_count);

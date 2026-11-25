@@ -1,5 +1,18 @@
 <?php
 
+require_once __DIR__ . "/env.php";
+
+/* True when mails must not be queued for this address (see MAIL_SKIP_EMAILS in env.php). */
+function isMailSkipped($email)
+{
+	$skip = array_filter(array_map(
+		fn($e) => strtolower(trim($e)),
+		explode(",", $_ENV["MAIL_SKIP_EMAILS"] ?? "")
+	));
+
+	return in_array(strtolower(trim((string)$email)), $skip, true);
+}
+
 function getEmpInfoByCode($id)
 {
 	$EmpName = singRec("SELECT EMP_FNAME, EMP_LNAME 

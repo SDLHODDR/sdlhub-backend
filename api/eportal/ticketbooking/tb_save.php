@@ -233,7 +233,7 @@ if($data['saveTbrData']==true)
         $empemail = singRec("select EMAIL_ID_OFF as empemail from EPT_bcs_employee WHERE emp_code = '".$tickdets['EMP_CODE']."'");
         $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from EPT_bcs_employee WHERE emp_code = '".$Manager."'");
 
-        if($manageremail['COM_EMAIL'] != 'rap@sdlindia.com'){
+        if(!isMailSkipped($manageremail['COM_EMAIL'])){
             $mailBody='Hi
             <br><br> The Following Ticket has been <b style="color:red">CANCELLED</b>.
             <br>

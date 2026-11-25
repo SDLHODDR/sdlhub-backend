@@ -38,7 +38,7 @@ if($data['sendAuth']==true)
                         <b>  Status :</b> <b>Pending Approval</b> <br><br>
                         <br><br> Regards<br> Admin';
 
-            if($manageremail['COM_EMAIL']!='rap@sdlindia.com') {
+            if(!isMailSkipped($manageremail['COM_EMAIL'])) {
                 $maild = executeQry("INSERT INTO EPT_BCS_MAILBOX_EPP(ID,SUBJECT,MAIL_BODY,ATTACHMENT,STATUS, CHG_ON,CHG_BY,MAIL_DESCR) values(null,'  Outdoor Duty Request Of ".getEmpInfoByCode($gpass['EMP_CODE'])." dated ".$gpass['GPASS_DATE']."', '".trim($mailBody)."',null,'N',SYSDATE,
                 '".$empCode."','Outdoor Duty')  returning ID into :mid",'mid');
 

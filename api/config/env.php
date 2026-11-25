@@ -44,6 +44,26 @@ $_ENV["HRMS_LEGACY_DOC_URL"] = "https://hrms.sdlindia.com/hradmin/";
 
 /*
 |--------------------------------------------------------------------------
+| ePortal / EPP links (used in mails and payslip downloads)
+|--------------------------------------------------------------------------
+*/
+
+$_ENV["EPORTAL_LEGACY_URL"] = "https://eportal.sdlindia.com/";
+
+$_ENV["EPP_PAYSLIP_URL"] = "https://epp.sdlindia.com/reports/pdfReport/payslip.php";
+
+/*
+|--------------------------------------------------------------------------
+| Mail skip list
+|--------------------------------------------------------------------------
+| Outdoor duty / ticket booking mails are not queued for these addresses.
+| Comma separated; matched case-insensitively.
+*/
+
+$_ENV["MAIL_SKIP_EMAILS"] = "rap@sdlindia.com";
+
+/*
+|--------------------------------------------------------------------------
 | Careers (candidate portal)
 |--------------------------------------------------------------------------
 | SMS gateway used for candidate OTPs (cell24x7, DLT templates). Messages

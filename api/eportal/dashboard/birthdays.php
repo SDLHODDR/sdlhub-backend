@@ -80,7 +80,7 @@ try {
     */
 
     $today = date("md");
-    $next7 = date("md", strtotime("+7 days"));
+    $next7 = date("md", strtotime("+" . WISH_ADVANCE_DAYS . " days"));
 
     if ($today <= $next7) {
 
@@ -114,7 +114,7 @@ try {
 
         LEFT JOIN ept_user_messages eum
             ON be.emp_code = eum.created_for
-            AND eum.created_by = '$empCode'
+            AND eum.created_by = :emp_code
             -- the wish sent for this birthday (advance wishes included)
             AND eum.created_on >= " . wishWindowStartSql("be.birth_date") . "
 
@@ -136,7 +136,7 @@ try {
     |--------------------------------------------------------------------------
     */
 
-    $rows = multiRec($sql);
+    $rows = multiRec($sql, [":emp_code" => $empCode]);
 
     /*
     |--------------------------------------------------------------------------

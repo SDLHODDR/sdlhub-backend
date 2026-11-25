@@ -49,8 +49,12 @@ try {
     |--------------------------------------------------------------------------
     */
 
-    $date = '02-APR-2025'; //trim($_GET["date"] ?? date("d-M-Y"));
-    $date = strtoupper($date);
+    $date = trim($_GET["date"] ?? "");
+    if ($date === "") {
+        $date = date("d-M-Y"); // today when no date is sent (dashboard first load)
+    }
+    // en-GB short months give "Sept"; PHP's d-M-Y expects "Sep"
+    $date = strtoupper(str_ireplace("-Sept-", "-Sep-", $date));
 
     $dateObj = DateTime::createFromFormat("d-M-Y", $date);
 

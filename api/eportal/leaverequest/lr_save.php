@@ -487,7 +487,7 @@ try {
 
        Email should NOT decide whether the leave was saved.
 
-       Even if manager email is rap@sdlindia.com,
+       Even if the manager email is in MAIL_SKIP_EMAILS (env.php),
        leave must remain successfully saved.
     */
 
