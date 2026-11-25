@@ -862,49 +862,6 @@ function getOptionsCustom($sqlVal = "", $val = "") {
 	return $returnArr;
 }
 
-function get_number_to_text($amount)
-{
-	$output_string = '';
-	$tokens = explode('.', $amount);
-	$current_amount = $tokens[0];
-	$fraction = '';
-	if(count($tokens) > 1)
-	{
-		$fraction = (double)('0.' . $tokens[1]);
-		$fraction = $fraction * 100;
-		$fraction = round($fraction, 0);
-		$fraction = (int)$fraction;
-		if ($fraction > 0)
-		{
-			$fraction = $this->translate_to_words($fraction) . ' paisa';
-			$fraction = ' and ' . $fraction;
-		}
-		else
-		{
-			$fraction = '';
-		}
-	}
-	$crore = 0;
-	if($current_amount >= pow(10,7))
-	{
-		$crore = (int)floor($current_amount / pow(10,7));
-		$output_string .= $this->translate_to_words($crore) . ' crore ';
-		$current_amount = $current_amount - $crore * pow(10,7);
-	}
-	$lakh = 0;
-	if($current_amount >= pow(10,5))
-	{
-		$lakh = (int)floor($current_amount / pow(10,5));
-		$output_string .= $this->translate_to_words($lakh) . ' lakh ';
-		$current_amount = $current_amount - $lakh * pow(10,5);
-	}
-	$current_amount = (int)$current_amount;
-	$output_string .= $this->translate_to_words($current_amount);
-	$output_string = $output_string;
-	$output_string = ucwords($output_string);
-	return $output_string;
-}
-
 function taskUpdate($status, $remark, $task_id, $taskGrp = null, $notChek = 0)
 {
 	$task = singRec("select ID from EPT_TASK_MASTER where TASK_GRP='" . $taskGrp . "' ");

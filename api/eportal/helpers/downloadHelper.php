@@ -360,7 +360,6 @@ function logDownload(
 	$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 
 	$browserName = getBrowserName($userAgent);
-	//$fileSizeMb = round(filesize($publicZipPath) / 1024 / 1024, 2);
 	
 	$fileSizeMb = file_exists($publicZipPath)
     ? round(filesize($publicZipPath) / 1024 / 1024, 2)

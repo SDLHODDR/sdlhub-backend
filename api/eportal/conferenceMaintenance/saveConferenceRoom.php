@@ -357,17 +357,6 @@ try {
        LOG SUCCESS
     ============================================================ */
 
-   /* logOracleError(
-        [
-            "message" =>
-                "Conference room updated successfully. " .
-                "ID: {$id}, " .
-                "Room: {$roomLabel}, " .
-                "Employee: {$empCode}"
-        ],
-        "saveConferenceRoom.php"
-    );*/
-
     /* ============================================================
        RESPONSE
     ============================================================ */

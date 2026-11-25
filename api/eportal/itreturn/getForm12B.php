@@ -46,21 +46,20 @@ try {
        (Joined during current financial year)
     ===================================================== */
 
-    $currentYear = date("Y");
-    $financialYearStart = strtotime("01-04-" . $currentYear);
+    // The financial year starts on 1 April: from January to March that is
+    // 1 April of the previous calendar year.
+    $fyStartYear = (int)date("n") >= 4 ? (int)date("Y") : (int)date("Y") - 1;
+    $financialYearStart = strtotime($fyStartYear . "-04-01");
 
     $isEligible = false;
 
     if (!empty($dateJoin)) {
         $joiningDate = strtotime($dateJoin);
 
-        if ($joiningDate >= $financialYearStart) {
+        if ($joiningDate !== false && $joiningDate >= $financialYearStart) {
             $isEligible = true;
         }
     }
-
-    // Remove this after testing
-    // $isEligible = true;
 
     /* =====================================================
        FETCH FORM 12B DATA

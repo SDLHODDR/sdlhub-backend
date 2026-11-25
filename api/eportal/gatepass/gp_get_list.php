@@ -4,16 +4,10 @@ require_once "gp_head.php";
 
 try {
 
-    //$status = $data['status'] ?? '';
-
     // ============================
     // WHERE CLAUSE
     // ============================
     $where = "GP.CHG_BY = '".$empCode."'";
-
-    // if (!empty($status) && $status !== "ALL") {
-    //     $where .= " AND GP.STATUS = '".$status."'";
-    // }
 
     // ============================
     // MAIN QUERY (NO N+1)
@@ -55,7 +49,6 @@ try {
         WHERE $where
     )";
 
-
     $GpDetails = multiRec($query);
 
     // ============================
@@ -64,8 +57,6 @@ try {
     $result = [];
 
     $currentDate = date('d-M-y');
-
-    //print_r($GpDetails);
 
     foreach ($GpDetails as $gp) {
 

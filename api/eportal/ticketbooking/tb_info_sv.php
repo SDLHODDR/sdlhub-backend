@@ -92,7 +92,6 @@ try {
                 END,
                 emp_name
         ");
-        //print_r($fetOPtions);
         
         /* ---------------------------------
             COMMON CLASS DEFINITIONS
@@ -115,7 +114,6 @@ try {
         /* ---------------------------------
             FETCH CONSOLIDATED EMPLOYEES
         ----------------------------------*/
-        
 
         /* ---------------------------------
             FIELD DEFINITIONS - TEXT
@@ -414,7 +412,6 @@ try {
                 ["pass"   => $returnArr]
             );
         }
-       
 
     }
 } catch (Throwable $e) {

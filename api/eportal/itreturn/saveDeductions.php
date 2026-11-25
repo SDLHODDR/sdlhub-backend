@@ -96,14 +96,6 @@ $uploadDir = $publicPath .
     $empCode .
     "/";
 
-/*if (!$uploadDir) {
-    echo json_encode([
-        "status" => false,
-        "message" => "Public directory not found"
-    ]);
-    exit;
-}*/
-
 if (!is_dir($uploadDir)) {
     if (!mkdir($uploadDir, 0775, true)) {        
         apiResponse(false, "Failed to create upload directory.");

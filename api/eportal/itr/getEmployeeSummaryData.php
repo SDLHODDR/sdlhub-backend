@@ -679,9 +679,14 @@ function getEmployeeSummaryData(
 
     } catch (Exception $e) {
 
+        // Log the real error; users get a plain message, not the database text.
+        if (function_exists("logOracleError")) {
+            logOracleError($e);
+        }
+
         return [
             "success" => false,
-            "message" => $e->getMessage()
+            "message" => "Unable to prepare the employee summary."
         ];
     }
 }

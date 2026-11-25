@@ -1,50 +1,8 @@
 <?php
-	//error_reporting(E_ALL);
 	class Currency
 	{
 		function __construct()
 		{
-		}
-		function get_bd_money_format($amount)
-		{
-			$output_string = '';
-			$fraction = '';
-			$tokens = explode('.', $amount);
-			$number = $tokens[0];
-			if(count($tokens) > 1)
-			{
-				$fraction = (double)('0.' . $tokens[1]);
-				$fraction = $fraction * 100;
-				$fraction = round($fraction, 0);
-				$fraction = '.' . $fraction;
-			}
-			$number = $number . '';
-			$spl=str_split($number);
-			$lpcount=count($spl);
-			$rem=$lpcount-3;
-			if($lpcount%2==0)
-			{
-				for($i=0;$i<=$lpcount-1;$i++)
-				{
-					if($i%2!=0 && $i!=0 && $i!=$lpcount-1)
-					{
-						$output_string .= ",";
-					}
-					$output_string .= $spl[$i];
-				}
-			}
-			if($lpcount%2!=0)
-			{
-				for($i=0;$i<=$lpcount-1;$i++)
-				{
-					if($i%2==0 && $i!=0 && $i!=$lpcount-1)
-					{
-						$output_string .= ",";
-					}
-					$output_string .= $spl[$i];
-				}
-			}
-			return $output_string . $fraction;
 		}
 		function translate_to_words($number)
 		{
@@ -141,7 +99,6 @@
 					case $number < 100:
 						$prefix = $this->translate_to_words($number-$number%10);
 						$suffix = $this->translate_to_words($number%10);
-						//$string = $prefix . "-" . $suffix;
 						$string = $prefix . " " . $suffix;
 						break;
 					// handles all number 100 to 999
@@ -163,48 +120,6 @@
 				echo "ERROR with - $number<br/> Number must be an integer between -" . number_format($max_size, 0, ".", ",") . " and " . number_format($max_size, 0, ".", ",") . " exclussive.";
 			}
 			return $string;
-		}
-		function get_bd_amount_in_text($amount)
-		{
-			$output_string = '';
-			$tokens = explode('.', $amount);
-			$current_amount = $tokens[0];
-			$fraction = '';
-			if(count($tokens) > 1)
-			{
-				$fraction = (double)('0.' . $tokens[1]);
-				$fraction = $fraction * 100;
-				$fraction = round($fraction, 0);
-				$fraction = (int)$fraction;
-				if ($fraction > 0) 
-				{
-				   $fraction = $this->translate_to_words($fraction) . ' paisa';
-				   $fraction = ' and ' . $fraction;
-				}
-				else
-				{
-				   $fraction = '';
-				}
-			}
-			$crore = 0;
-			if($current_amount >= pow(10,7))
-			{
-				$crore = (int)floor($current_amount / pow(10,7));
-				$output_string .= $this->translate_to_words($crore) . ' crore ';
-				$current_amount = $current_amount - $crore * pow(10,7);
-			}
-			$lakh = 0;
-			if($current_amount >= pow(10,5))
-			{
-				$lakh = (int)floor($current_amount / pow(10,5));
-				$output_string .= $this->translate_to_words($lakh) . ' lakh ';
-				$current_amount = $current_amount - $lakh * pow(10,5);
-			}
-			$current_amount = (int)$current_amount;
-			$output_string .= $this->translate_to_words($current_amount);
-			$output_string = 'Rupees '. $output_string . $fraction . ' only';
-			$output_string = ucwords($output_string);
-			return $output_string;
 		}
 		function get_number_to_text($amount)
 		{

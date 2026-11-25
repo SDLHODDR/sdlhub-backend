@@ -17,16 +17,12 @@ $prdYear = singRecEPP("
 	where CODE='" . $data['PRD_CODE'] . "'
 ");
 
-//echo "<pre>"; print_r($data); print_r($prdYear); echo "</pre>"; exit;
-
 $yr = singRecEPP("
 	SELECT
 		to_char(TRUNC(to_date('" . $prdYear['FR_DATE'] . "') , 'YEAR'),'dd-Mon-yyyy') FR_DATE,
 		to_char(ADD_MONTHS(TRUNC(to_date('" . $prdYear['FR_DATE'] . "') ,'YEAR'),12)-1,'dd-Mon-yyyy') TO_DATE
 	FROM DUAL
 ");
-
-//echo "<pre>"; print_r($yr); echo "</pre>"; exit;
 
 $sql_emp = multiRecEPP("
 	select
@@ -47,8 +43,6 @@ $sql_emp = multiRecEPP("
 		and nvl('" . $data['EMP_TO'] . "',e.emp_code)
 	order by e.DEPT_CODE,e.emp_code
 ");
-
-//echo "<pre>"; print_r($sql_emp); echo "</pre>"; exit;
 
 foreach ($sql_emp as $emp)
 {

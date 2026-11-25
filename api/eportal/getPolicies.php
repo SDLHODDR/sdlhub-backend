@@ -27,7 +27,6 @@ try {
     }
 
     // For testing only
-    // $empCode = "00575";
 
     $empCodeEsc = str_replace("'", "''", $empCode);
 

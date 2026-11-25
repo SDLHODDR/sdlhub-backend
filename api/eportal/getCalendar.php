@@ -1,6 +1,4 @@
 <?php
-//  ini_set('display_errors', 1);
-//  error_reporting(E_ALL);
 
 require_once "gatepass/gp_head.php";
 
@@ -26,7 +24,6 @@ try {
             where emp_code='".$empCode."' )
             and HOL_DATE between to_date('01-Jan-".date('Y')."') and to_date('31-Dec-".date('Y')."') ");
 
-
     foreach($sqlHoliday as $res)
     {
         $calendarData[]=[
@@ -39,12 +36,7 @@ try {
         ];
     }
 
-    //print_records($calendarData);
     if($calendarData || !empty($calendarData)){
-        // echo json_encode([
-        //     "status" => true,
-        //     "menu"   => $calendarData
-        // ]);
         apiResponse(
             true,
             "Calendar data fetched successfully.",

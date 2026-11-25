@@ -2,12 +2,31 @@
 
 require_once "tb_head.php";
 
+/*
+ * Arrival date for a journey: an arrival time earlier than the departure
+ * time is an overnight journey, so the arrival is on the next day.
+ */
+function tbArrivalDate($travelDate, $departTime, $arriveTime)
+{
+    return ($arriveTime < $departTime)
+        ? date('d-M-Y', strtotime($travelDate . ' + 1 days'))
+        : $travelDate;
+}
+
+// Same departure and arrival time is never a valid journey
+if (($data['saveTbrData'] ?? false) || ($data['editTbrData'] ?? false)) {
+    if (!empty($data['TTNT_DEPR_TIME']) && $data['TTNT_DEPR_TIME'] === ($data['TTNT_ARVL_TIME'] ?? null)) {
+        apiResponse(false, "Arrival time cannot be the same as departure time.", null, 400);
+    }
+    // PERSON_NAME is VARCHAR2(100 BYTE)
+    if (($data['TRVL_EMP'] ?? '') === 'O' && strlen(trim($data['PERSON_NAME'] ?? '')) > 100) {
+        apiResponse(false, "Person Name must not exceed 100 characters.", null, 400);
+    }
+}
 
 if($data['saveTbrData']==true)
 {
     startQry();
-   
-    
 
     if($data['TRVL_EMP']=='E'){
         $pn = singRec("select EPT_GET_EMP_NAME('".$data['EMP_CODE']."')pn from dual");
@@ -16,20 +35,7 @@ if($data['saveTbrData']==true)
         $pn['PN'] = $data['PERSON_NAME'];
         $data['EMP_CODE'] = null;
     }
-    // if($data['TTNT_ARVL_TIME'] < $data['TTNT_DEPR_TIME']){
-    //     $arr_date= date('d-M-Y', strtotime($data['TRVL_DATE']. ' + 1 days'));
-    //     echo json_encode([
-    //         "status" => false,
-    //         "task_id" => null,
-    //         "status_code" => 200,
-    //         "data" => $arr_date,
-    //         "message" => "Arrival Date"
-    //     ]);
-    // }
-    // else {
-    //     $arr_date=$data['TRVL_DATE'];
-    // }    
-    $arr_date=$data['TRVL_DATE'];
+    $arr_date = tbArrivalDate($data['TRVL_DATE'], $data['TTNT_DEPR_TIME'], $data['TTNT_ARVL_TIME']);
 
     if($data['TRVL_EMP']=='E'){
         $checkTicket = singRec("select * from EPT_BCS_TRVLTKT_REQUEST where EMP_CODE='".$data['EMP_CODE']."' and TRVL_DATE = '". $data['TRVL_DATE'] ."' ");
@@ -106,11 +112,6 @@ if($data['saveTbrData']==true)
                
             }
             else{
-                //echo json_encode([
-                //     "status" => false,
-                //     "status_code" => 500,
-                //     "message" => "Some Error occured"
-                // ]);
                 apiResponse(false,"Some Error occured",null,500,$e->getMessage());
             }
         } else {
@@ -124,40 +125,21 @@ if($data['saveTbrData']==true)
         }
         
     } else {
-        // echo json_encode([
-        //     "status" => false,
-        //     "status_code" => 500,
-        //     "message" => "Some Error occured"
-        // ]);
         apiResponse(false,"Failed to update ticket booking",null,500,$e->getMessage());
     }
     endQry();
-    //}
 } else if($data['editTbrData']==true)
 {
     startQry();
     
     if($data['TRVL_EMP']=='E'){
-        //$pn = singRec("select EPT_get_emp_name('".$data['EMP_CODE']."') PN from dual");
         $pn = singRec("select EPT_GET_EMP_NAME('".$data['EMP_CODE']."') PN from dual");
     }
     else {
         $pn['PN'] = $data['PERSON_NAME'];
         $data['EMP_CODE'] = null;
     }
-    if($data['TTNT_ARVL_TIME'] < $data['TTNT_DEPR_TIME']){
-        $arr_date= date('d-M-Y', strtotime($data['TRVL_DATE']. ' + 1 days'));
-        // echo json_encode([
-        //     "status" => false,
-        //     "task_id" => null,
-        //     "status_code" => 200,
-        //     "data" => $arr_date,
-        //     "message" => "Arrival Date"
-        // ]);
-    }
-    else {
-        $arr_date=$data['TRVL_DATE'];
-    }
+    $arr_date = tbArrivalDate($data['TRVL_DATE'], $data['TTNT_DEPR_TIME'], $data['TTNT_ARVL_TIME']);
 
     $qry = "update ept_bcs_trvltkt_request
     set 													
@@ -178,8 +160,6 @@ if($data['saveTbrData']==true)
     STATUS='N'
     where ID='".$data['ID']."'";
 
-    //echo $qry;
-
     try {
         $ok = executeQry($qry);
         endQry(); 
@@ -188,22 +168,15 @@ if($data['saveTbrData']==true)
         }
     } catch(Exception $e){
         apiResponse(false,"Failed to update ticket booking",null,500,$e->getMessage());
-        
 
     }
     
-    //endQry();
 } else if($data['deleteTB']==true)
 {
     startQry();
     if($data["delteId"]) {
         executeQry("DELETE FROM EPT_bcs_trvltkt_request WHERE ID in (".$data['delteId'].")");
     }
-    // echo json_encode([
-    //     "status" => true,
-    //     "status_code" => 200,
-    //     "message" => "Ticket deleted successfully"
-    // ]);
     endQry();
     apiResponse(true,"Ticket deleted successfully");
     
@@ -251,19 +224,10 @@ if($data['saveTbrData']==true)
 
             executeQry("INSERT INTO EPT_BCS_MAILBOX_EPP_DETAILS(ID,MAIL_ID,EMAIL_TO,EMAIL_CC,EMAIL_BCC) values(null,'".$maild."', '".strtolower($empemail['EMPEMAIL'])." ','attendance@sdlindia.com,".$manageremail['COM_EMAIL']."',null)");
 
-            
         }
     }
-    // echo json_encode([
-    //     "status" => true,
-    //     "status_code" => 200,
-    //     "message" => "Ticket cancelled successfully"
-    // ]);
     endQry("Ticket has been cancelled!");
     apiResponse(true,"Ticket cancelled successfully");
-
-
-    
 
   }
 }

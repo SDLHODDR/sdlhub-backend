@@ -66,8 +66,6 @@ if(!$date || !$fromTime){
 $totalMinutes = ($hours * 60) + $minutes;
 
 /* ================= GET NEW ID ================= */
-//$idRow = singRec("SELECT ept_conf_room_tran_seq.NEXTVAL AS ID FROM dual");
-//$bookingId = $idRow['ID'];
 
 /* ================= DEFAULT STATUS ================= */
 $status = 'N';
@@ -84,44 +82,6 @@ if($action == "add_and_send"){
 }
 
 /* ================= INSERT ================= */
-// executeQry("
-// INSERT INTO ept_conf_room_tran
-// (
-//     id,
-//     ason_date,
-//     start_time,
-//     end_time,
-//     book_time,
-//     divsn_id,
-//     remarks,
-//     noof_attd,
-//     room_facl1,
-//     room_facl2,
-//     room_facl3,
-//     book_by_emp,
-//     status,
-//     chg_on,
-//     chg_by
-// )
-// VALUES
-// (
-//     '$bookingId',
-//     TO_DATE('$date','YYYY-MM-DD'),
-//     TO_DATE('$date $fromTime','YYYY-MM-DD HH24:MI'),
-//     TO_DATE('$date $fromTime','YYYY-MM-DD HH24:MI') + INTERVAL '$totalMinutes' MINUTE,
-//     '$totalMinutes',
-//     '$division',
-//     '$reason',
-//     '$attendees',
-//     '$room_facl1',
-//     '$room_facl2',
-//     '$room_facl3',
-//     '$book_by_emp',
-//     '$status',
-//     SYSDATE,
-//     '$empCode'
-// )
-// ");
 
 $bookingId = executeQry("insert into ept_conf_room_tran  
             (
@@ -244,7 +204,6 @@ $nextStatus = $workflow->nextStatus($action);
 if($action == "delete"){
 
 executeQry("update ept_conf_room_tran set status='D' where id='" . $bookingId . "' ");
-//executeQry("DELETE FROM ept_conf_room_tran WHERE id='".$bookingId."'");
 
 endQry();
 apiResponse(true,"Booking deleted successfully");

@@ -18,7 +18,7 @@ if (!isset($_SESSION['emp_code'])) {
 
 $conn = db_eportal();
 $empCode   = $_SESSION['emp_code'];
-$startDate = date('Y-m-d'); //'2025-01-01'; 
+$startDate = date('Y-m-d');
 
 /* ===========================
    APPROVED LEAVE BALANCES

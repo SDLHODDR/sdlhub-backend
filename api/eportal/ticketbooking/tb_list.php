@@ -47,11 +47,6 @@ $totalCountData = singRec("
 
 $totalCount = $totalCountData['CNT'] ?? 0;
 
-
-// $page  = $data['page'] ?? 1;
-// $limit = $data['limit'] ?? 10;
-//$offset = ($page - 1) * $limit;
-
 // ============================
 // PAGINATED QUERY
 // ============================
@@ -71,19 +66,6 @@ OFFSET $offset ROWS FETCH NEXT $limit ROWS ONLY
 ";
 
 $TbrDetails = multiRec($query);
-
-// $TbrDetails = multiRec("
-//   SELECT * FROM (
-//     SELECT a.*, ROWNUM rnum FROM (
-//       SELECT * 
-//       FROM EPT_BCS_TRVLTKT_REQUEST
-//       WHERE REQ_BY='". $empCode ."'
-//       ORDER BY TRVL_DATE DESC
-//     ) a
-//     WHERE ROWNUM <= ".($offset + $limit)."
-//   )
-//   WHERE rnum > ".$offset
-// );
 
 // ============================
 // FORMAT RESPONSE

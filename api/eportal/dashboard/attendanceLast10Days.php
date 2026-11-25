@@ -1,12 +1,6 @@
 <?php
 ob_start();
 
-/*
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-*/
-
 require_once __DIR__ . "/../../config/session.php";
 require_once __DIR__ . "/../../cors.php";
 require_once __DIR__ . "/../../config/db.php";
@@ -38,16 +32,6 @@ try {
     ====================================================*/
 
     $cacheFile = sys_get_temp_dir() . "/att10_" . $empCode . ".json";
-
-    /*
-    if (
-        file_exists($cacheFile) &&
-        (time() - filemtime($cacheFile)) < 120
-    ) {
-        echo file_get_contents($cacheFile);
-        exit;
-    }
-    */
 
     /*====================================================
       BUILD LAST 10 DAYS

@@ -1,6 +1,4 @@
 <?php
-// ini_set('display_errors', 1);
-// error_reporting(E_ALL);
 
 require_once "gp_head.php";
 
@@ -11,7 +9,6 @@ try {
         $idd = $data['id'] ?? "";
         $res = singRec("SELECT * FROM EPT_EMPLOYEE_GPASS WHERE ID='".$idd."'");
         $empCodeFromRow = $res['EMP_CODE'] ?? $empCode ?? null;
-        //printDetails($res);
         $returnArr = [];
 
         $returnArr["hidden"] = [
@@ -31,8 +28,7 @@ try {
                 "value" => $empCodeFromRow
             ]    
         ];
-        
-        
+
         $returnArr["form_data"] = [
             [
                 "name" => "GPASS_DATE",
@@ -85,11 +81,6 @@ try {
         }
     } else if($data['getGpAttddata']==true)
     {
-        // $punchLogTbl = singRec("SELECT to_date (ATTD_DATE,'dd-mm-yyyy') AT_DATE,
-        // to_char (IN_TIME, 'HH24:MI:SS') IN_TIM,
-        // to_char (OUT_TIME, 'HH24:MI:SS') OUT_TIM,WORK_HOUR,OT_HOUR 
-        // FROM EPT_BCS_ATTD_REG
-        // WHERE emp_code='" . $data['emp_code'] . "' AND attd_date = '" . $data['gpass_date'] . "' ");
         
         $punchLogTbl = singRec("SELECT to_date (ATTD_DATE,'dd-mm-yyyy') AT_DATE,
         to_char (IN_TIME, 'HH24:MI:SS') IN_TIM,
@@ -111,16 +102,7 @@ try {
                 $returnArr['valRt'] = $punchLogTbl['OUT_TIM'];
             } else if($data['out_type']=='OI')
             {
-                // $offDesk=singRec("select 
-                // to_char(to_date(EPT_GET_OFFDESK_TIME('".$data['emp_code']."',
-                // to_date('".$data['gpass_date']."')) - GET_OFFDESKTERRACE_TIME@EPPLIVE_LINK('".$data['emp_code']."',
-                // to_date('".$data['gpass_date']."')), 'sssss') ,'hh24:mi') tm from dual ");
 
-                // $terrace=singRec("select 
-                // to_char(to_date(EPT_GET_TERRACE_TIME('".$data['emp_code']."',
-                // to_date('".$data['gpass_date']."')) + GET_OFFDESKTERRACE_TIME@EPPLIVE_LINK('".$data['emp_code']."',
-                // to_date('".$data['gpass_date']."')), 'sssss') ,'hh24:mi') tm from dual ");
-                
                 $offDesk = singRec("
                     SELECT to_char(to_date(sum(time_diff_sec),'sssss'),'hh24:mi') tm 
                     FROM EPT_bcs_attd_daily 
@@ -155,7 +137,6 @@ try {
     }
     exit;
 } catch (Throwable $e) {
-    //logOracleError($e);
     apiResponse(false, "Unable to fetch outdoorduty form data.", null, 500);
 } finally {
     if ($sql___func___con) {

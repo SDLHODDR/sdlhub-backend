@@ -1,17 +1,6 @@
 <?php
 
-// ini_set('display_errors', 1);
-// error_reporting(E_ALL);
-
 require_once "tb_head.php";
-// $decodeOT = [
-//     'OD' => 'Out For Full Day' ,
-//     'OI' => 'In/Out Same Day', 
-//     'FO' => 'First Half Out',
-//     'SO' => 'Second Half Out',
-//     'FW' => 'Field Work',
-// 	'TO' => 'Tour'
-// ];
 if($data['authForm']==true)
 {
     startQry();
@@ -22,24 +11,16 @@ if($data['authForm']==true)
     
     if($data['flag']=='R')
 	{
-        //$userTask = singRec("select * from ept_user_tasks where task_id='346' and id = " . $data["TID"] . "");
         $userTask = singRec("select * from ept_user_tasks where task_id='346' and id = " . $data["TASK_ID"] . "");
         
         taskUpdate('C', $data["AUTH_REMARKS"], $userTask['ID']); 
 
         executeQry("update EPT_bcs_trvltkt_request set STATUS='R' , auth_by='".$empCode."', auth_on=sysdate where ID = " . $userTask["TRAN_CODE"] . " ");
 
-        // echo json_encode([
-        //     "status" => true,
-        //     "status_code" => 200,
-        //     "message" => "Record Rejected successfully"
-        // ]);
         endQry('Task Rejected');
         apiResponse(true,"Record Rejected successfully");
 
-		
     } else if($data['flag']=='A') {
-        //$userTask = singRec("select * from ept_user_tasks where task_id='346' and id = " . $data["TID"] . "");
         $userTask = singRec("select * from ept_user_tasks where task_id='346' and id = " . $data["TASK_ID"] . "");
         
         taskUpdate('C', $data["AUTH_REMARKS"], $userTask['ID']); 
@@ -55,11 +36,6 @@ if($data['authForm']==true)
           executeQry("update EPT_bcs_trvltkt_request set STATUS='A' , auth_by='".$empCode."', auth_on=sysdate where id= '".$userTask['TRAN_CODE']."' ");
 
         endQry('Task Approved');
-        // echo json_encode([
-        //     "status" => true,
-        //     "status_code" => 200,
-        //     "message" => "Record Authroized successfully"
-        // ]);
         apiResponse(true,"Record Authroized successfully");
     }
 }

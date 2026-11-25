@@ -1,8 +1,5 @@
 <?php
 
-// ini_set('display_errors', 1);
-// error_reporting(E_ALL);
-
 require_once "gp_head.php";
 $decodeOT = [
     'OD' => 'Out For Full Day' ,
@@ -18,7 +15,6 @@ if($data['authForm']==true)
     startQry();
     
     $gpass = singRec("select * from ept_employee_gpass where id='".$data['ID']."'");
-    //$GtASKiD = singRec("select * from EPT_USER_TASKS where id='".$data['TASK_ID']."'");
     $empmail = singRec("select short_name ,email_id_off from EPT_bcs_employee where emp_code='".$gpass['EMP_CODE']."'");
     $data["AUTH_REMARKS"] = isset($data["AUTH_REMARKS"]) && $data["AUTH_REMARKS"] !== ''
             ? $data["AUTH_REMARKS"]
@@ -69,19 +65,13 @@ if($data['authForm']==true)
             "Record Rejected successfully",
             [ "chkTask" => $chk]
         );
-        
 
-		
     } else if($data['flag']=='A') {
         
         taskUpdate('C', $data["AUTH_REMARKS"], $data['TASK_ID']);
         $gpass_no = singRec("SELECT EPORTAL.EPT_EMPLOYEE_GPASS_SEQ.NEXTVAL AS GPNO FROM dual"); 
-        
-        //executeQry("update ept_employee_gpass set STATUS='X', auth_by='".$empCode."', auth_on=sysdate, gpass_no='".$gpass_no['GPNO']."' where ID='".$data['ID']."' ");	
 
         executeQry("update ept_employee_gpass set STATUS='A', auth_by='".$empCode."', auth_on=sysdate, gpass_no='".$gpass_no['GPNO']."' where ID='".$data['ID']."' ");	
-
-       
 
         $review_pm_task_id = 0;
 

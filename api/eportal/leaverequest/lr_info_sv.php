@@ -13,7 +13,6 @@ if($data['getLrdata']==true)
         }
 
         $pl_count = singRec("select EPT_get_leave_apply_cnt('".$empCode."', 'PL') CNT from dual");
-        //printDetails($pl_count);
 
         $totalBalLeaves = multiRec("select lve_code,AVAIL_DAYS,BAL_DAYS from EPT_bcs_leave_balance where emp_code='" . $empCode . "' and to_date('".$data['start_date']."','YYYY-MM-DD') between EFF_DATE and UPTO_DATE");
 
@@ -105,7 +104,7 @@ if($data['getLrdata']==true)
 
         foreach ($leave_bal_array as $key => $leave) {
         if($key !== "LWP"){
-            $type = $key; //$leave['type']; // CL, PL, SL, OL
+            $type = $key;
             $returnArr["var"]["type"]["DIVINFO"][$type] = [
                 "type" => "DIV",
                 "label" => $type,
@@ -333,8 +332,6 @@ if($data['getLrdata']==true)
         ];
 
         $returnArr["flag"] = $flag;
-        //$returnArr["leavesDT"] = $persHolidOff;
-        //$returnArr['leavesDTCnt'] = count($persHolidOff);
 
         if($returnArr || !empty($returnArr)){
             apiResponse(
@@ -402,8 +399,6 @@ if($data['getLrdata']==true)
         }
 
         $returnArr["flag"] = $flag;
-        //$returnArr["leavesDT"] = $persHolidOff;
-        //$returnArr['leavesDTCnt'] = count($persHolidOff);
 
         if($returnArr || !empty($returnArr)){
             apiResponse(

@@ -2,7 +2,6 @@
 
 require_once "tb_head.php";
 
-
 if($data['sendAuth']==true)
 {
     startQry();
@@ -11,7 +10,6 @@ if($data['sendAuth']==true)
         $person = singRec("select * from EPT_bcs_trvltkt_request where id='".$data['ID']."'");
         if($person['TRVL_EMP']=='E'){
             $pn = singRec("select EPT_get_emp_name('".$person['EMP_CODE']."')pn from dual");
-            // $Manager = findParentOrgEmp($_SESSION['ept']['eptEmpCode']);        
             $name = singRec("SELECT EPT_hr_get_emp_mgr('".$person['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
             $name1 = findParentOrgEmp($person['EMP_CODE']);        
             $Manager = $name['EMP_CODE'] ? $name['EMP_CODE'] : $name1;
@@ -31,21 +29,11 @@ if($data['sendAuth']==true)
         executeQry("update EPT_BCS_TRVLTKT_REQUEST set status='T' where id='".$data['ID']."'") ;
         
         if($task_id){
-            // echo json_encode([
-            //     "status" => true,
-            //     "status_code" => 200,
-            //     "message" => "Request sent for Authorization"
-            // ]);
              endQry("Sent for Authorization!");
             apiResponse(true,"Request sent for Authorization successfully");
            
         }
         else{
-            // echo json_encode([
-            //     "status" => false,
-            //     "status_code" => 500,
-            //     "message" => "Some Error occured"
-            // ]);
             endQry();
             apiResponse(false,"Some Error occured",null,500,$e->getMessage());
         }

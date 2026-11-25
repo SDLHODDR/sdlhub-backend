@@ -108,15 +108,6 @@ function normalizeKeys($arr) {
 /* ================= INPUT ================= */
 
 $empCode = $_SESSION['emp_code'];
-/*$dateInput = '2025-02-28'; //$_GET['date'] ?? date('Y-m-d');
-
-$currentDate = new DateTime($dateInput);
-$year  = $currentDate->format('Y');
-$month = $currentDate->format('m');
-
-$startDate = date('Y-M-01', strtotime("$year-$month-01"));
-$endDate   = date('Y-M-t', strtotime($startDate));
-$daysInMonth = date('t', strtotime($startDate)); */
 
 // Accept month from UI (YYYY-MM)
 $monthParam = $_GET['month'] ?? date('Y-m');
@@ -196,7 +187,6 @@ for ($i = 1; $i <= $daysInMonth; $i++) {
         AND hol.status='A'
     "));
 
-
     /* ===== Leave ===== */
     $leave = singRec("
         SELECT status, lve_code 
@@ -206,7 +196,6 @@ for ($i = 1; $i <= $daysInMonth; $i++) {
             BETWEEN TRUNC(lve_date_fr) AND TRUNC(lve_date_to)
     ");
     $leave = normalizeKeys($leave ?: []);
-
 
     /* ===== Tour ===== */
    $tourReg = singRec("

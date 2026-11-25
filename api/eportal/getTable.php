@@ -1,6 +1,4 @@
 <?php
-//  ini_set('display_errors', 1);
-//  error_reporting(E_ALL);
 
 require_once "gatepass/gp_head.php";
 
@@ -11,12 +9,10 @@ $taskId = $data['task_id'];
 $whereCdn = "";
 
 if($taskId == "349") {
-    //$taskId .= ", 21"; 
     $whereCdn = " t.TASK_ID in (" . $taskId . ", 21)";
 } else {
     $whereCdn = " t.TASK_ID = " . $taskId;   
 }
-
 
 $base_query = "
             SELECT distinct * 
@@ -43,33 +39,12 @@ $myTasksData = multiRec("
                 WHERE " . $whereCdn . "
                 ORDER BY t.CREATED_ON DESC");
 
-// echo "
-//                 SELECT 
-//                     t.*, etm.task_desc as TASK_DESC
-//                 FROM (" . $base_query . ") t
-//                 INNER JOIN ept_task_master etm 
-//                    ON etm.id = t.TASK_ID
-//                 WHERE " . $whereCdn . "
-//                 ORDER BY t.CREATED_ON DESC";
-
 foreach($myTasksData as $res)
 {
-    // $details = null;
     if (!empty($res['TRAN_CODE'])) {
 
         //346 → Ticket Booking
         if ($taskId == 346) {
-            // $details = singRec("
-            //     SELECT REQ_DATE, ID, SITE_CODE, TRVL_CLASS, TRVL_EMP, EMP_CODE, PERSON_NAME,
-            //         decode(TRVL_MODE , 'F' , 'Flight' , 'T' , 'Train' , 'B' , 'Bus') AS TRVL_MODE,
-            //         TRVL_DATE, TRVL_FROM_LOC, TRVL_TO_LOC, TRVL_FT_NAME, TRVL_FT_NO, EVENT_ID, 
-            //         to_char(TTNT_DEPR_TIME , 'hh24:mi') AS TTNT_DEPR_TIME,
-            //         to_char(TTNT_ARVL_TIME , 'hh24:mi') AS TTNT_ARVL_TIME,
-            //         REMARKS, STATUS, TRVL_TKT_ID
-            //     FROM EPT_BCS_TRVLTKT_REQUEST
-            //         WHERE REQ_BY = '".$empCode."'
-            //         AND ID = '".$res['TRAN_CODE']."'
-            // ");
              $details = singRec("
                 SELECT REQ_DATE, ID, SITE_CODE, TRVL_CLASS, TRVL_EMP, EMP_CODE, PERSON_NAME,
                     decode(TRVL_MODE , 'F' , 'Flight' , 'T' , 'Train' , 'B' , 'Bus') AS TRVL_MODE,
@@ -93,12 +68,6 @@ foreach($myTasksData as $res)
 
         // //109 → Leave
         else if ($taskId == 109) {
-            // $details = singRec("
-            //     SELECT * 
-            //         FROM EPT_BCS_EMP_LEAVES_TEMP
-            //             WHERE EMP_CODE = '".$empCode."'
-            //                 AND ID = '".$res['TRAN_CODE']."'
-            // ");
             $details = singRec("
                 SELECT * 
                     FROM EPT_BCS_EMP_LEAVES_TEMP
@@ -109,7 +78,6 @@ foreach($myTasksData as $res)
         //357 -> Conference Room
         else if ($taskId == 357) {
         
-            //echo "\n" . $taskId . " - " . $res['TRAN_CODE'];
             // Booker name and division name come from their master tables
             // (the booking row only stores BOOK_BY_EMP and DIVSN_ID).
             $details = singRec( 
@@ -135,7 +103,6 @@ foreach($myTasksData as $res)
        $requestType = ''; 
        $requestFor = $res['TASK_GRP_DESC'];
         if (str_starts_with($requestFor, 'POSTREMARKS~')) {
-            //$requestFor = substr($requestFor, strlen('POSTREMARKS~'));
             $parts = explode('~', $requestFor, 2);
             $requestType = $parts[0] ?? '';           // "POSTREMARKS"
             $requestFor  = $parts[1] ?? $requestFor;  // "Tanvi Kochrekar"
@@ -143,7 +110,6 @@ foreach($myTasksData as $res)
     } else {
        $requestFor = $res['TASK_GRP_DESC'];
     }
-    //echo $res['TASK_GRP_DESC'] . "====" . $requestFor; exit;
 
      $authTasksData[] = [
         'ID'           => $res['ID'],

@@ -1,7 +1,5 @@
 <?php
 require_once __DIR__ . '/../../config/path.php';
-//  ini_set('display_errors', 1);
-//  error_reporting(E_ALL);
 
 require_once "gp_head.php";
 
@@ -84,24 +82,6 @@ if($isSave)
         // ===============================
 
         // If you want to BLOCK FO + SO together → keep this
-        /*
-        if ($newType === "FO" && in_array("SO", $existingTypes)) {
-            echo json_encode([
-                "status" => false,
-                "message" => "Cannot combine First Half and Second Half"
-            ]);
-            rollbackQry();
-            exit;
-        }
-        if ($newType === "SO" && in_array("FO", $existingTypes)) {
-            echo json_encode([
-                "status" => false,
-                "message" => "Cannot combine First Half and Second Half"
-            ]);
-            rollbackQry();
-            exit;
-        }
-        */
 
         // If you want to ALLOW FO + SO → keep it commented (recommended based on your latest message)
 
@@ -109,7 +89,6 @@ if($isSave)
         // RULE 5: OI → always allowed
         // ===============================
         // No restriction needed
-        //exit;
         if($isAllowed)
         {
             $name = singRec("SELECT hr_get_emp_mgr('".$data['EMP_CODE']."',SYSDATE)EMP_CODE FROM DUAL");
@@ -153,9 +132,6 @@ if($isSave)
                     null, '349', sysdate,'".$empCode."' , (sysdate+2), 'O', null, null, null, '".$insert_id."', null, 'A', null, concat('Outdoor DATED ', '".$gpass['GPASS_DATE']."' ), '".$_SESSION['eptSiteCode']."', '".$Manager."', sysdate, '', '".getEmpInfoByCode($gpass['EMP_CODE'])."', '') returning ID into :taskId" ,'taskId');
 
                     $postremarks_task_id = 0;
-                    //$postremarks_task_id = executeQry("insert into EPT_USER_TASKS (
-                        // ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, AUTH_BY, AUTH_ON, REMARKS, TRAN_CODE, REF_TASK_ID, TASK_TYPE, UDF_1, TRAN_DESC, SITE_CODE, EMP_CODE_FOR, CHG_ON, UDF_2, TASK_GRP_DESC, IP_ADDR) values (
-                        // null, '349', sysdate,'".$empCode."' , (sysdate+2), 'O', 'null', null, null, '".$insert_id."', null, 'A', null, concat('Outdoor DATED ', '".$gpass['GPASS_DATE']." User task for Post Remarks' ), '".$_SESSION['eptSiteCode']."', '".$empCode."', sysdate, '', concat('POSTREMARKS~', '".getEmpInfoByCode($gpass['EMP_CODE'])."' ), '') returning ID into :taskPMRId" ,'taskPMRId');
                     $postremarks_task_id = executeQry("insert into EPT_USER_TASKS (
                         ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, AUTH_BY, AUTH_ON, REMARKS, TRAN_CODE, REF_TASK_ID, TASK_TYPE, UDF_1, TRAN_DESC, SITE_CODE, EMP_CODE_FOR, CHG_ON, UDF_2, TASK_GRP_DESC, IP_ADDR) values (
                         null, '22', sysdate,'".$empCode."' , (sysdate+2), 'O', 'null', null, null, '".$insert_id."', null, 'A', null, concat('Outdoor DATED ', '".$gpass['GPASS_DATE']." User task for Post Remarks' ), '".$_SESSION['eptSiteCode']."', '".$empCode."', sysdate, '', '".getEmpInfoByCode($gpass['EMP_CODE'])."', '') returning ID into :taskPMRId" ,'taskPMRId');
@@ -262,12 +238,7 @@ else if($isEdit)
                 POST_REMARKS_DOC = '" . str_replace("'", "''", $docPath) . "'";
             }
         }
-        
-        // echo "UPDATE ept_employee_gpass
-        //     SET $updateFields
-        //     WHERE ID IN (".$data['ID'].")";
 
-        // exit;
         $editPRMId = executeQry("UPDATE ept_employee_gpass
             SET $updateFields
             WHERE ID IN (".$data['ID'].")
@@ -288,12 +259,6 @@ else if($isEdit)
                 $manageremail = singRec("select EMAIL_ID_OFF as COM_EMAIL from EPT_bcs_employee 
                                     WHERE emp_code = '".$Manager."'");
 
-    //             $review_pm_task_id = 0;
-                
-    //             $review_pm_task_id = executeQry("insert into EPT_USER_TASKS (
-    // ID, TASK_ID, CREATED_ON, CREATED_BY, EXPIRE_ON, STATUS, AUTH_BY, AUTH_ON, REMARKS, TRAN_CODE, REF_TASK_ID, TASK_TYPE, UDF_1, TRAN_DESC, SITE_CODE, EMP_CODE_FOR, CHG_ON, UDF_2, TASK_GRP_DESC, IP_ADDR) values (
-    // null, '21', sysdate,'".$empCode."' , (sysdate+2), 'O', null, null, null, '".$data['ID']."', null, 'A', null, concat('Review Outdoor Duty Post Remarks DATED ', '".$gpass['GPASS_DATE']."' ), '".$_SESSION['eptSiteCode']."', '".$Manager."', sysdate, '', '".getEmpInfoByCode($gpass['EMP_CODE'])."', '') returning ID into :taskIdPM" ,'taskIdPM');
-               
                 $mailBody='Hi '.ucwords(strtolower(getEmpInfoByCode($Manager))). ',<br><br>' .ucwords(strtolower(getEmpInfoByCode($empCode))).' has modified the post remarks for the outdoor. 
                 <br>
                 <br><br>
@@ -337,11 +302,6 @@ else if($data['deleteOD']==true)
     if($data["delteId"]) {
         executeQry("DELETE FROM ept_employee_gpass WHERE ID in (".$data['delteId'].")");
     }
-    // echo json_encode([
-    //     "status" => true,
-    //     "status_code" => 200,
-    //     "message" => "Gatepass deleted successfully"
-    // ]);
      endQry();
     apiResponse(true,"Gatepass deleted successfully");
    
