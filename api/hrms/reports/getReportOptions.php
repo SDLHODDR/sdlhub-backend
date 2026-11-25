@@ -7,9 +7,8 @@ require_once __DIR__ . '/reportsCommon.php';
 $report = (string)($_GET['report'] ?? '');
 reportsRunOptions($report, static function () use ($report) {
     if ($report === 'followup') {
-        return ['employees' => reportsOptions("SELECT EMP_CODE AS V,
-                TRIM(REGEXP_REPLACE(FNAME || ' ' || MNAME || ' ' || LNAME, ' +', ' ')) || ' - ' || EMP_CODE AS L
-            FROM HR_EMPLOYEE_INFO WHERE STATUS = 'A' AND EMP_CODE IS NOT NULL ORDER BY 2")];
+        // The employee is picked with the employee search field (searchEmployees.php), not a full list.
+        return [];
     }
     if ($report === 'orglochierarchy' || $report === 'orglochierarchyvisual') {
         return ['locations' => reportsHierarchyLocations()];

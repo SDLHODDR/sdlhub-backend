@@ -30,9 +30,30 @@ try {
     $jobId = trim($_GET['id'] ?? '');
 
     $where = '';
+    $binds = [];
+    $limit = '';
     if ($jobId !== '') {
         $jobId = addslashes($jobId);
         $where = "WHERE a.ID = '" . $jobId . "'";
+    } elseif (isset($_GET['q'])) {
+        // Search (Job Description search field): ?q=<at least 3 characters> -> up to 50 JDs
+        // whose "ID - label (divisions)" contains every typed word, in any order and case.
+        $text = trim(preg_replace('/\s+/u', ' ', (string)$_GET['q']));
+        if (mb_strlen($text) < 3) {
+            apiResponse(false, "Type at least 3 characters to search.", ['jobDescriptions' => []], 422);
+        }
+        $searchText = "UPPER(a.ID || ' - ' || a.SH_DESC || ' ' || (
+            SELECT LISTAGG(dv.DIVSN_DESC, ', ') WITHIN GROUP (ORDER BY dv.DIVSN_DESC)
+            FROM HR_JD_DIVSN jdv INNER JOIN HR_DIVISIONS dv ON dv.DIVSN_ID = jdv.DIVSN_ID
+            WHERE jdv.JD_ID = a.ID))";
+        $conditions = [];
+        foreach (array_slice(explode(' ', mb_substr($text, 0, 100)), 0, 4) as $i => $word) {
+            // %, _ and \ in the typed text are matched literally.
+            $binds[":w$i"] = '%' . addcslashes(mb_strtoupper($word), '%_\\') . '%';
+            $conditions[] = "$searchText LIKE :w$i ESCAPE '\\'";
+        }
+        $where = 'WHERE ' . implode(' AND ', $conditions);
+        $limit = 50;
     }
 
     $sql = "SELECT a.ID,
@@ -87,9 +108,13 @@ try {
 
         " . $where . "
 
-        ORDER BY a.SH_DESC, a.ID";
+        ORDER BY " . ($limit ? "a.ID" : "a.SH_DESC, a.ID");
 
-    $rows = multiRec($sql);
+    if ($limit) {
+        $sql = "SELECT * FROM ($sql) WHERE ROWNUM <= " . (int)$limit;
+    }
+
+    $rows = multiRec($sql, $binds);
 
     if ($jobId !== '') {
         if (empty($rows)) {

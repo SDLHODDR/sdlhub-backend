@@ -1,6 +1,9 @@
 <?php
 /*
- * GET            relieved employees in the user's company scope, and employee types.
+ * GET            employee types.
+ * GET ?q=        relieved employees in the user's company scope matching the text (Relieved
+ *                Employee search field): every typed word (at least 3 characters in all) must
+ *                appear in the code or name; up to 50, by name.
  * GET ?emp_code= that employee's summary, last office and tenure history.
  * Legacy rehire_emp.php.
  */
@@ -10,14 +13,35 @@ try {
     loadHrmsAccess($empCode);
     $code = trim((string)($_GET['emp_code'] ?? ''));
 
-    if ($code === '') {
+    if ($code === '' && isset($_GET['q'])) {
+        $text = trim(preg_replace('/\s+/u', ' ', (string)$_GET['q']));
+        if (mb_strlen($text) < 3) {
+            throw new JoiningRequestException('Type at least 3 characters to search.', 422);
+        }
         $companies = implode(',', array_map('intval', joiningUserCompanies())) ?: '0';
+        $binds = [];
+        $conditions = [];
+        foreach (array_slice(explode(' ', mb_substr($text, 0, 100)), 0, 4) as $i => $word) {
+            // %, _ and \ in the typed text are matched literally.
+            $binds[":w$i"] = '%' . addcslashes(mb_strtoupper($word), '%_\\') . '%';
+            $conditions[] = "(UPPER(EMP_CODE) LIKE :w$i ESCAPE '\\' OR UPPER(FNAME || ' ' || MNAME || ' ' || LNAME) LIKE :w$i ESCAPE '\\')";
+        }
         apiResponse(true, 'Relieved employees fetched successfully.', [
-            'employees' => joiningRecords("SELECT EMP_CODE AS VALUE,
-                    TRIM(REGEXP_REPLACE(FNAME || ' ' || MNAME || ' ' || LNAME, ' +', ' ')) || ' - ' || EMP_CODE AS LABEL
-                FROM HR_EMPLOYEE_INFO
-                WHERE STATUS = 'R' AND COMP_ID IN ({$companies})
-                ORDER BY 2"),
+            'employees' => joiningRecords("SELECT * FROM (
+                    SELECT EMP_CODE AS VALUE,
+                        TRIM(REGEXP_REPLACE(FNAME || ' ' || MNAME || ' ' || LNAME, ' +', ' ')) || ' - ' || EMP_CODE AS LABEL
+                    FROM HR_EMPLOYEE_INFO
+                    WHERE STATUS = 'R' AND COMP_ID IN ({$companies})
+                      AND " . implode(' AND ', $conditions) . "
+                    ORDER BY 2)
+                WHERE ROWNUM <= 50", $binds),
+        ], 200);
+    }
+
+    if ($code === '') {
+        // Relieved employees are searched (?q=), not listed here.
+        apiResponse(true, 'Employee types fetched successfully.', [
+            'employees' => [],
             'employeeTypes' => joiningRecords("SELECT ETYPE_ID AS VALUE, EMP_TYPE AS LABEL FROM HR_EMP_TYPE ORDER BY EMP_TYPE"),
         ], 200);
     }
