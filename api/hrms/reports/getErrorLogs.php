@@ -32,6 +32,8 @@ try {
        DATABASE
     ========================================================== */
 
+    // HRMSLIVE.ERROR_LOG reads HRMS_LOG_DIR, so this page shows HRMS errors
+    // only. (ePortal errors are in EPORTAL.ERROR_LOG / EPORTAL_LOG_DIR.)
     $conn = db_hrms();
 
     if (!$conn) {
@@ -161,6 +163,21 @@ try {
     /* ==========================================================
        PROCEDURE STATUS
     ========================================================== */
+
+    // No log file for that date simply means nothing was logged that day.
+    // error_log.read reports it as "File Not Found"; show an empty list
+    // with a friendly message instead of an error.
+    if ((int)$nval !== 0 && trim((string)$vval) === "File Not Found") {
+
+        echo json_encode([
+            "status"  => true,
+            "logDate" => $displayDate,
+            "total"   => 0,
+            "logs"    => [],
+            "message" => "No errors were logged on " . $displayDate . "."
+        ]);
+        exit;
+    }
 
     if ((int)$nval !== 0) {
 

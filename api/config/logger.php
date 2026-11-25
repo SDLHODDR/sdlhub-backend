@@ -27,27 +27,61 @@ require_once 'session.php';
  */
 
 /**
+ * Which portal an error belongs to, so it is written to that portal's log
+ * (each schema's ERROR_LOG package writes to its own directory):
+ *
+ *   eportal -> EPORTAL  -> EPORTAL_LOG_DIR
+ *   hrms    -> HRMSLIVE -> HRMS_LOG_DIR
+ *   epp     -> EPPLIVE  -> EPP_LOG_DIR
+ *   teamsdl -> TEAMSDL  -> TEAMSDL_LOG_DIR   (frontend portal key "sfm")
+ *
+ * Decided in this order:
+ *   1. CURRENT_PORTAL, when the endpoint defines it
+ *   2. the endpoint's folder, for folders that belong to one portal
+ *   3. the X-Portal header the frontend sends (the portal the user is in),
+ *      for shared folders such as api/common/ (profile pages used by ePortal and HRMS)
+ *   4. ePortal
+ */
+function resolveLogPortal()
+{
+    if (defined('CURRENT_PORTAL')) {
+        return CURRENT_PORTAL;
+    }
+
+    $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+
+    $folderPortals = [
+        '/api/hrms/'              => 'hrms',
+        '/api/careers/'           => 'hrms',     // recruitment / careers site
+        '/api/eportal/'           => 'eportal',
+        '/api/policyEndorsement/' => 'eportal',  // policy acceptance in ePortal
+        '/api/epp/'               => 'epp',
+    ];
+
+    foreach ($folderPortals as $folder => $folderPortal) {
+        if (strpos($script, $folder) !== false) {
+            return $folderPortal;
+        }
+    }
+
+    $headerPortal = strtolower(trim($_SERVER['HTTP_X_PORTAL'] ?? ''));
+    $headerMap = ['eportal' => 'eportal', 'hrms' => 'hrms', 'epp' => 'epp', 'sfm' => 'teamsdl', 'teamsdl' => 'teamsdl'];
+
+    return $headerMap[$headerPortal] ?? 'eportal';
+}
+
+/**
  * Write error log into the respective portal database.
  *
  * @param string      $message Error message
- * @param string|null $portal  Database/portal name
+ * @param string|null $portal  Portal name; when null it is worked out by resolveLogPortal()
  *
- * Supported portals:
- * eportal
- * hrms
- * epp
- * sfm
+ * Supported portals: eportal, hrms, epp, teamsdl
  */
 function writeErrorLog($message, $portal = null)
 {
-    /*
-     * Use explicitly supplied portal if available.
-     * Otherwise use CURRENT_PORTAL.
-     */
     if ($portal === null) {
-        $portal = defined('CURRENT_PORTAL')
-            ? CURRENT_PORTAL
-            : 'eportal';
+        $portal = resolveLogPortal();
     }
 
     $portal = strtolower(trim($portal));

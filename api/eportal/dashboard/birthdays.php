@@ -8,6 +8,7 @@ $sql___func___con = db_eportal();
 
 require_once __DIR__ . "/../../config/functions.php";
 require_once __DIR__ . "/../../config/utils.php";
+require_once __DIR__ . "/birthdayRules.php";
 
 header("Content-Type: application/json");
 
@@ -114,7 +115,8 @@ try {
         LEFT JOIN ept_user_messages eum
             ON be.emp_code = eum.created_for
             AND eum.created_by = '$empCode'
-            AND TO_CHAR(eum.created_on, 'YYYY') = TO_CHAR(SYSDATE, 'YYYY')
+            -- the wish sent for this birthday (advance wishes included)
+            AND eum.created_on >= " . wishWindowStartSql("be.birth_date") . "
 
         WHERE
             be.status = 'A'
@@ -158,7 +160,11 @@ try {
                 strtolower($row["EMP_NAME"])
             ),
             "birth_date" => $row["BIRTH_DATE"],
-            "message" => $row["MESSAGE"],
+            // The wish the logged-in user already sent this year (null = not wished yet).
+            // multiRec HTML-encodes values; decode so the text shows as typed.
+            "message" => $row["MESSAGE"] !== null && $row["MESSAGE"] !== ""
+                ? html_entity_decode($row["MESSAGE"], ENT_QUOTES, "UTF-8")
+                : null,
             "profile_image" => getProfileUrl(
                 $row["EMP_CODE"]
             )
