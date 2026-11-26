@@ -28,6 +28,12 @@ try {
         exit;
     }
 
+    // ?sections=office,bank,... returns only those tabs' data (with the employee record,
+    // which every tab uses); without it, everything is returned. Employee Data loads each
+    // tab's section when the tab is first opened.
+    $requestedSections = array_filter(array_map('trim', explode(',', (string)($_GET['sections'] ?? ''))));
+    $wants = static fn(string $section): bool => !$requestedSections || in_array($section, $requestedSections, true);
+
     /*
      * =========================================================
      * PERSONAL / BASIC EMPLOYEE INFORMATION
@@ -76,7 +82,7 @@ $employee = singRec("
 
 
     // Office Details - employee records
-$officeDetails = multiRec("
+$officeDetails = $wants('office') ? multiRec("
     SELECT
         o.ID,
         o.EMP_ID,
@@ -92,9 +98,9 @@ $officeDetails = multiRec("
     WHERE (o.EMP_ID = '" . addslashes($employeeId) . "'
         OR TRIM(o.EMP_CODE) = TRIM('" . addslashes($employee['EMP_CODE']) . "'))
     ORDER BY o.EFFEC_FROM DESC
-");
+") : [];
 
-$reportsTo = multiRec("
+$reportsTo = $wants('office') ? multiRec("
     SELECT
         e.EMP_CODE,
         e.FNAME,
@@ -113,35 +119,35 @@ $reportsTo = multiRec("
         ON e.EMP_CODE = manager_office.EMP_CODE
     WHERE emp_office.EMP_ID = '" . addslashes($employeeId) . "'
       AND e.STATUS = 'A'
-");
+") : [];
 
 error_log('REPORTS TO: ' . json_encode($reportsTo));
 
-$departments = multiRec("
+$departments = $wants('office') ? multiRec("
     SELECT
         DEPT_ID AS VALUE,
         DEPT_DESC AS LABEL
     FROM HRMSLIVE.HR_DEPARTMENT
     ORDER BY DEPT_DESC
-");
+") : [];
 
-$designations = multiRec("
+$designations = $wants('office') ? multiRec("
     SELECT
         DESI_ID AS VALUE,
         DESI_DESC AS LABEL
     FROM HRMSLIVE.HR_DESIGNATION
     ORDER BY DESI_DESC
-");
+") : [];
 
-$divisions = multiRec("
+$divisions = $wants('office') ? multiRec("
     SELECT
         DIVSN_ID AS VALUE,
         DIVSN_DESC AS LABEL
     FROM HRMSLIVE.HR_DIVISIONS
     ORDER BY DIVSN_DESC
-");
+") : [];
 
-$organograms = multiRec("
+$organograms = $wants('office') ? multiRec("
     SELECT DISTINCT
         o.ID AS VALUE,
         o.ID || ' - ' ||
@@ -159,16 +165,16 @@ $organograms = multiRec("
         ON ds.DESI_ID = o.DESI_ID
     WHERE o.STATUS = 'A'
     ORDER BY LABEL
-");
+") : [];
 
-$organogramLocations = multiRec("
+$organogramLocations = $wants('office') ? multiRec("
     SELECT
         ID AS VALUE,
         LOC_LABEL AS LABEL
     FROM HRMSLIVE.HR_ORGANOGRAM_LOC
     WHERE STATUS = 'A'
     ORDER BY LOC_LABEL
-");
+") : [];
 
     /*
      * =========================================================
@@ -176,7 +182,7 @@ $organogramLocations = multiRec("
      * =========================================================
      */
 
-    $banks = multiRec("
+    $banks = $wants('bank') ? multiRec("
     SELECT
         b.ID,
         b.EMP_ID,
@@ -192,7 +198,7 @@ $organogramLocations = multiRec("
     FROM HRMSLIVE.HR_EMP_BANK_DET b
     WHERE b.EMP_ID = '" . addslashes($employeeId) . "'
     ORDER BY b.ID DESC
-");
+") : [];
 
 
     /*
@@ -201,7 +207,7 @@ $organogramLocations = multiRec("
      * =========================================================
      */
 
-    $education = multiRec("
+    $education = $wants('qualification') ? multiRec("
     SELECT
         e.ID,
         e.EMP_ID,
@@ -217,7 +223,7 @@ $organogramLocations = multiRec("
     FROM HRMSLIVE.HR_EMP_EDUCATION e
     WHERE e.EMP_ID = '" . addslashes($employeeId) . "'
     ORDER BY e.TO_DATE ASC
-");
+") : [];
 
 
     /*
@@ -226,7 +232,7 @@ $organogramLocations = multiRec("
      * =========================================================
      */
 
-    $experience = multiRec("
+    $experience = $wants('experience') ? multiRec("
     SELECT
         e.ID,
         e.EMP_ID,
@@ -243,7 +249,7 @@ $organogramLocations = multiRec("
     FROM HRMSLIVE.HR_EMP_EXPERIENCE e
     WHERE e.EMP_ID = '" . addslashes($employeeId) . "'
     ORDER BY e.FROM_DATE ASC
-");
+") : [];
 
 /*
      * =========================================================
@@ -251,7 +257,7 @@ $organogramLocations = multiRec("
      * =========================================================
      */
 
-$references = multiRec("
+$references = $wants('reference') ? multiRec("
     SELECT
         r.ID,
         r.EMP_CODE,
@@ -270,7 +276,7 @@ $references = multiRec("
     FROM HRMSLIVE.HR_EMP_REFERENCE r
     WHERE r.EMP_CODE = '" . addslashes($employee['EMP_CODE']) . "'
     ORDER BY r.ID
-");
+") : [];
 
     /*
      * =========================================================
@@ -278,7 +284,7 @@ $references = multiRec("
      * =========================================================
      */
 
-    $family = multiRec("
+    $family = $wants('family') ? multiRec("
     SELECT
         f.ID,
         f.EMP_ID,
@@ -296,7 +302,7 @@ $references = multiRec("
     FROM HRMSLIVE.HR_EMP_FAMILY_INFO f
     WHERE f.EMP_ID = '" . addslashes($employeeId) . "'
     ORDER BY f.ID
-");
+") : [];
 
 
     /*
@@ -305,7 +311,7 @@ $references = multiRec("
      * =========================================================
      */
 
-    $assets = multiRec("
+    $assets = $wants('assets') ? multiRec("
         SELECT
             ID,
             APRV_BY,
@@ -319,7 +325,7 @@ $references = multiRec("
         FROM EPPLIVE.BCS_EMP_ASSET_ALLOCATION
         WHERE EMP_ID = '" . addslashes($employeeId) . "'
         ORDER BY FROM_DATE DESC
-    ");
+    ") : [];
 
 
     /*
@@ -328,7 +334,7 @@ $references = multiRec("
      * =========================================================
      */
 
-    $documents = multiRec("
+    $documents = $wants('documents') ? multiRec("
     SELECT
         d.ID,
         d.EMP_ID,
@@ -342,7 +348,7 @@ $references = multiRec("
     FROM HRMSLIVE.HR_EMP_DOCS d
     WHERE d.EMP_ID = '" . addslashes($employeeId) . "'
     ORDER BY d.ID
-");
+") : [];
 
 
     /*
@@ -351,7 +357,7 @@ $references = multiRec("
      * =========================================================
      */
 
-$tenure = multiRec("
+$tenure = $wants('tenure') ? multiRec("
     SELECT
         t.ID,
         t.EMP_ID,
@@ -366,7 +372,7 @@ $tenure = multiRec("
         ON e.ID = t.EMP_ID
     WHERE t.EMP_ID = '" . addslashes($employeeId) . "'
     ORDER BY t.EFF_FROM DESC
-");
+") : [];
 
     /*
      * =========================================================
@@ -374,7 +380,7 @@ $tenure = multiRec("
      * =========================================================
      */
 
-    $policies = multiRec("
+    $policies = $wants('policies') ? multiRec("
         SELECT
             POLI_ID,
             POLICY_NAME,
@@ -402,7 +408,7 @@ $tenure = multiRec("
                 OR DEPT_ID IS NULL
               )
         ORDER BY START_DATE DESC
-    ");
+    ") : [];
 
 
     /*
@@ -411,7 +417,7 @@ $tenure = multiRec("
      * =========================================================
      */
 
-    $userAccess = multiRec("
+    $userAccess = $wants('access') ? multiRec("
     SELECT
         a.ID,
         a.APP,
@@ -427,7 +433,7 @@ $tenure = multiRec("
         END AS HAS_ACCESS
     FROM EPPLIVE.BCS_APP a
     ORDER BY a.ID
-");
+") : [];
 
 /*
      * =========================================================
@@ -435,7 +441,7 @@ $tenure = multiRec("
      * =========================================================
      */
 
-$kra = multiRec("
+$kra = $wants('kra') ? multiRec("
     SELECT
         k.ID AS KRA_ROW_ID,
         k.JD_ID,
@@ -459,7 +465,7 @@ $kra = multiRec("
           AND ROWNUM = 1
     )
     ORDER BY k.ID
-");
+") : [];
 
 
     /*
@@ -494,6 +500,28 @@ $kra = multiRec("
         'userAccess' => $userAccess,
             'kra' => $kra
     ];
+
+    if ($requestedSections) {
+        $sectionKeys = [
+            'office' => ['officeDetails', 'reportsTo', 'officeMasters'],
+            'bank' => ['banks'],
+            'qualification' => ['education'],
+            'experience' => ['experience'],
+            'reference' => ['references'],
+            'family' => ['family'],
+            'assets' => ['assets'],
+            'documents' => ['documents'],
+            'tenure' => ['tenure'],
+            'policies' => ['policies'],
+            'access' => ['userAccess'],
+            'kra' => ['kra'],
+        ];
+        $keep = ['employee'];
+        foreach ($requestedSections as $section) {
+            $keep = array_merge($keep, $sectionKeys[$section] ?? []);
+        }
+        $data = array_intersect_key($data, array_flip($keep));
+    }
 
     apiResponse(
         true,

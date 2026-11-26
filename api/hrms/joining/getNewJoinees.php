@@ -1,7 +1,8 @@
 <?php
 /*
  * GET. New Joinee list (legacy new_joinee.php): selected candidates (application
- * status J) with a tentative joining date, in the user's company scope.
+ * status J) with a tentative joining date, in the user's company scope; one row per
+ * candidate and request.
  */
 require_once __DIR__ . '/joiningCommon.php';
 
@@ -24,6 +25,13 @@ try {
         INNER JOIN HR_RECRUITMENT D ON D.ID = A.REQ_ID
         INNER JOIN HR_ORGANOGRAM E ON E.ID = A.ORG_ID
         WHERE A.STATUS = 'J' AND E.COMPANY IN ({$companies})
+          -- One row per candidate and request: duplicate J rows of the same application are
+          -- skipped (the oldest is listed), and so is a candidate whose application for the
+          -- request was already sent for employee creation (T) or made an employee (E).
+          AND A.ID = (SELECT MIN(X.ID) FROM HR_CAN_APPLICATION_DETAILS X
+                      WHERE X.CAN_ID = A.CAN_ID AND X.REQ_ID = A.REQ_ID AND X.STATUS = 'J')
+          AND NOT EXISTS (SELECT 1 FROM HR_CAN_APPLICATION_DETAILS Y
+                          WHERE Y.CAN_ID = A.CAN_ID AND Y.REQ_ID = A.REQ_ID AND Y.STATUS IN ('T', 'E'))
         ORDER BY C.TNT_JOIN_DATE DESC, A.ID DESC");
 
     apiResponse(true, 'New joinees fetched successfully.', array_map(static fn($row) => [
