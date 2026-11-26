@@ -109,6 +109,66 @@ try {
             "children" => $children
         ];
     }
+    /* ===========================================
+       DAILY TIMESHEET REPORT
+       Shown to reporting managers only, whatever their profile: someone who
+       is an active employee's REPORT_TO or was picked as reporting manager
+       on a timesheet task (same rule as timesheet/tsCommon.php tsIsManager).
+    =========================================== */
+    $tsReportRoute = 'eportal/timesheet-report';
+
+    $isManager = !empty(multiRec(
+        "SELECT 1 AS Y FROM DUAL
+          WHERE EXISTS (SELECT 1 FROM EPT_BCS_EMPLOYEE WHERE REPORT_TO = :EMP_CODE AND STATUS = 'A')
+             OR EXISTS (SELECT 1 FROM EPT_TIMESHEET_TASK WHERE REPORT_TO = :EMP_CODE)",
+        [':EMP_CODE' => $empCode]
+    ));
+
+    // Remove it wherever a profile added it. A main menu whose only item was
+    // the report goes too (main menus without items, like Dashboard, stay).
+    foreach ($menuData as $i => $menuItem) {
+        $kept = array_values(array_filter(
+            $menuItem["children"],
+            fn($child) => $child["route"] !== $tsReportRoute
+        ));
+        if ($menuItem["children"] && !$kept) {
+            unset($menuData[$i]);
+            continue;
+        }
+        $menuData[$i]["children"] = $kept;
+    }
+    $menuData = array_values($menuData);
+
+    // ...and add it back, under its own main menu, for managers.
+    if ($isManager) {
+        $reportSub = multiRec(
+            "SELECT S.ID, S.LABEL, S.PROG_URL, S.MENU_ID, M.LABEL AS MENU_LABEL, M.MENU_ICON
+               FROM EPT_SUBMENU S
+               JOIN EPT_MENU M ON M.ID = S.MENU_ID
+              WHERE S.PROG_URL = :ROUTE AND S.STATUS = 'A' AND M.STATUS = 'A'",
+            [':ROUTE' => $tsReportRoute],
+            ["encodeHtml" => false]
+        );
+
+        if ($reportSub) {
+            $sub = $reportSub[0];
+            $child = ["id" => (int)$sub["ID"], "label" => $sub["LABEL"], "route" => $sub["PROG_URL"]];
+            $parentIndex = array_search((int)$sub["MENU_ID"], array_column($menuData, "id"), true);
+
+            if ($parentIndex !== false) {
+                $menuData[$parentIndex]["children"][] = $child;
+            } else {
+                // The profile has nothing under this main menu: add the main menu at the end.
+                $menuData[] = [
+                    "id"       => (int)$sub["MENU_ID"],
+                    "label"    => $sub["MENU_LABEL"],
+                    "icon"     => $sub["MENU_ICON"],
+                    "children" => [$child],
+                ];
+            }
+        }
+    }
+
     apiResponse(true, "Menu loaded successfully.", $menuData);
 
 } catch (Throwable $e) {
