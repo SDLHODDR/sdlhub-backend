@@ -37,6 +37,13 @@ joiningRunAction(function () use ($input, $empCode) {
     if ($application['STATUS'] !== 'J') {
         throw new JoiningRequestException('This joinee has already been submitted.', 409);
     }
+    // A duplicate row of an application that was already submitted (same candidate and request).
+    $submitted = joiningRecord("SELECT COUNT(*) AS CNT FROM HR_CAN_APPLICATION_DETAILS
+        WHERE CAN_ID = (SELECT CAN_ID FROM HR_CAN_APPLICATION_DETAILS WHERE ID = :id)
+          AND REQ_ID = :req_id AND STATUS IN ('T', 'E')", [':id' => $application['ID'], ':req_id' => $application['REQ_ID']]);
+    if ((int)($submitted['CNT'] ?? 0) > 0) {
+        throw new JoiningRequestException('This joinee has already been submitted.', 409);
+    }
 
     if ($action === 'save') {
         $date = joiningIsoDate($input['joining_date'] ?? '', 'Joining date');
