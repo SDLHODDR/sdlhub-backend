@@ -62,7 +62,7 @@ try {
         FROM SDL_USERS
         WHERE EMP_CODE = :username
           AND STATUS = 'A'
-          -- AND PASS_WD = :password
+          AND PASS_WD = :password
     ";
 
     $stmt = oci_parse($conn, $sql);
