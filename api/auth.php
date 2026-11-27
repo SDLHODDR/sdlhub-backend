@@ -9,6 +9,7 @@ require_once 'config/db.php';
 require_once 'config/session.php';
 require_once 'config/env.php';
 require_once 'config/utils.php';
+require_once 'config/captcha.php';
 
 header('Content-Type: application/json');
 
@@ -36,6 +37,15 @@ $appId = '01';
 
 if ($username === '' || $password === '') {
     apiResponse(false, 'Login & Password required.', null, 400);
+}
+
+/* ===========================================
+   CAPTCHA (checked before the credentials)
+=========================================== */
+
+$captchaError = captchaVerify((string)($data['captcha'] ?? ''));
+if ($captchaError !== '') {
+    apiResponse(false, $captchaError, null, 400, ['captcha' => $captchaError]);
 }
 
 /* ===========================================
@@ -77,7 +87,7 @@ try {
     oci_bind_by_name($stmt, ':username', $username);
 
     // Uncomment when password validation is enabled
-    // oci_bind_by_name($stmt, ":password", $encoded);
+    oci_bind_by_name($stmt, ":password", $encoded);
 
     if (!oci_execute($stmt)) {
         $e = oci_error($stmt);
