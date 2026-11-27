@@ -4,7 +4,8 @@
  * Creates the day (as Draft) on its first task.
  *
  * Sent as multipart/form-data:
- *   date, id?, categoryId, title, description, taskStatus, remarks, reportTo,
+ *   date, id?, projectId, categoryId, title, description (HTML), taskStatus,
+ *   remarks (HTML), reportTo,
  *   document?        (file; replaces the task's current document)
  *   removeDocument?  ("1" = delete the current document)
  */
@@ -20,21 +21,27 @@ try {
 
     $date = tsRequestDate($input['date'] ?? '');
     $taskId = isset($input['id']) && $input['id'] !== '' ? (int)$input['id'] : 0;
+    $projectId = (int)($input['projectId'] ?? 0);
     $categoryId = (int)($input['categoryId'] ?? 0);
     $title = trim((string)($input['title'] ?? ''));
-    $description = trim((string)($input['description'] ?? ''));
-    $remarks = trim((string)($input['remarks'] ?? ''));
+    // Formatted text from the editor: cleaned to safe HTML before anything else.
+    $description = tsCleanHtml($input['description'] ?? '');
+    $remarks = tsCleanHtml($input['remarks'] ?? '');
     $taskStatus = (string)($input['taskStatus'] ?? '');
     $reportTo = trim((string)($input['reportTo'] ?? ''));
     $removeDocument = ($input['removeDocument'] ?? '') === '1';
     $hasUpload = isset($_FILES['document']) && ($_FILES['document']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
 
     $errors = [];
+    if ($projectId <= 0) $errors['projectId'] = "Please select a project.";
     if ($categoryId <= 0) $errors['categoryId'] = "Please select a category.";
     if ($title === '') $errors['title'] = "Please enter the task.";
     elseif (mb_strlen($title) > TS_TITLE_MAX) $errors['title'] = "Task must not exceed " . TS_TITLE_MAX . " characters.";
-    if (mb_strlen($description) > TS_DESC_MAX) $errors['description'] = "Description must not exceed " . TS_DESC_MAX . " characters.";
-    if (mb_strlen($remarks) > TS_REMARKS_MAX) $errors['remarks'] = "Remarks must not exceed " . TS_REMARKS_MAX . " characters.";
+    // Limits count the visible text; the stored HTML must also fit the column.
+    if (mb_strlen(tsHtmlText($description)) > TS_DESC_MAX) $errors['description'] = "Description must not exceed " . TS_DESC_MAX . " characters.";
+    elseif (strlen($description) > TS_HTML_MAX_BYTES) $errors['description'] = "Description has too much formatting. Please shorten it.";
+    if (mb_strlen(tsHtmlText($remarks)) > TS_REMARKS_MAX) $errors['remarks'] = "Remarks must not exceed " . TS_REMARKS_MAX . " characters.";
+    elseif (strlen($remarks) > TS_HTML_MAX_BYTES) $errors['remarks'] = "Remarks have too much formatting. Please shorten them.";
     if (!isset(TS_TASK_STATUS[$taskStatus])) $errors['taskStatus'] = "Please select the task status.";
     if ($reportTo === '') $errors['reportTo'] = "Please select the reporting manager.";
 
@@ -53,6 +60,10 @@ try {
     );
     if (!$category) {
         apiResponse(false, "Please select a valid category.", null, 400, ['categoryId' => "Please select a valid category."]);
+    }
+
+    if (!multiRec("SELECT ID FROM EPT_TS_PROJECT WHERE ID = :ID AND STATUS = 'A'", [':ID' => $projectId])) {
+        apiResponse(false, "Please select a valid project.", null, 400, ['projectId' => "Please select a valid project."]);
     }
 
     // The manager must be one the employee is allowed to pick (own department / REPORT_TO).
@@ -113,6 +124,7 @@ try {
     /* ---------- save ---------- */
 
     $binds = [
+        ':PROJECT_ID'  => $projectId,
         ':CATEGORY_ID' => $categoryId,
         ':TASK_TITLE'  => $title,
         ':TASK_DESC'   => $description,
@@ -133,7 +145,7 @@ try {
 
         tsExec(
             "UPDATE EPT_TIMESHEET_TASK
-                SET CATEGORY_ID = :CATEGORY_ID, TASK_TITLE = :TASK_TITLE, TASK_DESC = :TASK_DESC,
+                SET PROJECT_ID = :PROJECT_ID, CATEGORY_ID = :CATEGORY_ID, TASK_TITLE = :TASK_TITLE, TASK_DESC = :TASK_DESC,
                     TASK_STATUS = :TASK_STATUS, REMARKS = :REMARKS, REPORT_TO = :REPORT_TO,
                     CHG_BY = :EMP_CODE, CHG_ON = SYSDATE {$docSql}
               WHERE ID = :ID AND TS_ID = :TS_ID",
@@ -142,10 +154,10 @@ try {
     } else {
         tsExec(
             "INSERT INTO EPT_TIMESHEET_TASK
-                (TS_ID, CATEGORY_ID, TASK_TITLE, TASK_DESC, TASK_STATUS, REMARKS, REPORT_TO,
+                (TS_ID, PROJECT_ID, CATEGORY_ID, TASK_TITLE, TASK_DESC, TASK_STATUS, REMARKS, REPORT_TO,
                  DOC_NAME, DOC_PATH, CREATED_BY, CREATED_ON)
              VALUES
-                (:TS_ID, :CATEGORY_ID, :TASK_TITLE, :TASK_DESC, :TASK_STATUS, :REMARKS, :REPORT_TO,
+                (:TS_ID, :PROJECT_ID, :CATEGORY_ID, :TASK_TITLE, :TASK_DESC, :TASK_STATUS, :REMARKS, :REPORT_TO,
                  :DOC_NAME, :DOC_PATH, :EMP_CODE, SYSDATE)",
             $binds + [
                 ':TS_ID'    => $tsId,

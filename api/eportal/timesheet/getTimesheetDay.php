@@ -14,12 +14,13 @@ try {
     $tasks = [];
     if ($day) {
         $tasks = multiRec(
-            "SELECT T.ID, T.CATEGORY_ID, C.CAT_DESC, T.TASK_TITLE, T.TASK_DESC,
+            "SELECT T.ID, T.CATEGORY_ID, C.CAT_DESC, T.PROJECT_ID, P.PROJ_DESC, T.TASK_TITLE, T.TASK_DESC,
                     T.TASK_STATUS, T.REMARKS, T.DOC_NAME, T.REPORT_TO,
                     TRIM(M.EMP_FNAME || ' ' || M.EMP_LNAME) AS REPORT_TO_NAME
                FROM EPT_TIMESHEET_TASK T
                JOIN EPT_TS_CATEGORY C ON C.ID = T.CATEGORY_ID
                LEFT JOIN EPT_BCS_EMPLOYEE M ON M.EMP_CODE = T.REPORT_TO
+               LEFT JOIN EPT_TS_PROJECT P ON P.ID = T.PROJECT_ID
               WHERE T.TS_ID = :TS_ID
               ORDER BY T.ID",
             [':TS_ID' => $day['ID']]
@@ -53,14 +54,20 @@ try {
             "categoryId"     => (int)$t['CATEGORY_ID'],
             "category"       => $t['CAT_DESC'],
             "title"          => $t['TASK_TITLE'],
-            "description"    => $t['TASK_DESC'] ?? "",
+            "projectId"      => $t['PROJECT_ID'] !== null ? (int)$t['PROJECT_ID'] : "",
+            "project"        => $t['PROJ_DESC'] ?? "",
+            // Formatted text: cleaned HTML (editor / popup) and plain text (table, tooltip).
+            "description"    => tsCleanHtml($t['TASK_DESC'] ?? ""),
+            "descriptionText" => tsHtmlText(tsCleanHtml($t['TASK_DESC'] ?? "")),
             "taskStatus"     => $t['TASK_STATUS'],
             "taskStatusText" => TS_TASK_STATUS[$t['TASK_STATUS']] ?? $t['TASK_STATUS'],
-            "remarks"        => $t['REMARKS'] ?? "",
+            "remarks"        => tsCleanHtml($t['REMARKS'] ?? ""),
+            "remarksText"    => tsHtmlText(tsCleanHtml($t['REMARKS'] ?? "")),
             "documentName"   => $t['DOC_NAME'] ?? "",
             "reportTo"       => $t['REPORT_TO'] ?? "",
             "reportToName"   => $t['REPORT_TO_NAME'] ?? "",
         ], $tasks),
+        "projects"   => tsProjectOptions(),
         "categories" => array_map(fn($c) => [
             "value" => (int)$c['ID'],
             "label" => $c['CAT_DESC'],

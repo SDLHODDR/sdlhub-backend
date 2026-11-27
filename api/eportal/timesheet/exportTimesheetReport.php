@@ -22,9 +22,9 @@ try {
     $sheet->setTitle('Timesheet Report');
 
     $headers = [
-        'Date', 'Employee Name', 'Category', 'Task', 'Description', 'Remarks', 'Task Status', 'Submitted On',
+        'Date', 'Employee Name', 'Project', 'Category', 'Task', 'Description', 'Remarks', 'Task Status', 'Submitted On',
     ];
-    $lastCol = 'H';
+    $lastCol = 'I';
     $sheet->fromArray($headers, null, 'A1');
     $sheet->getStyle("A1:{$lastCol}1")->getFont()->setBold(true);
     $sheet->getStyle("A1:{$lastCol}1")->getFill()->setFillType('solid')->getStartColor()->setRGB('FFE0B2');
@@ -35,10 +35,12 @@ try {
         $values = [
             date('d-M-Y', strtotime($r['TS_DATE'])),
             $r['EMP_NAME'] ?: $r['EMP_CODE'],
+            $r['PROJ_DESC'] ?? '',
             $r['CAT_DESC'],
             $r['TASK_TITLE'],
-            $r['TASK_DESC'] ?? '',
-            $r['REMARKS'] ?? '',
+            // Formatted text as plain text: one line per paragraph, "• " / "1. " for list items.
+            tsHtmlText(tsCleanHtml($r['TASK_DESC'] ?? '')),
+            tsHtmlText(tsCleanHtml($r['REMARKS'] ?? '')),
             TS_TASK_STATUS[$r['TASK_STATUS']] ?? $r['TASK_STATUS'],
             // Submitted time only for submitted days (a reopened Draft keeps its old time).
             $r['DAY_STATUS'] === 'S' ? ($r['SUBMITTED_ON'] ?? '') : '',
@@ -54,7 +56,7 @@ try {
         $sheet->getColumnDimension($col)->setAutoSize(true);
     }
     // Long text columns (Task, Description, Remarks): fixed width, wrapped.
-    foreach (['D' => 40, 'E' => 60, 'F' => 40] as $col => $width) {
+    foreach (['E' => 40, 'F' => 60, 'G' => 40] as $col => $width) {
         $sheet->getColumnDimension($col)->setAutoSize(false)->setWidth($width);
         $sheet->getStyle("{$col}2:{$col}" . max(2, $line - 1))->getAlignment()->setWrapText(true);
     }

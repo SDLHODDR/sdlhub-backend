@@ -39,6 +39,231 @@ const TS_TASK_STATUS = [
     'H' => 'On Hold',
 ];
 
+/* Formatted text (description, remarks) is stored as cleaned HTML, at most this many bytes (column size). */
+const TS_HTML_MAX_BYTES = 4000;
+
+/* Fonts the editor's Font dropdown offers; <font face> is kept only for these. Sizes 1-7 (<font size>). */
+const TS_FONT_FACES = ['Nunito', 'Arial', 'Georgia', 'Times New Roman', 'Courier New', 'Verdana', 'Tahoma'];
+
+/* Tags the editor may produce and that are kept; everything else is removed (its text kept). */
+const TS_HTML_TAGS = ['p', 'br', 'div', 'ul', 'ol', 'li', 'b', 'strong', 'i', 'em', 'u'];
+
+/*
+ * Cleans formatted text from the editor: keeps only TS_HTML_TAGS, removes
+ * every attribute (no style, links or event handlers), drops script/style
+ * content. Plain text (older tasks, or typed without formatting) is escaped
+ * and its line breaks kept. Returns "" for empty content.
+ */
+function tsCleanHtml($html)
+{
+    $html = trim((string)$html);
+    if ($html === '') {
+        return '';
+    }
+    if (strpos($html, '<') === false) {
+        return nl2br(htmlspecialchars($html, ENT_QUOTES, 'UTF-8'), false);
+    }
+
+    $doc = new DOMDocument();
+    libxml_use_internal_errors(true);
+    $doc->loadHTML('<?xml encoding="UTF-8"><div id="ts-root">' . $html . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET);
+    libxml_clear_errors();
+    $root = $doc->getElementById('ts-root');
+    if (!$root) {
+        return nl2br(htmlspecialchars(strip_tags($html), ENT_QUOTES, 'UTF-8'), false);
+    }
+
+    // Pasted web content: headings / blocks become paragraphs, styled spans become b / i / u,
+    // so the formatting survives; anything else keeps only its text.
+    $headings = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+    $blocks = ['blockquote', 'pre', 'section', 'article', 'header', 'footer', 'main', 'aside', 'nav', 'figure',
+               'figcaption', 'address', 'dl', 'dt', 'dd', 'form', 'fieldset', 'legend', 'table', 'thead', 'tbody',
+               'tfoot', 'tr', 'center', 'details', 'summary', 'caption'];
+    $spaced = ['td', 'th', 'label', 'button', 'option'];          // keep a space after their text
+    $dropped = ['script', 'style', 'iframe', 'object', 'embed', 'template', 'noscript', 'svg', 'canvas',
+                'input', 'select', 'textarea', 'img', 'video', 'audio', 'picture', 'source', 'link', 'meta', 'head', 'title'];
+
+    $rename = function (DOMElement $el, string $tag) use ($doc) {
+        $new = $doc->createElement($tag);
+        while ($el->firstChild) {
+            $new->appendChild($el->firstChild);
+        }
+        $el->parentNode->replaceChild($new, $el);
+        return $new;
+    };
+
+    $clean = function (DOMNode $node) use (&$clean, $doc, $rename, $headings, $blocks, $spaced, $dropped) {
+        foreach (iterator_to_array($node->childNodes) as $child) {
+            if (!($child instanceof DOMElement)) {
+                if (!($child instanceof DOMText)) {
+                    $node->removeChild($child);   // comments, processing instructions
+                }
+                continue;
+            }
+
+            $tag = strtolower($child->tagName);
+            if (in_array($tag, $dropped, true)) {
+                if (in_array($tag, ['input', 'select', 'textarea', 'img'], true)) {
+                    $node->insertBefore($doc->createTextNode(' '), $child);
+                }
+                $node->removeChild($child);
+                continue;
+            }
+
+            // Formatting given by inline style (common in pasted content).
+            $style = strtolower((string)$child->getAttribute('style'));
+            $wrapTags = [];
+            if ($style !== '') {
+                if (preg_match('/font-weight\s*:\s*(bold|bolder|[6-9]00)/', $style)) $wrapTags[] = 'b';
+                if (preg_match('/font-style\s*:\s*italic/', $style)) $wrapTags[] = 'i';
+                if (preg_match('/text-decoration[^;]*underline/', $style)) $wrapTags[] = 'u';
+            }
+
+            $clean($child);
+
+            // Font size / font from the editor: keep only a valid size (1-7) and a listed face.
+            if ($tag === 'font') {
+                $size = trim((string)$child->getAttribute('size'));
+                $face = trim((string)$child->getAttribute('face'), " '\"");
+                while ($child->attributes->length) {
+                    $child->removeAttribute($child->attributes->item(0)->nodeName);
+                }
+                if (preg_match('/^[1-7]$/', $size)) {
+                    $child->setAttribute('size', $size);
+                }
+                $knownFace = array_values(array_filter(TS_FONT_FACES, fn($f) => strcasecmp($f, $face) === 0));
+                if ($knownFace) {
+                    $child->setAttribute('face', $knownFace[0]);
+                }
+                if ($child->attributes->length) {
+                    continue;   // kept as <font size / face>
+                }
+                // nothing valid left: falls through and is unwrapped below
+            }
+
+            if (in_array($tag, $headings, true)) {
+                $p = $doc->createElement('p');
+                $b = $doc->createElement('b');
+                while ($child->firstChild) {
+                    $b->appendChild($child->firstChild);
+                }
+                $p->appendChild($b);
+                $node->replaceChild($p, $child);
+                continue;
+            }
+            if (in_array($tag, $blocks, true)) {
+                $child = $rename($child, 'div');
+                $tag = 'div';
+            }
+
+            if (in_array($tag, TS_HTML_TAGS, true)) {
+                while ($child->attributes->length) {
+                    $child->removeAttribute($child->attributes->item(0)->nodeName);
+                }
+                // Styled block (e.g. <div style="font-weight:bold">): wrap its content.
+                foreach ($wrapTags as $w) {
+                    $wrap = $doc->createElement($w);
+                    while ($child->firstChild) {
+                        $wrap->appendChild($child->firstChild);
+                    }
+                    $child->appendChild($wrap);
+                }
+                continue;
+            }
+
+            // Not allowed (span, a, font, ...): keep its content, in b / i / u when it was styled.
+            $target = $node;
+            $before = $child;
+            if ($wrapTags) {
+                $outer = $doc->createElement($wrapTags[0]);
+                $inner = $outer;
+                foreach (array_slice($wrapTags, 1) as $w) {
+                    $inner = $inner->appendChild($doc->createElement($w));
+                }
+                $node->insertBefore($outer, $child);
+                $target = $inner;
+                $before = null;
+            }
+            while ($child->firstChild) {
+                $target->insertBefore($child->firstChild, $before);
+            }
+            if (in_array($tag, $spaced, true)) {
+                $node->insertBefore($doc->createTextNode(' '), $child);
+            }
+            $node->removeChild($child);
+        }
+    };
+    $clean($root);
+
+    $out = '';
+    foreach ($root->childNodes as $child) {
+        $out .= $doc->saveHTML($child);
+    }
+    // Nothing visible left (e.g. "<p><br></p>") counts as empty.
+    return tsHtmlText($out) === '' ? '' : trim($out);
+}
+
+/* Plain text of formatted text: one line per paragraph, "• " / "1. " for list items. */
+function tsHtmlText($html)
+{
+    $html = (string)$html;
+    if ($html === '') {
+        return '';
+    }
+    if (strpos($html, '<') === false) {
+        return trim(html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    }
+
+    $doc = new DOMDocument();
+    libxml_use_internal_errors(true);
+    $doc->loadHTML('<?xml encoding="UTF-8"><div id="ts-root">' . $html . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET);
+    libxml_clear_errors();
+
+    $walk = function (DOMNode $node, $prefix = '') use (&$walk) {
+        $text = '';
+        $number = 0;
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof DOMText) {
+                $text .= $child->nodeValue;
+                continue;
+            }
+            if (!($child instanceof DOMElement)) {
+                continue;
+            }
+            $tag = strtolower($child->tagName);
+            if ($tag === 'br') {
+                $text .= "\n";
+            } elseif ($tag === 'li') {
+                $number++;
+                $marker = $node->nodeName === 'ol' ? "{$number}. " : '• ';
+                $text .= "\n" . $prefix . $marker . trim($walk($child, $prefix . '   ')) . "\n";
+            } elseif (in_array($tag, ['p', 'div', 'ul', 'ol'], true)) {
+                $text .= "\n" . $walk($child, $tag === 'ul' || $tag === 'ol' ? $prefix : $prefix) . "\n";
+            } else {
+                $text .= $walk($child, $prefix);
+            }
+        }
+        return $text;
+    };
+
+    $root = $doc->getElementById('ts-root');
+    $text = $root ? $walk($root) : strip_tags($html);
+    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $text = preg_replace("/(?<=\S)[ \t]{2,}/u", " ", $text);   // runs of spaces inside a line
+    $text = preg_replace("/[ \t]+\n/", "\n", $text);          // trailing spaces
+    $text = preg_replace("/\n[ \t]+(?!•|\d+\. )/u", "\n", $text);   // leading spaces, except nested list indent
+    $text = preg_replace("/\n+/", "\n", $text);   // one line per paragraph / list item
+    return trim($text);
+}
+
+/* Active projects for the task form: [{ value, label }]. */
+function tsProjectOptions()
+{
+    return array_map(fn($p) => ['value' => (int)$p['ID'], 'label' => $p['PROJ_DESC']], multiRec(
+        "SELECT ID, PROJ_DESC FROM EPT_TS_PROJECT WHERE STATUS = 'A' ORDER BY SEQ, PROJ_DESC"
+    ));
+}
+
 /* Task documents: stored under DOCUMENT_ROOT/uploads/timesheet, served by viewTimesheetDocument.php. */
 const TS_DOC_DIR = "uploads/timesheet";
 const TS_DOC_MAX_BYTES = 2 * 1024 * 1024;   // PHP upload_max_filesize on this server is 2M
@@ -337,7 +562,7 @@ function tsReportRows($managerCode, $from, $to, $empCode = '')
                 TRIM(E.EMP_FNAME || ' ' || E.EMP_LNAME) AS EMP_NAME,
                 H.STATUS AS DAY_STATUS,
                 TO_CHAR(H.SUBMITTED_ON, 'DD-Mon-YYYY HH24:MI') AS SUBMITTED_ON,
-                T.ID, C.CAT_DESC, T.TASK_TITLE, T.TASK_DESC, T.TASK_STATUS, T.REMARKS,
+                T.ID, C.CAT_DESC, P.PROJ_DESC, T.TASK_TITLE, T.TASK_DESC, T.TASK_STATUS, T.REMARKS,
                 T.DOC_NAME, T.REPORT_TO,
                 TRIM(M.EMP_FNAME || ' ' || M.EMP_LNAME) AS REPORT_TO_NAME
            FROM EPT_TIMESHEET_TASK T
@@ -345,6 +570,7 @@ function tsReportRows($managerCode, $from, $to, $empCode = '')
            JOIN EPT_TS_CATEGORY C ON C.ID = T.CATEGORY_ID
            LEFT JOIN EPT_BCS_EMPLOYEE E ON E.EMP_CODE = H.EMP_CODE
            LEFT JOIN EPT_BCS_EMPLOYEE M ON M.EMP_CODE = T.REPORT_TO
+           LEFT JOIN EPT_TS_PROJECT P ON P.ID = T.PROJECT_ID
           WHERE H.TS_DATE BETWEEN TO_DATE(:D_FROM, 'YYYY-MM-DD') AND TO_DATE(:D_TO, 'YYYY-MM-DD')
             AND (H.EMP_CODE = :MANAGER OR (T.REPORT_TO = :MANAGER AND H.STATUS IN ('S', 'A', 'R')))
             AND (:EMP_FILTER IS NULL OR H.EMP_CODE = :EMP_FILTER)
